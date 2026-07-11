@@ -1,0 +1,32 @@
+---
+import PrintArticle from '../../layouts/PrintArticle.astro';
+
+export function getStaticPaths() {
+  const articleModules = import.meta.glob('../../../articles/*.md', { eager: true });
+
+  return Object.entries(articleModules).map(([file, article]) => {
+    const frontmatter = article.frontmatter;
+    const explicitSlug = frontmatter.slug;
+    const fileName = file.split('/').pop() ?? 'article.md';
+    const fileSlug = fileName.replace(/\.md$/, '');
+    const slug = typeof explicitSlug === 'string' ? explicitSlug : fileSlug;
+
+    return {
+      params: { slug },
+      props: {
+        article: {
+          Content: article.default,
+          frontmatter,
+        },
+      },
+    };
+  });
+}
+
+const { article } = Astro.props;
+const { Content, frontmatter } = article;
+---
+
+<PrintArticle frontmatter={frontmatter}>
+  <Content />
+</PrintArticle>

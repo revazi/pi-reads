@@ -1,0 +1,37 @@
+---
+import '../styles/print.css';
+
+const articleModules = import.meta.glob('../../articles/*.md', { eager: true });
+const entries = Object.entries(articleModules).map(([file, article]) => {
+  const frontmatter = article.frontmatter;
+  const title = typeof frontmatter.title === 'string' ? frontmatter.title : 'Untitled article';
+  const explicitSlug = frontmatter.slug;
+  const fileName = file.split('/').pop() ?? 'article.md';
+  const fileSlug = fileName.replace(/\.md$/, '');
+  const slug = typeof explicitSlug === 'string' ? explicitSlug : fileSlug;
+
+  return { slug, title };
+});
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Irakli Reads</title>
+  </head>
+  <body>
+    <main class="article-shell">
+      <header class="article-header">
+        <h1 class="article-title">Irakli Reads</h1>
+        <p class="article-description">Printer-friendly articles rendered with Astro and Shiki GitHub Light.</p>
+      </header>
+      <div class="article-body">
+        <ul>
+          {entries.map((entry) => <li><a href={`/read/${entry.slug}/`}>{entry.title}</a></li>)}
+        </ul>
+      </div>
+    </main>
+  </body>
+</html>

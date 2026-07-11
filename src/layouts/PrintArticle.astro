@@ -1,0 +1,40 @@
+---
+import '../styles/print.css';
+
+interface Props {
+  frontmatter: Record<string, unknown>;
+}
+
+const { frontmatter } = Astro.props;
+
+const getString = (value: unknown) => (typeof value === 'string' ? value : '');
+
+const title = getString(frontmatter.title) || 'Untitled article';
+const description = getString(frontmatter.description);
+const author = getString(frontmatter.author);
+const date = getString(frontmatter.date);
+const source = getString(frontmatter.source);
+const meta = [author, date].filter(Boolean).join(' · ');
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+  </head>
+  <body>
+    <article class="article-shell">
+      <header class="article-header">
+        <h1 class="article-title">{title}</h1>
+        {description && <p class="article-description">{description}</p>}
+        {meta && <p class="article-meta">{meta}</p>}
+        {source && <p class="article-source">Source: {source}</p>}
+      </header>
+      <main class="article-body">
+        <slot />
+      </main>
+    </article>
+  </body>
+</html>

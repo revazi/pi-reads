@@ -1,0 +1,38 @@
+{
+  "name": "irakli-reads",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@10.33.0",
+  "description": "Deterministic web article to printable HTML/PDF pipeline using Astro, Shiki, and Playwright.",
+  "type": "module",
+  "scripts": {
+    "dev": "ASTRO_TELEMETRY_DISABLED=1 astro dev",
+    "build": "ASTRO_TELEMETRY_DISABLED=1 astro build",
+    "preview": "ASTRO_TELEMETRY_DISABLED=1 astro preview",
+    "article:check": "tsc --noEmit -p tsconfig.scripts.json",
+    "article:fetch": "node scripts/fetch-article.ts",
+    "article:install-browser": "playwright install chromium",
+    "article:pdf": "ASTRO_TELEMETRY_DISABLED=1 astro build && node scripts/verify-fidelity.ts && node scripts/render-pdfs.ts",
+    "article:read": "node scripts/print-article.ts",
+    "article:render": "ASTRO_TELEMETRY_DISABLED=1 astro build && node scripts/verify-fidelity.ts",
+    "article:verify": "node scripts/verify-fidelity.ts"
+  },
+  "dependencies": {
+    "@mozilla/readability": "latest",
+    "astro": "latest",
+    "jsdom": "latest",
+    "shiki": "latest",
+    "turndown": "latest",
+    "turndown-plugin-gfm": "latest"
+  },
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "devDependencies": {
+    "@types/jsdom": "^28.0.3",
+    "@types/node": "^26.1.1",
+    "@types/turndown": "^5.0.6",
+    "playwright": "^1.61.1",
+    "typescript": "^7.0.2"
+  }
+}

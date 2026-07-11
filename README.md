@@ -1,0 +1,113 @@
+# Irakli Reads
+
+Deterministic article-to-print pipeline:
+
+```txt
+URL
+  -> Readability extracts article DOM
+  -> deterministic cleanup cleans links/code/metadata
+  -> Markdown is written without LLM rewriting
+  -> Astro renders with Shiki GitHub Light
+  -> fidelity verifier checks rendered text hash
+  -> Playwright exports PDFs from the print HTML
+```
+
+Design goals:
+
+- preserve article prose word-for-word; do not rewrite with an LLM
+- black-on-white article body
+- light syntax highlighting with Shiki `github-light`
+- links print as `label {clean-url}`
+- referral/tracking params are stripped before rendering
+- TypeScript-only scripts, run directly on Node 24's native type stripping; TypeScript 7 is used for checking
+
+## Install
+
+Requires Node.js 24+ and pnpm.
+
+```sh
+pnpm install
+pnpm article:install-browser
+```
+
+## One-command article PDF
+
+```sh
+pnpm article:read '<article-url>' --slug '<slug>'
+```
+
+The skill-local wrapper does the same thing:
+
+```sh
+node skills/irakli-reads/scripts/print-article.ts '<article-url>' --slug '<slug>'
+```
+
+Both fetch the article, build Astro, verify fidelity, and write `pdfs/<slug>.pdf`.
+
+## Fetch an article
+
+```sh
+pnpm article:fetch '<article-url>' \
+  --slug '<slug>' \
+  --save-html 'sources/<slug>.html'
+```
+
+This writes `articles/<slug>.md`.
+
+## Build printable pages
+
+```sh
+pnpm article:render
+```
+
+That runs Astro build and the fidelity verifier. Open the printable page:
+
+```sh
+open 'dist/read/<slug>/index.html'
+```
+
+## Build PDFs
+
+Generate PDFs for every fetched article:
+
+```sh
+pnpm article:pdf
+```
+
+PDFs are written to `pdfs/<slug>.pdf`. To generate selected articles only:
+
+```sh
+pnpm article:pdf -- '<slug-a>' '<slug-b>'
+```
+
+## Check TypeScript scripts
+
+```sh
+pnpm article:check
+```
+
+## Verify fidelity only
+
+```sh
+pnpm article:verify
+```
+
+The fetcher stores `sourceTextHash` in Markdown frontmatter. The verifier compares that hash with the rendered `.article-body` text from `dist/`. CSS-generated printed link URLs do not affect the hash.
+
+## Local dev
+
+```sh
+pnpm dev
+```
+
+Then open `http://localhost:4321/read/<slug>/`.
+
+## Generated files
+
+Fetched article Markdown, raw HTML, rendered HTML, and PDFs are generated locally under `articles/`, `sources/`, `dist/`, and `pdfs/`. Article Markdown and PDFs are intentionally ignored so the repository does not publish copied article bodies or generated artifacts.
+
+## Notes
+
+- Markdown is an archive/editing format, not an excuse to paraphrase.
+- If verification fails, fix extraction/rendering. Do not manually rewrite article prose unless the source page itself requires a deterministic correction.
+- PDF export uses Playwright/Chromium from the already-rendered print HTML.
