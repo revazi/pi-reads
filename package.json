@@ -18,6 +18,7 @@
     "article:verify": "node scripts/verify-fidelity.ts"
   },
   "dependencies": {
+    "@astrojs/markdown-satteri": "0.3.3",
     "@mozilla/readability": "latest",
     "astro": "latest",
     "jsdom": "latest",

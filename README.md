@@ -6,8 +6,9 @@ Deterministic article-to-print pipeline:
 URL
   -> Readability extracts article DOM
   -> deterministic cleanup cleans links/code/metadata
+  -> Chromium detects whether the source body is serif or sans-serif
   -> Markdown is written without LLM rewriting
-  -> Astro renders with Shiki GitHub Light
+  -> Astro renders with the matching local font stack and Shiki GitHub Light
   -> fidelity verifier checks rendered text hash
   -> Playwright exports PDFs from the print HTML
 ```
@@ -16,8 +17,11 @@ Design goals:
 
 - preserve article prose word-for-word; do not rewrite with an LLM
 - black-on-white article body
+- preserve the source article's serif/sans-serif body category using controlled print font stacks
 - light syntax highlighting with Shiki `github-light`
 - links print as `label {clean-url}`
+- descriptions prefer page metadata and are omitted when they repeat the opening prose or contain only a byline
+- redundant linked bylines and internal-link table-of-contents blocks are removed from the article body
 - referral/tracking params are stripped before rendering
 - TypeScript-only scripts, run directly on Node 24's native type stripping; TypeScript 7 is used for checking
 
@@ -42,7 +46,21 @@ The skill-local wrapper does the same thing:
 node skills/irakli-reads/scripts/print-article.ts '<article-url>' --slug '<slug>'
 ```
 
-Both fetch the article, build Astro, verify fidelity, and write `pdfs/<slug>.pdf`.
+Both fetch the article, build Astro, verify fidelity, and write `pdfs/<slug>.pdf`. To reduce only the article prose from 11pt to 10pt, add the deterministic `--smaller-body-font` option:
+
+```sh
+pnpm article:read '<article-url>' --slug '<slug>' --smaller-body-font
+```
+
+The option records `bodyFontSizeAdjustment: -1` in article frontmatter; it is not enabled by default.
+
+To cap images at a percentage of the article width without enlarging smaller images, use `--image-scale` with an integer from 1 to 100. For example:
+
+```sh
+pnpm article:read '<article-url>' --slug '<slug>' --image-scale 80
+```
+
+This records `imageScalePercent: 80` in article frontmatter. Font and image options can be combined.
 
 ## Fetch an article
 
@@ -110,4 +128,5 @@ Fetched article Markdown, raw HTML, rendered HTML, and PDFs are generated locall
 
 - Markdown is an archive/editing format, not an excuse to paraphrase.
 - If verification fails, fix extraction/rendering. Do not manually rewrite article prose unless the source page itself requires a deterministic correction.
+- Font detection records `sourceFontStyle` in article frontmatter. It uses rendered source paragraphs when Chromium is available and falls back to the serif stack when detection is unavailable or inconclusive.
 - PDF export uses Playwright/Chromium from the already-rendered print HTML.

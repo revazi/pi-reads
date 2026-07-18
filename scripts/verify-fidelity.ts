@@ -3,7 +3,7 @@ import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 import { JSDOM } from 'jsdom';
-import { articleSlug, errorMessage, normalizeText, parseFrontmatter, sha256 } from './shared.ts';
+import { articleSlug, errorMessage, normalizeText, parseFrontmatter, sha256, textForHash } from './shared.ts';
 
 interface PassResult {
   status: 'pass';
@@ -59,7 +59,7 @@ async function verifyArticle(articlePath: string): Promise<VerifyResult> {
     return { status: 'fail', articlePath, slug, reason: 'rendered page has no .article-body' };
   }
 
-  const actualText = normalizeText(body.textContent ?? '');
+  const actualText = normalizeText(textForHash(body));
   const actualHash = sha256(actualText);
   if (actualHash !== expectedHash) {
     return {

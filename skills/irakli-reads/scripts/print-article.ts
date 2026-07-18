@@ -32,7 +32,7 @@ function run(command: string, args: string[], cwd: string): Promise<void> {
 
 async function main(): Promise<void> {
   if (process.argv.length < 3 || process.argv.includes('--help')) {
-    console.error("Usage: node skills/irakli-reads/scripts/print-article.ts '<URL>' --slug '<slug>' [--open]");
+    console.error("Usage: node skills/irakli-reads/scripts/print-article.ts '<URL>' --slug '<slug>' [--smaller-body-font] [--image-scale 1-100] [--open]");
     process.exit(1);
   }
 

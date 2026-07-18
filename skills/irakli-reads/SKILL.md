@@ -13,7 +13,7 @@ Goal: deterministic article print. The article body is evidence, not prose to im
    ```sh
    node skills/irakli-reads/scripts/print-article.ts '<URL>' --slug '<slug>'
    ```
-   If Chromium is missing, run `pnpm article:install-browser` once and retry. Done when `articles/<slug>.md`, `dist/read/<slug>/index.html`, and `pdfs/<slug>.pdf` exist after a passing fidelity verifier run.
+   Add `--smaller-body-font` only when requested to reduce article prose from 11pt to 10pt. Add `--image-scale <1-100>` when requested to cap images at a percentage of article width. If Chromium is missing, run `pnpm article:install-browser` once and retry. Done when `articles/<slug>.md`, `dist/read/<slug>/index.html`, and `pdfs/<slug>.pdf` exist after a passing fidelity verifier run.
 
 2. **Inspect.** Read the Markdown for extraction artifacts: nav text, ads, broken code fences, missing headings, or malformed links. Done when every artifact is either fixed in deterministic extraction code or accepted as source content.
 
@@ -21,7 +21,7 @@ Goal: deterministic article print. The article body is evidence, not prose to im
    ```sh
    open dist/read/<slug>/index.html
    ```
-   Done when the browser print preview shows black-on-white body text, Shiki GitHub Light code, and printed links as `label {clean-url}`.
+   Done when the browser print preview shows black-on-white body text using the detected serif/sans-serif stack, Shiki GitHub Light code, and printed links as `label {clean-url}`.
 
 ## Rules
 

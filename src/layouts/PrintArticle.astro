@@ -14,6 +14,19 @@ const description = getString(frontmatter.description);
 const author = getString(frontmatter.author);
 const date = getString(frontmatter.date);
 const source = getString(frontmatter.source);
+const sourceFontStyle = getString(frontmatter.sourceFontStyle);
+const fontStyle = sourceFontStyle === 'sans-serif' ? 'sans-serif' : 'serif';
+const bodyFontSize = frontmatter.bodyFontSizeAdjustment === -1 ? 'smaller' : 'default';
+const configuredImageScale = frontmatter.imageScalePercent;
+const imageScalePercent =
+  typeof configuredImageScale === 'number' &&
+  Number.isInteger(configuredImageScale) &&
+  configuredImageScale >= 1 &&
+  configuredImageScale <= 100
+    ? configuredImageScale
+    : 100;
+const imageSizing = imageScalePercent < 100 ? 'scaled' : 'default';
+const printVariables = `--article-image-max-width: ${imageScalePercent}%`;
 const meta = [author, date].filter(Boolean).join(' · ');
 ---
 
@@ -24,7 +37,12 @@ const meta = [author, date].filter(Boolean).join(' · ');
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{title}</title>
   </head>
-  <body>
+  <body
+    data-font-style={fontStyle}
+    data-body-font-size={bodyFontSize}
+    data-image-sizing={imageSizing}
+    style={printVariables}
+  >
     <article class="article-shell">
       <header class="article-header">
         <h1 class="article-title">{title}</h1>

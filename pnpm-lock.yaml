@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@astrojs/markdown-satteri':
+        specifier: 0.3.3
+        version: 0.3.3
       '@mozilla/readability':
         specifier: latest
         version: 0.6.0
