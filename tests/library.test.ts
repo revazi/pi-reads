@@ -205,6 +205,45 @@ test('configuration follows explicit, environment, config, and default precedenc
     () => parseConfig({ schemaVersion: 1, obsidian: { vaultPath: '/vault', frontmatter: { title: 'replace' } } }),
     /reserved property title/,
   );
+  assert.deepEqual(
+    parseConfig({
+      schemaVersion: 1,
+      kindle: {
+        deviceLabel: 'Paperwhite',
+        defaultFormat: 'epub',
+        recipientEnv: 'MY_KINDLE_RECIPIENT',
+        smtp: {
+          host: 'smtp.example.test',
+          port: 587,
+          secure: false,
+          userEnv: 'MY_SMTP_USER',
+          passwordEnv: 'MY_SMTP_PASSWORD',
+          fromEnv: 'MY_SMTP_FROM',
+        },
+      },
+    }).kindle,
+    {
+      deviceLabel: 'Paperwhite',
+      defaultFormat: 'epub',
+      recipientEnv: 'MY_KINDLE_RECIPIENT',
+      smtp: {
+        host: 'smtp.example.test',
+        port: 587,
+        secure: false,
+        userEnv: 'MY_SMTP_USER',
+        passwordEnv: 'MY_SMTP_PASSWORD',
+        fromEnv: 'MY_SMTP_FROM',
+      },
+    },
+  );
+  assert.throws(
+    () => parseConfig({ schemaVersion: 1, kindle: { recipientEnv: ['name', 'kindle.com'].join('@') } }),
+    /environment variable name/,
+  );
+  assert.throws(
+    () => parseConfig({ schemaVersion: 1, kindle: { smtp: { host: ['sender', 'example.test'].join('@') } } }),
+    /hostname, not a URL or email address/,
+  );
 
   const resolved = await resolveConfiguration({
     homeDir: home,
@@ -217,12 +256,21 @@ test('configuration follows explicit, environment, config, and default precedenc
   const configRoot = await mkdtemp(path.join(os.tmpdir(), 'pi-reads-config-'));
   try {
     const configPath = path.join(configRoot, 'pi-reads.json');
-    await writeFile(configPath, JSON.stringify({ schemaVersion: 1, obsidian: { vaultPath: '../vault' } }));
+    await writeFile(configPath, JSON.stringify({
+      schemaVersion: 1,
+      obsidian: { vaultPath: '../vault' },
+      kindle: { deviceLabel: 'Reader', smtp: { host: 'smtp.example.test' } },
+    }));
     const withObsidian = await resolveConfiguration({ configPath, homeDir: home, cwd, env: {} });
     assert.equal(withObsidian.obsidian?.vaultPath, path.resolve(configRoot, '../vault'));
     assert.equal(withObsidian.obsidian?.inboxFolder, 'Reading Inbox');
     assert.equal(withObsidian.obsidian?.attachmentFolder, 'Attachments/pi-reads');
     assert.equal(withObsidian.obsidian?.noteNameTemplate, '{{title}}');
+    assert.equal(withObsidian.kindle?.deviceLabel, 'Reader');
+    assert.equal(withObsidian.kindle?.defaultFormat, 'epub');
+    assert.equal(withObsidian.kindle?.recipientEnv, 'PI_READS_KINDLE_ADDRESS');
+    assert.equal(withObsidian.kindle?.smtp.host, 'smtp.example.test');
+    assert.equal(withObsidian.kindle?.smtp.passwordEnv, 'PI_READS_SMTP_PASSWORD');
   } finally {
     await rm(configRoot, { recursive: true, force: true });
   }

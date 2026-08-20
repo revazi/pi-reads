@@ -125,6 +125,20 @@ export interface ObsidianConfig {
   openAfterExport?: boolean;
 }
 
+export interface KindleConfig {
+  deviceLabel?: string;
+  defaultFormat?: 'epub' | 'pdf';
+  recipientEnv?: string;
+  smtp?: {
+    host?: string;
+    port?: number;
+    secure?: boolean;
+    userEnv?: string;
+    passwordEnv?: string;
+    fromEnv?: string;
+  };
+}
+
 export interface PiReadsConfig {
   schemaVersion: 1;
   libraryDir?: string;
@@ -133,6 +147,7 @@ export interface PiReadsConfig {
     exportFormat?: ExportFormat;
   };
   obsidian?: ObsidianConfig;
+  kindle?: KindleConfig;
 }
 
 export interface IngestedSourceDraft {

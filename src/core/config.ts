@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import type { ArticleMode, ExportFormat, FrontmatterValue, ObsidianConfig, PiReadsConfig } from './domain.ts';
+import type { ArticleMode, ExportFormat, FrontmatterValue, KindleConfig, ObsidianConfig, PiReadsConfig } from './domain.ts';
 import { errorMessage } from './errors.ts';
 
 const ARTICLE_MODES: ReadonlySet<ArticleMode> = new Set(['archive', 'digest', 'synthesis']);
@@ -37,11 +37,26 @@ export interface ResolvedObsidianConfig {
   openAfterExport: boolean;
 }
 
+export interface ResolvedKindleConfig {
+  deviceLabel?: string;
+  defaultFormat: 'epub' | 'pdf';
+  recipientEnv: string;
+  smtp: {
+    host?: string;
+    port: number;
+    secure: boolean;
+    userEnv: string;
+    passwordEnv: string;
+    fromEnv: string;
+  };
+}
+
 export interface ResolvedConfiguration {
   configPath: string;
   libraryDir: string;
   config: PiReadsConfig;
   obsidian?: ResolvedObsidianConfig;
+  kindle?: ResolvedKindleConfig;
 }
 
 export function expandLeadingTilde(value: string, homeDir = os.homedir()): string {
@@ -153,6 +168,66 @@ function assertObsidianTemplate(value: string | undefined): void {
   }
 }
 
+function assertEnvironmentName(value: unknown, name: string): asserts value is string | undefined {
+  assertOptionalString(value, name);
+  if (value !== undefined && !/^[A-Z_][A-Z0-9_]*$/u.test(value)) {
+    throw new Error(`${name} must be an uppercase environment variable name`);
+  }
+}
+
+function parseKindleConfig(value: unknown): KindleConfig {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error('kindle must be a JSON object');
+  }
+  const candidate = value as Record<string, unknown>;
+  assertKnownKeys(candidate, new Set(['deviceLabel', 'defaultFormat', 'recipientEnv', 'smtp']), 'kindle');
+  assertOptionalString(candidate.deviceLabel, 'kindle.deviceLabel');
+  if (typeof candidate.deviceLabel === 'string' && /[\r\n]/u.test(candidate.deviceLabel)) {
+    throw new Error('kindle.deviceLabel must be a single-line string');
+  }
+  if (candidate.defaultFormat !== undefined && candidate.defaultFormat !== 'epub' && candidate.defaultFormat !== 'pdf') {
+    throw new Error('kindle.defaultFormat must be epub or pdf');
+  }
+  assertEnvironmentName(candidate.recipientEnv, 'kindle.recipientEnv');
+
+  let smtp: KindleConfig['smtp'];
+  if (candidate.smtp !== undefined) {
+    if (!candidate.smtp || typeof candidate.smtp !== 'object' || Array.isArray(candidate.smtp)) {
+      throw new Error('kindle.smtp must be a JSON object');
+    }
+    const smtpCandidate = candidate.smtp as Record<string, unknown>;
+    assertKnownKeys(smtpCandidate, new Set(['host', 'port', 'secure', 'userEnv', 'passwordEnv', 'fromEnv']), 'kindle.smtp');
+    assertOptionalString(smtpCandidate.host, 'kindle.smtp.host');
+    if (typeof smtpCandidate.host === 'string' && (/[@/\s]/u.test(smtpCandidate.host) || smtpCandidate.host.includes('://'))) {
+      throw new Error('kindle.smtp.host must be a hostname, not a URL or email address');
+    }
+    if (smtpCandidate.port !== undefined && (!Number.isInteger(smtpCandidate.port) || (smtpCandidate.port as number) < 1 || (smtpCandidate.port as number) > 65535)) {
+      throw new Error('kindle.smtp.port must be an integer from 1 to 65535');
+    }
+    if (smtpCandidate.secure !== undefined && typeof smtpCandidate.secure !== 'boolean') {
+      throw new Error('kindle.smtp.secure must be a boolean');
+    }
+    for (const key of ['userEnv', 'passwordEnv', 'fromEnv'] as const) {
+      assertEnvironmentName(smtpCandidate[key], `kindle.smtp.${key}`);
+    }
+    smtp = {
+      ...(smtpCandidate.host === undefined ? {} : { host: smtpCandidate.host as string }),
+      ...(smtpCandidate.port === undefined ? {} : { port: smtpCandidate.port as number }),
+      ...(smtpCandidate.secure === undefined ? {} : { secure: smtpCandidate.secure }),
+      ...(smtpCandidate.userEnv === undefined ? {} : { userEnv: smtpCandidate.userEnv as string }),
+      ...(smtpCandidate.passwordEnv === undefined ? {} : { passwordEnv: smtpCandidate.passwordEnv as string }),
+      ...(smtpCandidate.fromEnv === undefined ? {} : { fromEnv: smtpCandidate.fromEnv as string }),
+    };
+  }
+
+  return {
+    ...(candidate.deviceLabel === undefined ? {} : { deviceLabel: candidate.deviceLabel as string }),
+    ...(candidate.defaultFormat === undefined ? {} : { defaultFormat: candidate.defaultFormat as 'epub' | 'pdf' }),
+    ...(candidate.recipientEnv === undefined ? {} : { recipientEnv: candidate.recipientEnv as string }),
+    ...(smtp === undefined ? {} : { smtp }),
+  };
+}
+
 function parseObsidianConfig(value: unknown): ObsidianConfig {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     throw new Error('obsidian must be a JSON object');
@@ -194,7 +269,7 @@ export function parseConfig(value: unknown): PiReadsConfig {
   }
 
   const candidate = value as Record<string, unknown>;
-  assertKnownKeys(candidate, new Set(['schemaVersion', 'libraryDir', 'defaults', 'obsidian']), 'pi-reads.json');
+  assertKnownKeys(candidate, new Set(['schemaVersion', 'libraryDir', 'defaults', 'obsidian', 'kindle']), 'pi-reads.json');
   if (candidate.schemaVersion !== 1) {
     throw new Error('pi-reads.json must use schemaVersion 1');
   }
@@ -232,6 +307,7 @@ export function parseConfig(value: unknown): PiReadsConfig {
     ...(candidate.libraryDir === undefined ? {} : { libraryDir: candidate.libraryDir }),
     ...(defaults === undefined ? {} : { defaults }),
     ...(candidate.obsidian === undefined ? {} : { obsidian: parseObsidianConfig(candidate.obsidian) }),
+    ...(candidate.kindle === undefined ? {} : { kindle: parseKindleConfig(candidate.kindle) }),
   };
 }
 
@@ -283,5 +359,27 @@ export async function resolveConfiguration(
       }
     : undefined;
 
-  return { configPath, libraryDir, config, ...(obsidian ? { obsidian } : {}) };
+  const kindle = config.kindle
+    ? {
+        ...(config.kindle.deviceLabel ? { deviceLabel: config.kindle.deviceLabel } : {}),
+        defaultFormat: config.kindle.defaultFormat ?? 'epub',
+        recipientEnv: config.kindle.recipientEnv ?? 'PI_READS_KINDLE_ADDRESS',
+        smtp: {
+          ...(config.kindle.smtp?.host ? { host: config.kindle.smtp.host } : {}),
+          port: config.kindle.smtp?.port ?? 587,
+          secure: config.kindle.smtp?.secure ?? false,
+          userEnv: config.kindle.smtp?.userEnv ?? 'PI_READS_SMTP_USER',
+          passwordEnv: config.kindle.smtp?.passwordEnv ?? 'PI_READS_SMTP_PASSWORD',
+          fromEnv: config.kindle.smtp?.fromEnv ?? 'PI_READS_SMTP_FROM',
+        },
+      }
+    : undefined;
+
+  return {
+    configPath,
+    libraryDir,
+    config,
+    ...(obsidian ? { obsidian } : {}),
+    ...(kindle ? { kindle } : {}),
+  };
 }

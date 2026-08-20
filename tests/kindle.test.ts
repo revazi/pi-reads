@@ -7,6 +7,7 @@ import type { KindleMail, KindleMailTransport } from '../src/adapters/destinatio
 import { EpubService } from '../src/application/epub-service.ts';
 import { ExportService } from '../src/application/export-service.ts';
 import { KindleDeliveryError, KindleService, type KindleEnvironment } from '../src/application/kindle-service.ts';
+import type { ResolvedKindleConfig } from '../src/core/config.ts';
 import { LibraryService } from '../src/application/library-service.ts';
 import type { RecordIdPrefix } from '../src/core/library.ts';
 import { versionedSha256 } from '../src/core/text.ts';
@@ -38,14 +39,23 @@ const kindleAddress = ['reader', 'kindle.com'].join('@');
 const senderAddress = ['sender', 'example.test'].join('@');
 
 const environment: KindleEnvironment = {
-  PI_READS_KINDLE_ADDRESS: kindleAddress,
-  PI_READS_KINDLE_DEVICE_LABEL: 'Fixture Kindle',
-  PI_READS_SMTP_HOST: 'smtp.example.test',
-  PI_READS_SMTP_PORT: '587',
-  PI_READS_SMTP_SECURE: 'false',
-  PI_READS_SMTP_USER: 'approved-sender',
-  PI_READS_SMTP_PASSWORD: 'test-only-password',
-  PI_READS_SMTP_FROM: senderAddress,
+  TEST_KINDLE_RECIPIENT: kindleAddress,
+  TEST_SMTP_USER: 'approved-sender',
+  TEST_SMTP_PASSWORD: 'test-only-password',
+  TEST_SMTP_FROM: senderAddress,
+};
+const kindleConfig: ResolvedKindleConfig = {
+  deviceLabel: 'Fixture Kindle',
+  defaultFormat: 'epub',
+  recipientEnv: 'TEST_KINDLE_RECIPIENT',
+  smtp: {
+    host: 'smtp.example.test',
+    port: 587,
+    secure: false,
+    userEnv: 'TEST_SMTP_USER',
+    passwordEnv: 'TEST_SMTP_PASSWORD',
+    fromEnv: 'TEST_SMTP_FROM',
+  },
 };
 
 test('Kindle dry-run, confirmed delivery, and failure retention use a fake SMTP transport', { timeout: 30_000 }, async () => {
@@ -56,7 +66,7 @@ test('Kindle dry-run, confirmed delivery, and failure retention use a fake SMTP 
   const exports = new ExportService({ library, createId, now });
   const epub = new EpubService({ library, createId, now });
   const transport = new FakeTransport();
-  const kindle = new KindleService({ library, exports, epub, env: environment, transport, createId, now });
+  const kindle = new KindleService({ library, exports, epub, env: environment, config: kindleConfig, transport, createId, now });
 
   try {
     const capture = await library.capture({
@@ -120,6 +130,7 @@ test('Kindle dry-run, confirmed delivery, and failure retention use a fake SMTP 
       },
       epub,
       env: environment,
+      config: kindleConfig,
       transport,
       createId,
       now,
@@ -133,6 +144,7 @@ test('Kindle dry-run, confirmed delivery, and failure retention use a fake SMTP 
       exports,
       epub,
       env: environment,
+      config: kindleConfig,
       transport: new FakeTransport(true),
       createId,
       now,

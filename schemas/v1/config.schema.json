@@ -25,6 +25,53 @@
         }
       }
     },
+    "kindle": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "deviceLabel": {
+          "type": "string",
+          "minLength": 1
+        },
+        "defaultFormat": {
+          "enum": ["epub", "pdf"]
+        },
+        "recipientEnv": {
+          "type": "string",
+          "pattern": "^[A-Z_][A-Z0-9_]*$"
+        },
+        "smtp": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "host": {
+              "type": "string",
+              "minLength": 1
+            },
+            "port": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 65535
+            },
+            "secure": {
+              "type": "boolean"
+            },
+            "userEnv": {
+              "type": "string",
+              "pattern": "^[A-Z_][A-Z0-9_]*$"
+            },
+            "passwordEnv": {
+              "type": "string",
+              "pattern": "^[A-Z_][A-Z0-9_]*$"
+            },
+            "fromEnv": {
+              "type": "string",
+              "pattern": "^[A-Z_][A-Z0-9_]*$"
+            }
+          }
+        }
+      }
+    },
     "obsidian": {
       "type": "object",
       "additionalProperties": false,
