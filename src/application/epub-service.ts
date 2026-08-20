@@ -200,6 +200,15 @@ export function validateEpub(bytes: Uint8Array): EpubValidation {
   const manifestItems = [...opf.querySelectorAll('manifest item')];
   const manifestIds = new Set(manifestItems.map((item) => item.getAttribute('id')));
   const spineItems = [...opf.querySelectorAll('spine itemref')];
+  if (['metadata identifier', 'metadata title', 'metadata language'].some((selector) => !opf.querySelector(selector))) {
+    throw new Error('EPUB package is missing required publication metadata');
+  }
+  if (!manifestItems.some((item) => item.getAttribute('properties')?.split(/\s+/u).includes('nav'))) {
+    throw new Error('EPUB manifest has no navigation document');
+  }
+  if (spineItems.length === 0) {
+    throw new Error('EPUB spine has no readable content');
+  }
   for (const item of manifestItems) {
     const href = item.getAttribute('href');
     if (!href || !files[path.posix.join('EPUB', href)]) {
