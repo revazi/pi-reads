@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "libraryDir": "~/Documents/pi-reads",
+  "defaults": {
+    "mode": "archive",
+    "exportFormat": "pdf"
+  },
+  "obsidian": {
+    "vaultPath": "~/Documents/MyVault",
+    "vaultName": "MyVault",
+    "inboxFolder": "Reading Inbox",
+    "attachmentFolder": "Attachments/pi-reads",
+    "noteNameTemplate": "{{title}}",
+    "tags": [
+      "pi-reads"
+    ],
+    "frontmatter": {
+      "status": "to-read"
+    },
+    "openAfterExport": false
+  },
+  "kindle": {
+    "deviceLabel": "My Kindle",
+    "defaultFormat": "epub",
+    "recipientEnv": "PI_READS_KINDLE_ADDRESS",
+    "smtp": {
+      "host": "smtp.example.com",
+      "port": 587,
+      "secure": false,
+      "userEnv": "PI_READS_SMTP_USER",
+      "passwordEnv": "PI_READS_SMTP_PASSWORD",
+      "fromEnv": "PI_READS_SMTP_FROM"
+    }
+  }
+}
