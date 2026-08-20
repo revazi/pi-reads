@@ -55,7 +55,7 @@ If the tool lists conflicting vault files, show those paths to the user and obta
 
 For Kindle dry-run, call `reads_export` with destination `kindle`, format `epub` or `pdf`, and omit `send`. Report only the redacted recipient, file, size, subject, and retained artifact path.
 
-Set `send: true` only when the user explicitly asks for delivery. The tool itself must display the full recipient and obtain interactive confirmation; headless delivery is forbidden. Never place Kindle/sender addresses or SMTP credentials in tool arguments, configuration, prose, manifests, or repository files. If delivery fails or is cancelled, report the retained local artifact path for manual upload.
+Set `send: true` only when the user explicitly asks for delivery. The tool itself must display the full recipient and obtain interactive confirmation; headless delivery is forbidden. `/reads-config` may store safe Kindle defaults and environment-variable names, but never actual Kindle/sender addresses, SMTP usernames, or passwords. Never place those values in tool arguments, prose, manifests, or repository files. If delivery fails or is cancelled, report the retained local artifact path for manual upload.
 
 ## Library
 
@@ -68,4 +68,4 @@ Do not expose raw source bodies in tool output; read the returned local content 
 
 ## Interactive command
 
-Users can run `/reads` for the capture/generate/export wizard, `/reads-config` to configure the library or Obsidian, `/reads-list` to browse recent articles, and `/reads-install-browser` to install Chromium for PDF export.
+Users can run `/reads` for the capture/generate/export wizard, `/reads-config` to configure the library, Obsidian, or safe Kindle preferences, `/reads-list` to browse recent articles, and `/reads-install-browser` to install Chromium for PDF export.

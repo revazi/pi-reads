@@ -176,14 +176,14 @@ export function registerReadsTools(pi: ExtensionAPI): void {
     name: 'reads_export',
     label: 'Reads Export',
     description:
-      'Export a stored article locally as Markdown, standalone light-print HTML, PDF, or validated EPUB; deliver Markdown to Obsidian; or dry-run/send EPUB or PDF to Kindle. Kindle sending always requires an interactive confirmation. Archive exports enforce text fidelity.',
+      'Export a stored article locally as Markdown, standalone light-print HTML, PDF, or validated EPUB; deliver Markdown to Obsidian; or dry-run/send EPUB or PDF to Kindle. Format is required except for Kindle, which uses its configured default. Kindle sending always requires an interactive confirmation. Archive exports enforce text fidelity.',
     promptSnippet: 'Export stored reading articles locally, to Obsidian, or to Kindle with confirmation',
     promptGuidelines: [
       'For reads_export Obsidian conflicts, never set overwrite true unless the user explicitly approved replacing the listed vault files.',
     ],
     parameters: Type.Object({
       articleId: Type.String(),
-      format: ExportFormat,
+      format: Type.Optional(ExportFormat),
       destination: Type.Optional(ExportDestination),
       overwrite: Type.Optional(Type.Boolean({ description: 'Obsidian only; requires explicit user approval for conflicting files' })),
       open: Type.Optional(Type.Boolean({ description: 'Obsidian only; open the delivered note after export' })),
@@ -192,13 +192,17 @@ export function registerReadsTools(pi: ExtensionAPI): void {
     async execute(_toolCallId, params, signal, onUpdate, ctx) {
       const services = await openReadsServices(ctx.cwd);
       const destination = params.destination ?? 'local';
-      onUpdate?.({ content: [{ type: 'text', text: `Preparing ${destination} ${params.format} export…` }], details: {} });
+      const format = params.format ?? (destination === 'kindle' ? services.kindleConfig?.defaultFormat ?? 'epub' : undefined);
+      if (!format) {
+        throw new Error('format is required for local and Obsidian exports');
+      }
+      onUpdate?.({ content: [{ type: 'text', text: `Preparing ${destination} ${format} export…` }], details: {} });
 
       if (destination === 'local') {
         const result = await withFileMutationQueue(services.libraryDir, () =>
-          params.format === 'epub'
+          format === 'epub'
             ? services.epub.prepare(params.articleId, signal)
-            : services.exports.prepare(params.articleId, params.format, signal),
+            : services.exports.prepare(params.articleId, format, signal),
         );
         return {
           content: [
@@ -224,10 +228,10 @@ export function registerReadsTools(pi: ExtensionAPI): void {
       }
 
       if (destination === 'kindle') {
-        if (params.format !== 'epub' && params.format !== 'pdf') {
+        if (format !== 'epub' && format !== 'pdf') {
           throw new Error('Kindle delivery requires format epub or pdf');
         }
-        const kindleFormat = params.format;
+        const kindleFormat = format;
         const preview = await withFileMutationQueue(services.libraryDir, () =>
           services.kindle.preview(params.articleId, kindleFormat, signal),
         );
@@ -302,7 +306,7 @@ export function registerReadsTools(pi: ExtensionAPI): void {
         };
       }
 
-      if (params.format !== 'markdown') {
+      if (format !== 'markdown') {
         throw new Error('Obsidian exports require format markdown');
       }
       if (!services.obsidian || !services.obsidianConfig) {

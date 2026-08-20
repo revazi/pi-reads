@@ -134,12 +134,13 @@ test('Pi extension registers and executes capture, generation, export, and libra
 
     const kindleDryRun = await tools.get('reads_export')!.execute(
       'kindle-dry-run-call',
-      { articleId: generatedArticleId, format: 'epub', destination: 'kindle' },
+      { articleId: generatedArticleId, destination: 'kindle' },
       signal,
       undefined,
       context,
     );
     assert.equal(kindleDryRun.details?.dryRun, true);
+    assert.equal(kindleDryRun.details?.format, 'epub');
     assert.equal(kindleDryRun.details?.recipient, 'f********@kindle.com');
     await assert.rejects(
       () => tools.get('reads_export')!.execute(
@@ -242,6 +243,33 @@ test('Pi extension registers and executes capture, generation, export, and libra
     };
     assert.equal(interactiveConfig.obsidian.noteNameTemplate, '{{title}} - {{mode}}');
     assert.deepEqual(interactiveConfig.obsidian.tags, ['pi-reads', 'test']);
+
+    const kindleConfigSelections = ['Kindle delivery', 'epub', 'no'];
+    const kindleConfigInputs = [
+      'Test Reader',
+      'TEST_KINDLE_RECIPIENT',
+      'smtp.example.test',
+      '587',
+      'TEST_SMTP_USER',
+      'TEST_SMTP_PASSWORD',
+      'TEST_SMTP_FROM',
+    ];
+    await commands.get('reads-config')!.handler('', {
+      ...context,
+      hasUI: true,
+      ui: {
+        ...context.ui,
+        async select() { return kindleConfigSelections.shift(); },
+        async input() { return kindleConfigInputs.shift(); },
+      },
+    });
+    const configuredKindle = JSON.parse(await readFile(process.env.PI_READS_CONFIG, 'utf8')) as {
+      kindle: { recipientEnv: string; smtp: { host: string; passwordEnv: string } };
+    };
+    assert.equal(configuredKindle.kindle.recipientEnv, 'TEST_KINDLE_RECIPIENT');
+    assert.equal(configuredKindle.kindle.smtp.host, 'smtp.example.test');
+    assert.equal(configuredKindle.kindle.smtp.passwordEnv, 'TEST_SMTP_PASSWORD');
+    assert.doesNotMatch(JSON.stringify(configuredKindle.kindle), /@kindle\.com|test-only-password/);
 
     const alternateLibrary = path.join(libraryDir, 'alternate');
     await commands.get('reads-config')!.handler(alternateLibrary, context);

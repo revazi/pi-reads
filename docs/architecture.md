@@ -206,7 +206,7 @@ A failed delivery never deletes the prepared local artifact.
 
 Path resolution is defined in the product contract. Core services receive a resolved configuration object.
 
-`pi-reads.json` may hold non-secret preferences. SMTP passwords, tokens, full Kindle addresses, and other credentials come from environment variables or an operating-system credential provider introduced by the owning destination phase.
+`pi-reads.json` may hold non-secret preferences, including SMTP host/port/TLS mode and the names of environment variables used for Kindle delivery. SMTP usernames/passwords, tokens, full Kindle/sender addresses, and other credentials remain environment or operating-system credential values and are never copied into configuration.
 
 Logs, persisted records, and tool results must redact credential material and recipient addresses. The interactive Kindle confirmation may display the full recipient transiently, but it is not persisted.
 

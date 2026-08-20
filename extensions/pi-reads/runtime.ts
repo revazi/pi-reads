@@ -12,6 +12,7 @@ export async function openReadsServices(cwd: string): Promise<{
   exports: ExportService;
   epub: EpubService;
   kindle: KindleService;
+  kindleConfig: Awaited<ReturnType<typeof resolveConfiguration>>['kindle'];
   obsidian?: ObsidianService;
   obsidianConfig: Awaited<ReturnType<typeof resolveConfiguration>>['obsidian'];
 }> {
@@ -25,7 +26,13 @@ export async function openReadsServices(cwd: string): Promise<{
     library,
     exports,
     epub,
-    kindle: new KindleService({ library, exports, epub }),
+    kindle: new KindleService({
+      library,
+      exports,
+      epub,
+      ...(configuration.kindle ? { config: configuration.kindle } : {}),
+    }),
+    kindleConfig: configuration.kindle,
     ...(configuration.obsidian ? { obsidian: new ObsidianService({ library, exports }) } : {}),
     obsidianConfig: configuration.obsidian,
   };

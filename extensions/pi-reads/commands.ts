@@ -2,8 +2,8 @@ import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 import type { ExtensionAPI, ExtensionCommandContext } from '@earendil-works/pi-coding-agent';
-import { updateLibraryDir, updateObsidianConfig } from '../../src/application/config-service.ts';
-import type { ObsidianConfig } from '../../src/core/domain.ts';
+import { updateKindleConfig, updateLibraryDir, updateObsidianConfig } from '../../src/application/config-service.ts';
+import type { KindleConfig, ObsidianConfig } from '../../src/core/domain.ts';
 import { openReadsServices } from './runtime.ts';
 
 type InputKind = 'url' | 'text' | 'markdown' | 'file';
@@ -86,6 +86,75 @@ async function promptForWorkflow(ctx: ExtensionCommandContext): Promise<{
   };
 }
 
+async function configureKindle(
+  configPath: string,
+  current: KindleConfig | undefined,
+  ctx: ExtensionCommandContext,
+  suppliedHost?: string,
+): Promise<void> {
+  const defaults: KindleConfig = {
+    ...(current?.deviceLabel ? { deviceLabel: current.deviceLabel } : {}),
+    defaultFormat: current?.defaultFormat ?? 'epub',
+    recipientEnv: current?.recipientEnv ?? 'PI_READS_KINDLE_ADDRESS',
+    smtp: {
+      ...(suppliedHost || current?.smtp?.host ? { host: suppliedHost || current?.smtp?.host } : {}),
+      port: current?.smtp?.port ?? 587,
+      secure: current?.smtp?.secure ?? false,
+      userEnv: current?.smtp?.userEnv ?? 'PI_READS_SMTP_USER',
+      passwordEnv: current?.smtp?.passwordEnv ?? 'PI_READS_SMTP_PASSWORD',
+      fromEnv: current?.smtp?.fromEnv ?? 'PI_READS_SMTP_FROM',
+    },
+  };
+
+  if (ctx.hasUI && !suppliedHost) {
+    const deviceLabel = await ctx.ui.input('Kindle device label (optional)', defaults.deviceLabel ?? '');
+    if (deviceLabel === undefined) return;
+    const formats = defaults.defaultFormat === 'pdf' ? ['pdf', 'epub'] : ['epub', 'pdf'];
+    const defaultFormat = await ctx.ui.select('Default Kindle format', formats);
+    if (!defaultFormat) return;
+    const recipientEnv = await ctx.ui.input('Kindle recipient environment variable', defaults.recipientEnv);
+    if (recipientEnv === undefined) return;
+    const host = await ctx.ui.input('SMTP host (blank to use PI_READS_SMTP_HOST)', defaults.smtp?.host ?? '');
+    if (host === undefined) return;
+    const port = await ctx.ui.input('SMTP port', String(defaults.smtp?.port ?? 587));
+    if (port === undefined) return;
+    const secureOptions = defaults.smtp?.secure ? ['yes', 'no'] : ['no', 'yes'];
+    const secure = await ctx.ui.select('Use implicit SMTP TLS?', secureOptions);
+    if (!secure) return;
+    const userEnv = await ctx.ui.input('SMTP username environment variable', defaults.smtp?.userEnv ?? 'PI_READS_SMTP_USER');
+    if (userEnv === undefined) return;
+    const passwordEnv = await ctx.ui.input('SMTP password environment variable', defaults.smtp?.passwordEnv ?? 'PI_READS_SMTP_PASSWORD');
+    if (passwordEnv === undefined) return;
+    const fromEnv = await ctx.ui.input('Approved sender environment variable', defaults.smtp?.fromEnv ?? 'PI_READS_SMTP_FROM');
+    if (fromEnv === undefined) return;
+
+    defaults.deviceLabel = deviceLabel.trim() || undefined;
+    defaults.defaultFormat = defaultFormat as 'epub' | 'pdf';
+    defaults.recipientEnv = recipientEnv.trim();
+    defaults.smtp = {
+      ...(host.trim() ? { host: host.trim() } : {}),
+      port: Number(port),
+      secure: secure === 'yes',
+      userEnv: userEnv.trim(),
+      passwordEnv: passwordEnv.trim(),
+      fromEnv: fromEnv.trim(),
+    };
+  }
+
+  await updateKindleConfig(configPath, defaults);
+  const envNames = [
+    defaults.recipientEnv,
+    defaults.smtp?.userEnv,
+    defaults.smtp?.passwordEnv,
+    defaults.smtp?.fromEnv,
+    ...(defaults.smtp?.host ? [] : ['PI_READS_SMTP_HOST']),
+  ].filter((name): name is string => Boolean(name));
+  ctx.ui.notify(
+    `Kindle configuration saved without addresses or credentials.\nRequired environment variables: ${envNames.join(', ')}\nConfig: ${configPath}`,
+    'info',
+  );
+}
+
 async function configureObsidian(
   configPath: string,
   current: ObsidianConfig | undefined,
@@ -161,10 +230,19 @@ export function registerReadsCommands(pi: ExtensionAPI): void {
   });
 
   pi.registerCommand('reads-config', {
-    description: 'Configure the Pi Reads library or Obsidian destination',
+    description: 'Configure the Pi Reads library, Obsidian, or safe Kindle preferences',
     handler: async (args, ctx) => {
       const services = await openReadsServices(ctx.cwd);
       const value = args.trim();
+      if (/^kindle(?:\s|$)/iu.test(value)) {
+        const host = value.replace(/^kindle\s*/iu, '').trim();
+        if (!host && !ctx.hasUI) {
+          ctx.ui.notify('Usage: /reads-config kindle <smtp-host>', 'error');
+          return;
+        }
+        await configureKindle(services.configPath, services.kindleConfig, ctx, host || undefined);
+        return;
+      }
       if (/^obsidian(?:\s|$)/iu.test(value)) {
         const vaultPath = value.replace(/^obsidian\s*/iu, '').trim();
         if (!vaultPath) {
@@ -187,11 +265,17 @@ export function registerReadsCommands(pi: ExtensionAPI): void {
         return;
       }
       if (!ctx.hasUI) {
-        ctx.ui.notify('Usage: /reads-config library <path> or /reads-config obsidian <vault-path>', 'error');
+        ctx.ui.notify('Usage: /reads-config library <path>, /reads-config obsidian <vault-path>, or /reads-config kindle <smtp-host>', 'error');
         return;
       }
 
-      const target = await ctx.ui.select('Configure Pi Reads', ['Library directory', 'Obsidian destination']);
+      const target = await ctx.ui.select('Configure Pi Reads', [
+        'Library directory', 'Obsidian destination', 'Kindle delivery',
+      ]);
+      if (target === 'Kindle delivery') {
+        await configureKindle(services.configPath, services.kindleConfig, ctx);
+        return;
+      }
       if (target === 'Obsidian destination') {
         await configureObsidian(services.configPath, services.obsidianConfig, ctx);
         return;
