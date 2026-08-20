@@ -154,6 +154,16 @@ test('Obsidian export writes metadata and assets, detects conflicts, and preserv
     assert.match(await readFile(overwritten.notePath, 'utf8'), /Faithful prose/);
     assert.equal(overwritten.record.delivery?.confirmationMethod, 'interactive');
 
+    const pasted = await library.capture({
+      kind: 'markdown',
+      label: 'Untrusted local reference',
+      markdown: `![Local secret](file://${path.join(sourceDir, 'local.png')})`,
+    });
+    await assert.rejects(
+      () => obsidian.plan(pasted.archiveArticle.id, { ...config, noteNameTemplate: '{{id}}' }),
+      /Local image paths require exactly one captured local file source/,
+    );
+
     const outside = path.join(root, 'outside');
     const unsafeVault = path.join(root, 'unsafe-vault');
     await Promise.all([mkdir(outside), mkdir(unsafeVault)]);

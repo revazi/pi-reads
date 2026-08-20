@@ -274,6 +274,11 @@ function extensionFor(mediaType: string): string {
 }
 
 async function readLocalImage(target: string, sources: readonly SourceRecord[]): Promise<DownloadedAsset> {
+  const fileSources = sources.filter((source) => source.kind === 'file' && path.isAbsolute(source.origin.locator));
+  if (fileSources.length !== 1) {
+    throw new Error(`Local image paths require exactly one captured local file source: ${target}`);
+  }
+
   let localPath: string;
   if (/^[a-z][a-z0-9+.-]*:/iu.test(target) && !target.startsWith('file:')) {
     throw new Error(`Unsupported image protocol: ${target.split(':', 1)[0]}:`);
@@ -282,15 +287,9 @@ async function readLocalImage(target: string, sources: readonly SourceRecord[]):
     localPath = fileURLToPath(target);
   } else {
     const decoded = decodeURIComponent(target);
-    if (path.isAbsolute(decoded)) {
-      localPath = decoded;
-    } else {
-      const fileSources = sources.filter((source) => source.kind === 'file' && path.isAbsolute(source.origin.locator));
-      if (fileSources.length !== 1) {
-        throw new Error(`Cannot resolve relative image path without exactly one local file source: ${target}`);
-      }
-      localPath = path.resolve(path.dirname(fileSources[0].origin.locator), decoded);
-    }
+    localPath = path.isAbsolute(decoded)
+      ? decoded
+      : path.resolve(path.dirname(fileSources[0].origin.locator), decoded);
   }
 
   const info = await stat(localPath);
