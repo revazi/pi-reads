@@ -61,9 +61,22 @@ export function ingestText(text: string, label = 'Pasted text'): IngestedSourceD
   };
 }
 
-export function ingestMarkdown(markdown: string, label = 'Pasted Markdown'): IngestedSourceDraft {
+export interface MarkdownAnalysis {
+  contentHash: `sha256:${string}`;
+  textHash: `sha256:${string}`;
+}
+
+export function analyzeMarkdown(markdown: string): MarkdownAnalysis {
   requireContent(markdown, 'markdown');
   assertSafeMarkdown(markdown);
+  return {
+    contentHash: versionedSha256(markdown),
+    textHash: versionedSha256(visibleTextFromMarkdown(markdown)),
+  };
+}
+
+export function ingestMarkdown(markdown: string, label = 'Pasted Markdown'): IngestedSourceDraft {
+  const analysis = analyzeMarkdown(markdown);
 
   return {
     kind: 'markdown',
@@ -71,8 +84,8 @@ export function ingestMarkdown(markdown: string, label = 'Pasted Markdown'): Ing
     title: label,
     content: markdown,
     mediaType: 'text/markdown',
-    contentHash: versionedSha256(markdown),
-    textHash: versionedSha256(visibleTextFromMarkdown(markdown)),
+    contentHash: analysis.contentHash,
+    textHash: analysis.textHash,
     capture: { adapter: 'markdown' },
   };
 }

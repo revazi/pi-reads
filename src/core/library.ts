@@ -1,4 +1,4 @@
-import { access, link, mkdir, realpath, unlink, writeFile } from 'node:fs/promises';
+import { access, link, mkdir, realpath, rename, rm, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import type { ArticleMode, ArticleRecord, SourceRecord } from './domain.ts';
@@ -6,9 +6,9 @@ import { errorMessage } from './errors.ts';
 import { slugify } from './slugs.ts';
 
 const ID_PREFIXES = ['src', 'art', 'cite', 'exp'] as const;
-type IdPrefix = (typeof ID_PREFIXES)[number];
+export type RecordIdPrefix = (typeof ID_PREFIXES)[number];
 
-export function createRecordId(prefix: IdPrefix, uuid = randomUUID()): string {
+export function createRecordId(prefix: RecordIdPrefix, uuid = randomUUID()): string {
   const entropy = uuid.toLowerCase().replace(/[^a-z0-9]/g, '');
   if (entropy.length < 16) {
     throw new Error('Record ID entropy must contain at least 16 alphanumeric characters');
@@ -102,6 +102,63 @@ export async function assertSafeLibraryRoot(
   if (gitRoot) {
     throw new Error(`Refusing to store the Pi Reads library inside Git working tree ${gitRoot}`);
   }
+}
+
+export interface ImmutableRecordFile {
+  path: string;
+  contents: string | NodeJS.ArrayBufferView;
+}
+
+export async function createImmutableRecordDirectory(
+  libraryRoot: string,
+  relativeDirectory: string,
+  files: readonly ImmutableRecordFile[],
+  options: { allowGitWorkingTree?: boolean } = {},
+): Promise<string> {
+  if (files.length === 0) {
+    throw new Error('Immutable record requires at least one file');
+  }
+
+  await assertSafeLibraryRoot(libraryRoot, options);
+  const target = resolveLibraryPath(libraryRoot, relativeDirectory);
+  const parent = path.dirname(target);
+  await mkdir(parent, { recursive: true });
+
+  const canonicalRoot = await realpath(path.resolve(libraryRoot));
+  const canonicalParent = await realpath(parent);
+  if (canonicalParent !== canonicalRoot && !canonicalParent.startsWith(`${canonicalRoot}${path.sep}`)) {
+    throw new Error(`Record directory crosses a symlink outside its root: ${relativeDirectory}`);
+  }
+
+  const canonicalTarget = path.join(canonicalParent, path.basename(target));
+  const temporary = path.join(canonicalParent, `.${path.basename(target)}.${randomUUID()}.tmp`);
+  await mkdir(temporary);
+
+  try {
+    for (const file of files) {
+      const recordRelativePath = path.posix.join(relativeDirectory, file.path);
+      const validatedTarget = resolveLibraryPath(libraryRoot, recordRelativePath);
+      const relativeWithinRecord = path.relative(target, validatedTarget);
+      if (!relativeWithinRecord || relativeWithinRecord.startsWith('..') || path.isAbsolute(relativeWithinRecord)) {
+        throw new Error(`Record file escapes its directory: ${file.path}`);
+      }
+
+      const temporaryFile = path.join(temporary, relativeWithinRecord);
+      await mkdir(path.dirname(temporaryFile), { recursive: true });
+      await writeFile(temporaryFile, file.contents, { flag: 'wx' });
+    }
+
+    await rename(temporary, canonicalTarget);
+  } catch (error: unknown) {
+    if ((error as NodeJS.ErrnoException).code === 'EEXIST' || (error as NodeJS.ErrnoException).code === 'ENOTEMPTY') {
+      throw new Error(`Immutable library record already exists: ${relativeDirectory}`);
+    }
+    throw error;
+  } finally {
+    await rm(temporary, { recursive: true, force: true });
+  }
+
+  return canonicalTarget;
 }
 
 export async function writeLibraryFileCreateOnly(
