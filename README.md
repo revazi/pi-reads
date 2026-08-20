@@ -36,6 +36,30 @@ This repository is evolving into **Pi Reads**: a Pi package for faithful source 
 
 The existing `article:*` commands remain the supported archive-to-print workflow while the roadmap is implemented incrementally.
 
+## Pi package MVP
+
+Install the current Git package:
+
+```sh
+pi install git:github.com/revazi/irakli-reads
+```
+
+For local development, load this checkout directly:
+
+```sh
+pi -e .
+```
+
+Pi Reads adds:
+
+- `/reads` — capture a URL/file or paste text, choose archive/digest/synthesis, and export
+- `/reads-config` — configure the library directory (default `~/Documents/pi-reads`)
+- `/reads-list` — browse stored articles
+- `/reads-install-browser` — install Chromium for PDF exports
+- `reads_ingest`, `reads_save_article`, `reads_export`, and `reads_library` tools
+
+Captured sources and faithful archives are immutable. Digests and syntheses are stored separately with source IDs, citations, and active Pi model provenance. Local exports support Markdown, standalone light-print HTML, and PDF.
+
 ## Install
 
 Requires Node.js 24+ and pnpm.

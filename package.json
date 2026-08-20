@@ -3,8 +3,33 @@
   "version": "0.1.0",
   "private": true,
   "packageManager": "pnpm@10.33.0",
-  "description": "Deterministic web article to printable HTML/PDF pipeline using Astro, Shiki, and Playwright.",
+  "description": "Pi package for faithful source capture, cited reading articles, and local Markdown, HTML, and PDF exports.",
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "reading",
+    "articles"
+  ],
+  "files": [
+    "README.md",
+    "astro.config.ts",
+    "docs",
+    "extensions",
+    "schemas",
+    "scripts",
+    "skills",
+    "src",
+    "types"
+  ],
   "type": "module",
+  "pi": {
+    "extensions": [
+      "./extensions/pi-reads/index.ts"
+    ],
+    "skills": [
+      "./skills/pi-reads"
+    ]
+  },
   "scripts": {
     "dev": "ASTRO_TELEMETRY_DISABLED=1 astro dev",
     "build": "ASTRO_TELEMETRY_DISABLED=1 astro build",
@@ -28,6 +53,10 @@
     "shiki": "latest",
     "turndown": "latest",
     "turndown-plugin-gfm": "latest"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-ai": "*",
+    "@earendil-works/pi-coding-agent": "*"
   },
   "engines": {
     "node": ">=24.0.0"
