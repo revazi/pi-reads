@@ -84,8 +84,10 @@
           "$ref": "common.schema.json#/$defs/storedFile"
         },
         {
+          "type": "object",
           "properties": {
             "path": {
+              "type": "string",
               "pattern": "^exports/art_[a-z0-9]{16,64}/exp_[a-z0-9]{16,64}/"
             }
           }
@@ -123,8 +125,10 @@
       "if": {
         "properties": {
           "destination": {
+            "type": "object",
             "properties": {
               "type": {
+                "type": "string",
                 "const": "kindle"
               }
             },
@@ -140,6 +144,7 @@
         "required": ["delivery"],
         "properties": {
           "delivery": {
+            "type": "object",
             "required": ["confirmedAt", "confirmationMethod", "deliveredAt"]
           }
         }

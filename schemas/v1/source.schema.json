@@ -71,11 +71,14 @@
           "$ref": "common.schema.json#/$defs/storedText"
         },
         {
+          "type": "object",
           "properties": {
             "path": {
+              "type": "string",
               "pattern": "^sources/src_[a-z0-9]{16,64}/content\\.md$"
             },
             "mediaType": {
+              "type": "string",
               "const": "text/markdown"
             }
           }
@@ -88,8 +91,10 @@
           "$ref": "common.schema.json#/$defs/storedFile"
         },
         {
+          "type": "object",
           "properties": {
             "path": {
+              "type": "string",
               "pattern": "^sources/src_[a-z0-9]{16,64}/raw/"
             }
           }
@@ -104,8 +109,10 @@
             "$ref": "common.schema.json#/$defs/storedFile"
           },
           {
+            "type": "object",
             "properties": {
               "path": {
+                "type": "string",
                 "pattern": "^sources/src_[a-z0-9]{16,64}/assets/"
               }
             }
@@ -150,6 +157,7 @@
       "then": {
         "properties": {
           "origin": {
+            "type": "object",
             "required": ["canonicalUrl"]
           }
         }
