@@ -3,7 +3,7 @@ import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import type { ArticleMode, ArticleRecord, SourceRecord } from './domain.ts';
 import { errorMessage } from './errors.ts';
-import { slugify } from './extraction/readability.ts';
+import { slugify } from './slugs.ts';
 
 const ID_PREFIXES = ['src', 'art', 'cite', 'exp'] as const;
 type IdPrefix = (typeof ID_PREFIXES)[number];

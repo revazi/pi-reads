@@ -24,18 +24,6 @@ function meta(document: Document, selector: string): string {
   return content?.trim() ?? '';
 }
 
-export function slugify(value: string): string {
-  const slug = value
-    .normalize('NFKD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 80);
-
-  return slug || 'article';
-}
-
 export function extractWebArticle(inputUrl: string, rawHtml: string): ExtractedWebArticle {
   const sourceDom = new JSDOM(rawHtml, { url: inputUrl });
   const { document } = sourceDom.window;

@@ -21,6 +21,7 @@ import {
   sourceContentPath,
   writeLibraryFileCreateOnly,
 } from '../src/core/library.ts';
+import { assertSafeSlug } from '../src/core/slugs.ts';
 
 const digest = `sha256:${'a'.repeat(64)}` as Sha256Digest;
 
@@ -78,6 +79,8 @@ test('slug collisions are deterministic and IDs are opaque', () => {
   assert.equal(chooseAvailableSlug('An Example!', []), 'an-example');
   assert.equal(chooseAvailableSlug('An Example!', ['an-example', 'an-example-2']), 'an-example-3');
   assert.equal(createRecordId('src', '12345678-1234-1234-1234-123456789abc'), 'src_12345678123412341234123456789abc');
+  assert.equal(assertSafeSlug('safe-article-2'), 'safe-article-2');
+  assert.throws(() => assertSafeSlug('../../outside'), /Invalid article slug/);
 });
 
 test('library path resolution rejects traversal, absolute paths, and backslashes', () => {

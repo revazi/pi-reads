@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { assertSafeSlug } from './slugs.ts';
 
 export type Frontmatter = Record<string, unknown>;
 
@@ -35,5 +36,5 @@ export function parseFrontmatter(markdown: string): Frontmatter {
 
 export function articleSlug(articlePath: string, metadata: Frontmatter): string {
   const slug = metadata.slug;
-  return typeof slug === 'string' ? slug : path.basename(articlePath, '.md');
+  return assertSafeSlug(typeof slug === 'string' ? slug : path.basename(articlePath, '.md'));
 }

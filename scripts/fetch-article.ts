@@ -2,8 +2,8 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
-import { slugify } from '../src/core/extraction/readability.ts';
 import { ingestUrl } from '../src/core/ingest/url.ts';
+import { assertSafeSlug, slugify } from '../src/core/slugs.ts';
 import { renderLegacyArticleMarkdown } from '../src/core/render/legacy-markdown.ts';
 import { errorMessage } from './shared.ts';
 
@@ -76,7 +76,7 @@ async function main(): Promise<void> {
 
   const imageScalePercent = parseImageScale(flags.get('image-scale'));
   const article = await ingestUrl(inputUrl);
-  const slug = flags.get('slug') ?? slugify(article.title);
+  const slug = assertSafeSlug(flags.get('slug') ?? slugify(article.title));
   const outputDir = flags.get('out') ?? 'articles';
   const outputPath = path.join(outputDir, `${slug}.md`);
   const bodyFontSizeAdjustment: -1 | undefined = flags.has('smaller-body-font') ? -1 : undefined;
