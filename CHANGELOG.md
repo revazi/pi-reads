@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-08-20
+
+### Added
+
+- Public npm distribution as [`pi-reads`](https://www.npmjs.com/package/pi-reads).
+- Provenance-enabled GitHub Actions release workflow for future tagged npm releases.
+- npm version/download badges and npm-first Pi installation instructions.
+
 ## [1.0.0] - 2026-08-20
 
 ### Changed
@@ -33,6 +41,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 - Retain the original `article:*` print workflow and `skills/irakli-reads` compatibility entry point while the repository transitions to Pi Reads.
 
-[Unreleased]: https://github.com/revazi/pi-reads/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/revazi/pi-reads/compare/v1.0.1...HEAD
+[1.0.1]: https://github.com/revazi/pi-reads/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/revazi/pi-reads/compare/v0.1.0...v1.0.0
 [0.1.0]: https://github.com/revazi/pi-reads/releases/tag/v0.1.0

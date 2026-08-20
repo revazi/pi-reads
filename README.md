@@ -1,5 +1,7 @@
 # Pi Reads
 
+[![npm version](https://img.shields.io/npm/v/pi-reads.svg)](https://www.npmjs.com/package/pi-reads)
+[![npm downloads](https://img.shields.io/npm/dm/pi-reads.svg)](https://www.npmjs.com/package/pi-reads)
 [![CI](https://github.com/revazi/pi-reads/actions/workflows/ci.yml/badge.svg)](https://github.com/revazi/pi-reads/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
@@ -31,10 +33,16 @@ Requirements:
 - Pi
 - pnpm for local development and the compatibility print CLI
 
-Install the current Git package:
+Install the published npm package:
 
 ```sh
-pi install git:github.com/revazi/pi-reads@v1.0.0
+pi install npm:pi-reads
+```
+
+A version-pinned Git install is also available:
+
+```sh
+pi install git:github.com/revazi/pi-reads@v1.0.1
 ```
 
 Or load a local checkout:

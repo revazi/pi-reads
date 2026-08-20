@@ -1,0 +1,125 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  publish:
+    name: Publish npm package and GitHub release
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: npm
+    env:
+      ASTRO_TELEMETRY_DISABLED: "1"
+    steps:
+      - name: Check out release tag
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Set up pnpm
+        uses: pnpm/action-setup@ff378ebe6b225b0680b81c1ad4498ae0d1d3a5e3 # v6.0.10
+        with:
+          version: 10.33.0
+          run_install: false
+      - name: Set up Node.js and npm registry
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+          cache: pnpm
+      - name: Install trusted-publishing compatible npm
+        run: npm install --global --ignore-scripts npm@11.6.2
+      - name: Verify release tag, package, and changelog
+        shell: bash
+        run: |
+          set -euo pipefail
+          package_version="$(node -p "require('./package.json').version")"
+          test "$GITHUB_REF_TYPE" = "tag"
+          test "$GITHUB_REF_NAME" = "v$package_version"
+          test "$(git cat-file -t "$GITHUB_REF")" = "tag"
+          test "$(git rev-parse "$GITHUB_REF^{}")" = "$GITHUB_SHA"
+          grep -F "## [$package_version]" CHANGELOG.md
+          test -z "$(git status --porcelain --untracked-files=no)"
+          test "$(npm --version)" = "11.6.2"
+      - name: Reject long-lived npm credentials
+        shell: bash
+        run: |
+          if [[ -n "${NPM_TOKEN+x}" || -n "${NODE_AUTH_TOKEN+x}" ]]; then
+            echo "Long-lived npm publication credentials are forbidden; use trusted publishing." >&2
+            exit 1
+          fi
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Install Chromium for print validation
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Run complete release validation
+        run: pnpm release:check
+      - name: Publish or verify npm package
+        shell: bash
+        run: |
+          set -euo pipefail
+          package_name="$(node -p "require('./package.json').name")"
+          package_version="$(node -p "require('./package.json').version")"
+          package_spec="$package_name@$package_version"
+          lookup="$RUNNER_TEMP/npm-view.json"
+          lookup_error="$RUNNER_TEMP/npm-view.error"
+
+          verify_lookup() {
+            node - "$lookup" "$package_name" "$package_version" "$GITHUB_SHA" <<'NODE'
+          const [path, expectedName, expectedVersion, expectedCommit] = process.argv.slice(2);
+          const metadata = JSON.parse(require('node:fs').readFileSync(path, 'utf8'));
+          if (
+            metadata.name !== expectedName ||
+            metadata.version !== expectedVersion ||
+            metadata.gitHead !== expectedCommit ||
+            !metadata.dist?.integrity
+          ) process.exit(1);
+          NODE
+          }
+
+          if npm view "$package_spec" --registry=https://registry.npmjs.org/ --json >"$lookup" 2>"$lookup_error"; then
+            verify_lookup
+            echo "$package_spec is already published from this exact tag; continuing."
+          else
+            if ! grep -Eq 'E404|Not Found|No match found' "$lookup" "$lookup_error"; then
+              cat "$lookup_error" >&2
+              exit 1
+            fi
+            npm publish --access public --provenance --ignore-scripts --registry=https://registry.npmjs.org/
+          fi
+
+          for attempt in 1 2 3 4 5; do
+            if npm view "$package_spec" --registry=https://registry.npmjs.org/ --json >"$lookup" && verify_lookup; then
+              exit 0
+            fi
+            sleep $((attempt * 3))
+          done
+          echo "npm registry did not confirm the exact release" >&2
+          exit 1
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "GitHub release $GITHUB_REF_NAME already exists; continuing."
+          else
+            gh release create "$GITHUB_REF_NAME" \
+              --repo "$GITHUB_REPOSITORY" \
+              --verify-tag \
+              --title "Pi Reads $GITHUB_REF_NAME" \
+              --generate-notes \
+              --latest
+          fi
