@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { access, mkdtemp, readFile, rm } from 'node:fs/promises';
+import { access, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -9,6 +9,7 @@ import { ExportService } from '../src/application/export-service.ts';
 import { KindleDeliveryError, KindleService, type KindleEnvironment } from '../src/application/kindle-service.ts';
 import { LibraryService } from '../src/application/library-service.ts';
 import type { RecordIdPrefix } from '../src/core/library.ts';
+import { versionedSha256 } from '../src/core/text.ts';
 
 function deterministicIds(): (prefix: RecordIdPrefix) => string {
   const counts: Record<RecordIdPrefix, number> = { src: 0, art: 0, cite: 0, exp: 0 };
@@ -89,7 +90,41 @@ test('Kindle dry-run, confirmed delivery, and failure retention use a fake SMTP 
     const manifest = await readFile(delivered.manifestPath, 'utf8');
     assert.doesNotMatch(manifest, /@kindle\.com|@example\.test|test-only-password/);
 
-    const pdfPreview = await kindle.preview(capture.archiveArticle.id, 'pdf');
+    const pdfBytes = Buffer.from('%PDF-1.7\nfixture\n%%EOF\n');
+    const pdfPath = path.join(libraryDir, 'fixture.pdf');
+    await writeFile(pdfPath, pdfBytes);
+    const pdfKindle = new KindleService({
+      library,
+      exports: {
+        async prepare(articleId) {
+          return {
+            record: {
+              schemaVersion: 1,
+              id: 'exp_mmmmmmmmmmmmmmmm',
+              articleId,
+              format: 'pdf',
+              destination: { type: 'local' },
+              status: 'prepared',
+              artifact: {
+                path: 'exports/art_jjjjjjjjjjjjjjj1/exp_mmmmmmmmmmmmmmmm/article.pdf',
+                mediaType: 'application/pdf',
+                contentHash: versionedSha256(pdfBytes),
+                byteLength: pdfBytes.byteLength,
+              },
+              createdAt: '2026-08-22T11:00:00Z',
+            },
+            artifactPath: pdfPath,
+            manifestPath: `${pdfPath}.json`,
+          };
+        },
+      },
+      epub,
+      env: environment,
+      transport,
+      createId,
+      now,
+    });
+    const pdfPreview = await pdfKindle.preview(capture.archiveArticle.id, 'pdf');
     assert.equal(Buffer.from(pdfPreview.bytes.subarray(0, 4)).toString(), '%PDF');
     await access(pdfPreview.artifactPath);
 

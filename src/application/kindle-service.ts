@@ -15,8 +15,8 @@ import {
   type KindleMailTransport,
   type SmtpSettings,
 } from '../adapters/destinations/kindle.ts';
-import { EpubService, type PreparedEpubExport } from './epub-service.ts';
-import { ExportService, type PreparedExport } from './export-service.ts';
+import type { PreparedEpubExport } from './epub-service.ts';
+import type { PreparedExport } from './export-service.ts';
 import { LibraryService } from './library-service.ts';
 
 export type KindleFormat = 'epub' | 'pdf';
@@ -32,10 +32,18 @@ export interface KindleEnvironment {
   PI_READS_SMTP_FROM?: string;
 }
 
+export interface KindleLocalExportPort {
+  prepare(articleId: string, format: 'pdf', signal?: AbortSignal): Promise<PreparedExport>;
+}
+
+export interface KindleEpubExportPort {
+  prepare(articleId: string, signal?: AbortSignal): Promise<PreparedEpubExport>;
+}
+
 export interface KindleServiceOptions {
   library: LibraryService;
-  exports: ExportService;
-  epub: EpubService;
+  exports: KindleLocalExportPort;
+  epub: KindleEpubExportPort;
   env?: KindleEnvironment;
   transport?: KindleMailTransport;
   now?: () => Date;
@@ -133,8 +141,8 @@ function isEpubExport(value: PreparedExport | PreparedEpubExport): value is Prep
 
 export class KindleService {
   private readonly library: LibraryService;
-  private readonly exports: ExportService;
-  private readonly epub: EpubService;
+  private readonly exports: KindleLocalExportPort;
+  private readonly epub: KindleEpubExportPort;
   private readonly env: KindleEnvironment;
   private readonly transport?: KindleMailTransport;
   private readonly now: () => Date;
