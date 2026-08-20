@@ -25,6 +25,17 @@ Design goals:
 - referral/tracking params are stripped before rendering
 - TypeScript-only scripts, run directly on Node 24's native type stripping; TypeScript 7 is used for checking
 
+## Project direction
+
+This repository is evolving into **Pi Reads**: a Pi package for faithful source capture, cited AI-authored reading articles, Obsidian export, and Kindle delivery. Archive content remains separate from generated digest and synthesis content.
+
+- [Product and storage contract](docs/product-contract.md)
+- [Architecture](docs/architecture.md)
+- [Naming and compatibility](docs/naming-and-compatibility.md)
+- [Versioned JSON Schemas](schemas/README.md)
+
+The existing `article:*` commands remain the supported archive-to-print workflow while the roadmap is implemented incrementally.
+
 ## Install
 
 Requires Node.js 24+ and pnpm.
