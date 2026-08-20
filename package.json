@@ -19,7 +19,7 @@
     "article:verify": "node scripts/verify-fidelity.ts"
   },
   "dependencies": {
-    "@astrojs/markdown-satteri": "0.3.3",
+    "@astrojs/markdown-satteri": "0.3.7",
     "@mozilla/readability": "latest",
     "astro": "latest",
     "jsdom": "latest",
@@ -32,10 +32,10 @@
     "node": ">=24.0.0"
   },
   "devDependencies": {
-    "@types/jsdom": "^28.0.3",
-    "@types/node": "^26.1.1",
+    "@types/jsdom": "^30.0.0",
+    "@types/node": "^26.2.0",
     "@types/turndown": "^5.0.6",
-    "playwright": "^1.61.1",
+    "playwright": "^1.62.1",
     "typescript": "^7.0.2"
   }
 }
