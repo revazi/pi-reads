@@ -4,6 +4,19 @@
   "private": true,
   "packageManager": "pnpm@10.33.0",
   "description": "Pi package for faithful source capture, cited reading articles, Obsidian, EPUB, PDF, and confirmed Kindle delivery.",
+  "license": "MIT",
+  "author": "Revaz Zakalashvili",
+  "contributors": [
+    "Irakli Janiashvili"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/revazi/irakli-reads.git"
+  },
+  "homepage": "https://github.com/revazi/irakli-reads#readme",
+  "bugs": {
+    "url": "https://github.com/revazi/irakli-reads/issues"
+  },
   "keywords": [
     "pi-package",
     "pi-extension",
@@ -11,9 +24,14 @@
     "articles"
   ],
   "files": [
+    "CHANGELOG.md",
+    "CONTRIBUTING.md",
+    "LICENSE",
     "README.md",
+    "SECURITY.md",
     "astro.config.ts",
     "docs",
+    "examples",
     "extensions",
     "schemas",
     "scripts",
@@ -41,20 +59,22 @@
     "article:pdf": "ASTRO_TELEMETRY_DISABLED=1 astro build && node scripts/verify-fidelity.ts && node scripts/render-pdfs.ts",
     "article:read": "node scripts/print-article.ts",
     "article:render": "ASTRO_TELEMETRY_DISABLED=1 astro build && node scripts/verify-fidelity.ts",
-    "article:verify": "node scripts/verify-fidelity.ts"
+    "article:verify": "node scripts/verify-fidelity.ts",
+    "release:package": "node scripts/check-release.ts",
+    "release:check": "pnpm article:check && pnpm test && pnpm build && pnpm release:package && pnpm exec pi --no-skills -e . --list-models __pi_reads_package_smoke__ && pnpm audit --prod"
   },
   "dependencies": {
     "@astrojs/markdown-satteri": "0.3.7",
-    "@mozilla/readability": "latest",
-    "astro": "latest",
+    "@mozilla/readability": "0.6.0",
+    "astro": "7.2.4",
     "fflate": "0.8.3",
     "jsdom": "29.1.1",
     "marked": "18.0.10",
     "nodemailer": "9.0.5",
-    "playwright": "^1.62.1",
-    "shiki": "latest",
-    "turndown": "latest",
-    "turndown-plugin-gfm": "latest"
+    "playwright": "1.62.1",
+    "shiki": "4.4.3",
+    "turndown": "7.2.4",
+    "turndown-plugin-gfm": "1.0.2"
   },
   "peerDependencies": {
     "@earendil-works/pi-ai": "*",

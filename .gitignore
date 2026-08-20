@@ -3,6 +3,14 @@ node_modules/
 dist/
 .DS_Store
 *.log
+*.tgz
+coverage/
+
+# Local environment and configuration. Example files remain trackable.
+.env
+.env.*
+!.env.example
+pi-reads.json
 
 # Generated article inputs/outputs. Do not publish copied article bodies or PDFs.
 articles/*.md

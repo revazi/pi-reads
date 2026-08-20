@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 const repositoryRoot = path.resolve(fileURLToPath(new URL('..', import.meta.url)));
 const fixturePath = path.join(repositoryRoot, 'tests', 'fixtures', 'article.expected.md');
 const articlePath = path.join(repositoryRoot, 'articles', 'phase1-fixture.md');
+const pdfPath = path.join(repositoryRoot, 'pdfs', 'phase1-fixture.pdf');
 
 interface CommandResult {
   stdout: string;
@@ -40,15 +41,24 @@ function run(command: string, args: string[]): Promise<CommandResult> {
   });
 }
 
-test('synthetic article passes the real Astro and fidelity pipeline', { timeout: 30_000 }, async () => {
+test('synthetic article passes the real Astro, fidelity, and PDF print pipeline', { timeout: 45_000 }, async () => {
   const fixture = await readFile(fixturePath, 'utf8');
+  await unlink(articlePath).catch(() => undefined);
+  await unlink(pdfPath).catch(() => undefined);
   await writeFile(articlePath, fixture, { flag: 'wx' });
 
   try {
     await run(process.execPath, [path.join('node_modules', 'astro', 'bin', 'astro.mjs'), 'build']);
     const verification = await run(process.execPath, ['scripts/verify-fidelity.ts', 'phase1-fixture']);
     assert.match(verification.stdout, /PASS phase1-fixture/);
+
+    const rendering = await run(process.execPath, ['scripts/render-pdfs.ts', 'phase1-fixture']);
+    assert.match(rendering.stdout, /Wrote pdfs\/phase1-fixture\.pdf/);
+    const pdf = await readFile(pdfPath);
+    assert.equal(pdf.subarray(0, 5).toString('ascii'), '%PDF-');
+    assert.ok(pdf.byteLength > 2_000, 'printed PDF should contain more than a header');
   } finally {
     await unlink(articlePath).catch(() => undefined);
+    await unlink(pdfPath).catch(() => undefined);
   }
 });
