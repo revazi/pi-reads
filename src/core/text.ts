@@ -66,6 +66,6 @@ export function sha256(value: string | NodeJS.ArrayBufferView): string {
   return crypto.createHash('sha256').update(value).digest('hex');
 }
 
-export function versionedSha256(value: string | NodeJS.ArrayBufferView): string {
+export function versionedSha256(value: string | NodeJS.ArrayBufferView): `sha256:${string}` {
   return `sha256:${sha256(value)}`;
 }
