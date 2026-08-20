@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -76,6 +76,21 @@ test('application services capture, generate, list, and export immutable article
 
     const articles = await library.listArticles();
     assert.deepEqual(new Set(articles.map((article) => article.mode)), new Set(['archive', 'digest']));
+
+    const fixtureHtml = await readFile(new URL('./fixtures/article.html', import.meta.url), 'utf8');
+    const urlCapture = await library.capture(
+      { kind: 'url', url: 'https://example.test/input' },
+      {
+        url: {
+          fetchHtml: async () => fixtureHtml,
+          detectFontStyle: async () => 'serif',
+        },
+      },
+    );
+    await assert.doesNotReject(() => library.loadSource(urlCapture.source.id));
+    await assert.doesNotReject(() => exports.renderHtml(urlCapture.archiveArticle.id));
+    await writeFile(urlCapture.sourceContentPath, 'tampered');
+    await assert.rejects(() => library.loadSource(urlCapture.source.id), /content hash mismatch/);
 
     await assert.rejects(
       () =>

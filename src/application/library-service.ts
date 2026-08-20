@@ -7,6 +7,7 @@ import type {
   GeneratedBy,
   IngestedSourceDraft,
   SourceRecord,
+  StoredText,
 } from '../core/domain.ts';
 import { analyzeMarkdown } from '../core/ingest/text.ts';
 import { ingestSource, type IngestSourceDependencies, type SourceInput } from '../core/ingest/index.ts';
@@ -90,6 +91,19 @@ function rawCaptureName(mediaType: string | undefined): string {
       return 'source.txt';
     default:
       return 'source.bin';
+  }
+}
+
+function assertStoredTextIntegrity(content: string, stored: StoredText, label: string): void {
+  const analysis = analyzeMarkdown(content);
+  if (analysis.contentHash !== stored.contentHash) {
+    throw new Error(`${label} content hash mismatch`);
+  }
+  if (analysis.textHash !== stored.textHash) {
+    throw new Error(`${label} text hash mismatch`);
+  }
+  if (Buffer.byteLength(content) !== stored.byteLength) {
+    throw new Error(`${label} byte length mismatch`);
   }
 }
 
@@ -367,8 +381,13 @@ export class LibraryService {
     if (source.id !== sourceId) {
       throw new Error(`Source manifest ID mismatch for ${sourceId}`);
     }
+    if (source.content.path !== sourceContentPath(sourceId)) {
+      throw new Error(`Source content path mismatch for ${sourceId}`);
+    }
     const contentPath = this.absolute(source.content.path);
-    return { source, manifestPath, contentPath, content: await readFile(contentPath, 'utf8') };
+    const content = await readFile(contentPath, 'utf8');
+    assertStoredTextIntegrity(content, source.content, `Source ${sourceId}`);
+    return { source, manifestPath, contentPath, content };
   }
 
   async loadArticle(articleId: string): Promise<StoredArticle> {
@@ -381,8 +400,13 @@ export class LibraryService {
         if (article.id !== articleId || article.mode !== mode) {
           throw new Error(`Article manifest identity mismatch for ${articleId}`);
         }
+        if (article.body.path !== articleContentPath(mode, articleId)) {
+          throw new Error(`Article content path mismatch for ${articleId}`);
+        }
         const contentPath = this.absolute(article.body.path);
-        return { article, manifestPath, contentPath, content: await readFile(contentPath, 'utf8') };
+        const content = await readFile(contentPath, 'utf8');
+        assertStoredTextIntegrity(content, article.body, `Article ${articleId}`);
+        return { article, manifestPath, contentPath, content };
       } catch (error: unknown) {
         if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
           continue;
