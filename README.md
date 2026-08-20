@@ -127,6 +127,6 @@ The original deterministic `article:*` print workflow remains supported. Contrib
 
 Created and maintained by [Revaz Zakalashvili](https://github.com/revazi).
 
-Pi Reads grew from the original [`IrakliJani/irakli-reads`](https://github.com/IrakliJani/irakli-reads) print workflow by [Irakli Janiashvili](https://github.com/IrakliJani).
+Pi Reads grew out of [`IrakliJani/irakli-reads`](https://github.com/IrakliJani/irakli-reads), the article-to-print workflow created by my friend [Irakli Janiashvili](https://github.com/IrakliJani). I told Irakli I would turn the idea into a Pi package; this project is that extension of his original work.
 
 Licensed under the [MIT License](LICENSE).
