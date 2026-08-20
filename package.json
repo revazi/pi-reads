@@ -9,6 +9,7 @@
     "dev": "ASTRO_TELEMETRY_DISABLED=1 astro dev",
     "build": "ASTRO_TELEMETRY_DISABLED=1 astro build",
     "preview": "ASTRO_TELEMETRY_DISABLED=1 astro preview",
+    "test": "node --test --test-concurrency=1 tests/*.test.ts",
     "article:check": "tsc --noEmit -p tsconfig.scripts.json",
     "article:fetch": "node scripts/fetch-article.ts",
     "article:install-browser": "playwright install chromium",

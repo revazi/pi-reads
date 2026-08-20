@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Fallback fixture title</title>
+    <link rel="canonical" href="/writing/core-library?utm_source=fixture&amp;keep=yes">
+    <meta property="og:title" content="Fixture Article">
+    <meta name="author" content="Ada Example">
+    <meta name="description" content="A deterministic fixture used to verify extraction behavior.">
+    <meta property="article:published_time" content="2026-08-20T10:30:00Z">
+  </head>
+  <body>
+    <nav>Site navigation that must not be archived.</nav>
+    <main>
+      <article>
+        <h1>Fixture Article</h1>
+        <p>By <a href="/authors/ada">Ada Example</a></p>
+        <h2>Table of contents</h2>
+        <ul>
+          <li><a href="#first">First section</a></li>
+          <li><a href="#second">Second section</a></li>
+        </ul>
+        <h2 id="first">First section</h2>
+        <p>This deliberately long opening paragraph gives Readability enough meaningful prose to identify the article body while remaining entirely synthetic and safe to keep as a deterministic test fixture.</p>
+        <p>It contains a <a href="/reference?utm_campaign=test&amp;keep=1#:~:text=ignored">relative reference</a>, <strong>adjacent</strong> <strong>formatting</strong>, and an image.</p>
+        <img src="/assets/diagram.png?utm_source=test" alt="Synthetic diagram">
+        <div class="highlight"><pre><code class="language-typescript">const answer = 42;
+</code></pre></div>
+        <h2 id="second">Second section</h2>
+        <p>Another sufficiently descriptive paragraph confirms that headings, links, code, and prose survive deterministic cleanup without any model-authored rewriting of the source material.</p>
+        <table>
+          <tbody>
+            <tr><td><strong>Name</strong></td><td><strong>Value</strong></td></tr>
+            <tr><td>mode</td><td>archive</td></tr>
+          </tbody>
+        </table>
+      </article>
+    </main>
+    <aside>Related content that must not be archived.</aside>
+  </body>
+</html>
