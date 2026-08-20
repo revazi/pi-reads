@@ -79,6 +79,27 @@ test('URL ingestion is importable and supports deterministic dependency injectio
   assert.match(source.textHash, /^sha256:[0-9a-f]{64}$/);
 });
 
+test('URL ingestion honors cancellation before side effects', async () => {
+  const controller = new AbortController();
+  controller.abort();
+  let fetched = false;
+  await assert.rejects(
+    () =>
+      ingestUrl(
+        fixtureUrl,
+        {
+          fetchHtml: async () => {
+            fetched = true;
+            return fixtureHtml;
+          },
+        },
+        controller.signal,
+      ),
+    { name: 'AbortError' },
+  );
+  assert.equal(fetched, false);
+});
+
 test('font classification retains weighted serif/sans-serif behavior', () => {
   assert.equal(classifyFontFamily('Inter, system-ui, sans-serif'), 'sans-serif');
   assert.equal(classifyFontFamily('Georgia, serif'), 'serif');

@@ -1,4 +1,4 @@
-import { access, link, mkdir, unlink, writeFile } from 'node:fs/promises';
+import { access, link, mkdir, realpath, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import type { ArticleMode, ArticleRecord, SourceRecord } from './domain.ts';
@@ -113,11 +113,18 @@ export async function writeLibraryFileCreateOnly(
   const parent = path.dirname(target);
   await mkdir(parent, { recursive: true });
 
-  const temporary = path.join(parent, `.${path.basename(target)}.${randomUUID()}.tmp`);
+  const canonicalRoot = await realpath(path.resolve(libraryRoot));
+  const canonicalParent = await realpath(parent);
+  if (canonicalParent !== canonicalRoot && !canonicalParent.startsWith(`${canonicalRoot}${path.sep}`)) {
+    throw new Error(`Library path crosses a symlink outside its root: ${relativePath}`);
+  }
+
+  const canonicalTarget = path.join(canonicalParent, path.basename(target));
+  const temporary = path.join(canonicalParent, `.${path.basename(target)}.${randomUUID()}.tmp`);
   await writeFile(temporary, contents, { flag: 'wx' });
 
   try {
-    await link(temporary, target);
+    await link(temporary, canonicalTarget);
   } catch (error: unknown) {
     if ((error as NodeJS.ErrnoException).code === 'EEXIST') {
       throw new Error(`Immutable library file already exists: ${relativePath}`);
@@ -127,7 +134,7 @@ export async function writeLibraryFileCreateOnly(
     await unlink(temporary).catch(() => undefined);
   }
 
-  return target;
+  return canonicalTarget;
 }
 
 export function assertArticleInvariants(article: ArticleRecord, sources: ReadonlyMap<string, SourceRecord>): void {

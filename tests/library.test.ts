@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, symlink } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -96,6 +96,23 @@ test('production libraries reject Git working trees by default', async () => {
     await assert.doesNotReject(() => assertSafeLibraryRoot(process.cwd(), { allowGitWorkingTree: true }));
   } finally {
     await rm(outsideGit, { recursive: true, force: true });
+  }
+});
+
+test('library writes reject symlinks that escape the configured root', async () => {
+  const parent = await mkdtemp(path.join(os.tmpdir(), 'pi-reads-symlink-'));
+  const root = path.join(parent, 'library');
+  const outside = path.join(parent, 'outside');
+  try {
+    await mkdir(path.join(root, 'sources'), { recursive: true });
+    await mkdir(outside);
+    await symlink(outside, path.join(root, 'sources', 'escaped'), 'dir');
+    await assert.rejects(
+      () => writeLibraryFileCreateOnly(root, 'sources/escaped/content.md', 'unsafe'),
+      /crosses a symlink outside/,
+    );
+  } finally {
+    await rm(parent, { recursive: true, force: true });
   }
 });
 

@@ -9,6 +9,16 @@ function requireContent(value: string, kind: 'text' | 'markdown'): void {
   }
 }
 
+function assertSafeMarkdown(markdown: string): void {
+  if (
+    /<\s*\/?\s*(script|style|iframe|object|embed|form|input|button|svg|canvas|link|meta)\b/iu.test(markdown) ||
+    /\son[a-z]+\s*=/iu.test(markdown) ||
+    /(?:href|src)\s*=\s*["']?\s*javascript:/iu.test(markdown)
+  ) {
+    throw new Error('Markdown contains unsafe raw HTML');
+  }
+}
+
 function visibleTextFromMarkdown(markdown: string): string {
   const html = marked.parse(markdown, { async: false });
   const dom = new JSDOM(`<!doctype html><main id="content">${html}</main>`);
@@ -23,7 +33,13 @@ export function plainTextToMarkdown(text: string): string {
   return text
     .replace(/\r\n?/g, '\n')
     .split('\n')
-    .map((line) => line.replace(/([\\`*_[\]{}()#+\-.!|>])/g, '\\$1'))
+    .map((line) =>
+      line
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/([\\`*_[\]{}()#+\-.!|])/g, '\\$1'),
+    )
     .join('\n');
 }
 
@@ -47,6 +63,7 @@ export function ingestText(text: string, label = 'Pasted text'): IngestedSourceD
 
 export function ingestMarkdown(markdown: string, label = 'Pasted Markdown'): IngestedSourceDraft {
   requireContent(markdown, 'markdown');
+  assertSafeMarkdown(markdown);
 
   return {
     kind: 'markdown',

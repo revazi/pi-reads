@@ -17,7 +17,13 @@ export async function ingestFile(filePath: string, cwd = process.cwd()): Promise
     throw new Error(`Unsupported source file type: ${extension || '(none)'}`);
   }
 
-  const contents = await readFile(absolutePath, 'utf8');
+  const bytes = await readFile(absolutePath);
+  let contents: string;
+  try {
+    contents = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+  } catch {
+    throw new Error(`Source file is not valid UTF-8 text: ${filePath}`);
+  }
   if (contents.includes('\0')) {
     throw new Error(`Source file appears to be binary: ${filePath}`);
   }

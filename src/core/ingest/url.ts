@@ -39,11 +39,14 @@ export async function ingestUrl(
   signal?: AbortSignal,
 ): Promise<IngestedUrlArticle> {
   assertHttpUrl(inputUrl);
+  signal?.throwIfAborted();
   const fetchHtml = dependencies.fetchHtml ?? fetchArticleHtml;
   const detectFontStyle = dependencies.detectFontStyle ?? detectSourceFontStyle;
   const rawHtml = await fetchHtml(inputUrl, signal);
+  signal?.throwIfAborted();
   const article = extractWebArticle(inputUrl, rawHtml);
   const sourceFontStyle = await detectFontStyle(inputUrl, article.readableContentHtml);
+  signal?.throwIfAborted();
 
   return { ...article, sourceFontStyle };
 }
