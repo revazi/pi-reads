@@ -132,7 +132,7 @@ An export records:
 
 Exports are derived and may be regenerated under new export IDs. They never become the source of truth for article content. EPUB artifacts contain validated package/navigation/spine documents and embed the image bytes needed for offline reading.
 
-Kindle delivery is an external side effect. A successful Kindle export record must contain an interactive confirmation timestamp and delivery timestamp. Dry-runs retain a local EPUB or PDF and expose only a redacted recipient outside the confirmation dialog. SMTP credentials and full Kindle/sender addresses must come from environment variables and must not be written to configuration, manifests, logs, article metadata, Pi tool results, or Git.
+Kindle delivery is an external side effect. A successful Kindle export record must contain an interactive confirmation timestamp and delivery timestamp. Dry-runs retain a local EPUB or PDF and expose only a redacted recipient outside the confirmation dialog. SMTP credentials and full Kindle/sender addresses must come from the operating-system credential store or environment overrides and must not be written to JSON configuration, manifests, logs, article metadata, Pi tool results, or Git.
 
 ## Library location resolution
 
@@ -152,7 +152,7 @@ Configuration is resolved in this order:
 
 Tilde expansion occurs only at the start of a configured path. Persisted record paths always use forward-slash, library-relative paths. Core services receive resolved paths and do not depend on Pi APIs or the process working directory.
 
-Configuration contains preferences, never credentials. Obsidian configuration may contain a vault path/name, inbox and attachment folders, note naming template, tags, custom scalar or string-array frontmatter, and an open-after-export preference. Kindle configuration may contain a device label, default format, SMTP host/port/TLS mode, and environment-variable names for recipient, username, password, and approved sender. It must never contain the values of those address or credential variables. Vault files are conflict-checked by hash and require confirmation before a differing target is overwritten.
+Configuration contains preferences, never credentials. Obsidian configuration may contain a vault path/name, inbox and attachment folders, note naming template, tags, custom scalar or string-array frontmatter, and an open-after-export preference. Kindle configuration may contain a device label, default format, SMTP host/port/TLS mode, credential backend/profile, and environment-variable names for recipient, username, password, and approved sender. Actual addresses and credentials belong in the operating-system credential store or environment overrides. Vault files are conflict-checked by hash and require confirmation before a differing target is overwritten.
 
 ## Library layout
 

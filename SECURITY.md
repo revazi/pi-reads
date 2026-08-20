@@ -20,7 +20,7 @@ Pi Reads is designed so that:
 
 - captured sources, generated articles, and exports live outside the installed package by default;
 - copied article bodies, raw HTML, PDFs, EPUBs, and local credentials are not committed;
-- SMTP credentials and full Kindle/sender addresses remain environment values;
+- SMTP credentials and full Kindle/sender addresses remain protected operating-system credential values or explicit environment overrides;
 - Kindle email requires an interactive confirmation;
 - archived source prose is immutable and kept separate from generated prose.
 

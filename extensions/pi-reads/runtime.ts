@@ -4,6 +4,7 @@ import { ExportService } from '../../src/application/export-service.ts';
 import { KindleService } from '../../src/application/kindle-service.ts';
 import { LibraryService } from '../../src/application/library-service.ts';
 import { ObsidianService } from '../../src/application/obsidian-service.ts';
+import { SystemKindleCredentialStore } from '../../src/adapters/credentials/keyring.ts';
 
 export async function openReadsServices(cwd: string): Promise<{
   configPath: string;
@@ -12,6 +13,7 @@ export async function openReadsServices(cwd: string): Promise<{
   exports: ExportService;
   epub: EpubService;
   kindle: KindleService;
+  kindleCredentialStore: SystemKindleCredentialStore;
   kindleConfig: Awaited<ReturnType<typeof resolveConfiguration>>['kindle'];
   obsidian?: ObsidianService;
   obsidianConfig: Awaited<ReturnType<typeof resolveConfiguration>>['obsidian'];
@@ -20,6 +22,7 @@ export async function openReadsServices(cwd: string): Promise<{
   const library = new LibraryService({ libraryDir: configuration.libraryDir });
   const exports = new ExportService({ library });
   const epub = new EpubService({ library });
+  const kindleCredentialStore = new SystemKindleCredentialStore();
   return {
     configPath: configuration.configPath,
     libraryDir: configuration.libraryDir,
@@ -31,7 +34,9 @@ export async function openReadsServices(cwd: string): Promise<{
       exports,
       epub,
       ...(configuration.kindle ? { config: configuration.kindle } : {}),
+      credentialStore: kindleCredentialStore,
     }),
+    kindleCredentialStore,
     kindleConfig: configuration.kindle,
     ...(configuration.obsidian ? { obsidian: new ObsidianService({ library, exports }) } : {}),
     obsidianConfig: configuration.obsidian,

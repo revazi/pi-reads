@@ -128,6 +128,8 @@ export interface ObsidianConfig {
 export interface KindleConfig {
   deviceLabel?: string;
   defaultFormat?: 'epub' | 'pdf';
+  credentialStore?: 'system' | 'environment';
+  credentialProfile?: string;
   recipientEnv?: string;
   smtp?: {
     host?: string;

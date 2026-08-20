@@ -17,6 +17,7 @@ import {
   type SmtpSettings,
 } from '../adapters/destinations/kindle.ts';
 import type { PreparedEpubExport } from './epub-service.ts';
+import type { KindleCredentialStore, KindleSmtpCredentials } from './kindle-credentials.ts';
 import type { PreparedExport } from './export-service.ts';
 import { LibraryService } from './library-service.ts';
 
@@ -48,6 +49,7 @@ export interface KindleServiceOptions {
   epub: KindleEpubExportPort;
   env?: KindleEnvironment;
   config?: ResolvedKindleConfig;
+  credentialStore?: KindleCredentialStore;
   transport?: KindleMailTransport;
   now?: () => Date;
   createId?: (prefix: RecordIdPrefix) => string;
@@ -99,9 +101,16 @@ function assertEmail(value: string, name: string): string {
   return value;
 }
 
-function kindleRecipient(env: KindleEnvironment, config: ResolvedKindleConfig | undefined): string {
+function kindleRecipient(
+  env: KindleEnvironment,
+  config: ResolvedKindleConfig | undefined,
+  storedRecipient: string | undefined,
+): string {
   const envName = config?.recipientEnv ?? 'PI_READS_KINDLE_ADDRESS';
-  const recipient = assertEmail(required(env[envName], envName), envName);
+  const recipient = assertEmail(
+    required(env[envName] ?? storedRecipient, `${envName} or stored Kindle recipient`),
+    'Kindle recipient',
+  );
   if (!recipient.toLowerCase().endsWith('@kindle.com')) {
     throw new Error('PI_READS_KINDLE_ADDRESS must use the kindle.com domain');
   }
@@ -111,6 +120,7 @@ function kindleRecipient(env: KindleEnvironment, config: ResolvedKindleConfig | 
 function smtpSettings(
   env: KindleEnvironment,
   config: ResolvedKindleConfig | undefined,
+  credentials: KindleSmtpCredentials | undefined,
 ): { settings: SmtpSettings; from: string } {
   const portValue = env.PI_READS_SMTP_PORT?.trim() || String(config?.smtp.port ?? 587);
   const port = Number(portValue);
@@ -126,12 +136,21 @@ function smtpSettings(
       host: required(env.PI_READS_SMTP_HOST ?? config?.smtp.host, 'PI_READS_SMTP_HOST or kindle.smtp.host'),
       port,
       secure: secureValue === 'true',
-      user: required(env[config?.smtp.userEnv ?? 'PI_READS_SMTP_USER'], config?.smtp.userEnv ?? 'PI_READS_SMTP_USER'),
-      password: required(env[config?.smtp.passwordEnv ?? 'PI_READS_SMTP_PASSWORD'], config?.smtp.passwordEnv ?? 'PI_READS_SMTP_PASSWORD'),
+      user: required(
+        env[config?.smtp.userEnv ?? 'PI_READS_SMTP_USER'] ?? credentials?.user,
+        `${config?.smtp.userEnv ?? 'PI_READS_SMTP_USER'} or stored SMTP username`,
+      ),
+      password: required(
+        env[config?.smtp.passwordEnv ?? 'PI_READS_SMTP_PASSWORD'] ?? credentials?.password,
+        `${config?.smtp.passwordEnv ?? 'PI_READS_SMTP_PASSWORD'} or stored SMTP password`,
+      ),
     },
     from: assertEmail(
-      required(env[config?.smtp.fromEnv ?? 'PI_READS_SMTP_FROM'], config?.smtp.fromEnv ?? 'PI_READS_SMTP_FROM'),
-      config?.smtp.fromEnv ?? 'PI_READS_SMTP_FROM',
+      required(
+        env[config?.smtp.fromEnv ?? 'PI_READS_SMTP_FROM'] ?? credentials?.from,
+        `${config?.smtp.fromEnv ?? 'PI_READS_SMTP_FROM'} or stored SMTP sender`,
+      ),
+      'SMTP sender',
     ),
   };
 }
@@ -155,6 +174,7 @@ export class KindleService {
   private readonly epub: KindleEpubExportPort;
   private readonly env: KindleEnvironment;
   private readonly config?: ResolvedKindleConfig;
+  private readonly credentialStore?: KindleCredentialStore;
   private readonly transport?: KindleMailTransport;
   private readonly now: () => Date;
   private readonly createId: (prefix: RecordIdPrefix) => string;
@@ -165,9 +185,35 @@ export class KindleService {
     this.epub = options.epub;
     this.env = options.env ?? process.env;
     this.config = options.config;
+    this.credentialStore = options.credentialStore;
     this.transport = options.transport;
     this.now = options.now ?? (() => new Date());
     this.createId = options.createId ?? ((prefix) => createRecordId(prefix));
+  }
+
+  private credentialProfile(): string {
+    return this.config?.credentialProfile ?? 'default';
+  }
+
+  private assertCredentialStore(): KindleCredentialStore {
+    if (!this.credentialStore) {
+      throw new Error('System Kindle credential storage is unavailable');
+    }
+    return this.credentialStore;
+  }
+
+  private async storedRecipient(required: boolean, signal?: AbortSignal): Promise<string | undefined> {
+    if (!required || this.config?.credentialStore !== 'system') return undefined;
+    const recipient = await this.assertCredentialStore().getRecipient(this.credentialProfile(), signal);
+    if (!recipient) throw new Error('Kindle recipient is not configured; run /reads-config');
+    return recipient;
+  }
+
+  private async storedSmtp(required: boolean, signal?: AbortSignal): Promise<KindleSmtpCredentials | undefined> {
+    if (!required || this.config?.credentialStore !== 'system') return undefined;
+    const credentials = await this.assertCredentialStore().getSmtp(this.credentialProfile(), signal);
+    if (!credentials) throw new Error('Kindle SMTP credentials are not configured; run /reads-config');
+    return credentials;
   }
 
   async preview(articleId: string, format: KindleFormat, signal?: AbortSignal): Promise<KindlePreview> {
@@ -177,7 +223,9 @@ export class KindleService {
       ? await this.epub.prepare(articleId, signal)
       : await this.exports.prepare(articleId, 'pdf', signal);
     const bytes = new Uint8Array(await readFile(prepared.artifactPath));
-    const recipient = kindleRecipient(this.env, this.config);
+    const recipientEnv = this.config?.recipientEnv ?? 'PI_READS_KINDLE_ADDRESS';
+    const storedRecipient = await this.storedRecipient(!this.env[recipientEnv]?.trim(), signal);
+    const recipient = kindleRecipient(this.env, this.config, storedRecipient);
     const contentType = format === 'epub' ? 'application/epub+zip' : 'application/pdf';
     if (isEpubExport(prepared) && prepared.validation.spineItems === 0) {
       throw new Error('EPUB has no readable spine content');
@@ -210,7 +258,14 @@ export class KindleService {
       throw new Error('Kindle delivery requires interactive confirmation');
     }
     signal?.throwIfAborted();
-    const smtp = smtpSettings(this.env, this.config);
+    const userEnv = this.config?.smtp.userEnv ?? 'PI_READS_SMTP_USER';
+    const passwordEnv = this.config?.smtp.passwordEnv ?? 'PI_READS_SMTP_PASSWORD';
+    const fromEnv = this.config?.smtp.fromEnv ?? 'PI_READS_SMTP_FROM';
+    const needsStoredCredentials = !this.env[userEnv]?.trim()
+      || !this.env[passwordEnv]?.trim()
+      || !this.env[fromEnv]?.trim();
+    const credentials = await this.storedSmtp(needsStoredCredentials, signal);
+    const smtp = smtpSettings(this.env, this.config, credentials);
     const transport = this.transport ?? new NodemailerKindleTransport(smtp.settings);
     try {
       await transport.send({

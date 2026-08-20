@@ -211,6 +211,8 @@ test('configuration follows explicit, environment, config, and default precedenc
       kindle: {
         deviceLabel: 'Paperwhite',
         defaultFormat: 'epub',
+        credentialStore: 'system',
+        credentialProfile: 'personal',
         recipientEnv: 'MY_KINDLE_RECIPIENT',
         smtp: {
           host: 'smtp.example.test',
@@ -225,6 +227,8 @@ test('configuration follows explicit, environment, config, and default precedenc
     {
       deviceLabel: 'Paperwhite',
       defaultFormat: 'epub',
+      credentialStore: 'system',
+      credentialProfile: 'personal',
       recipientEnv: 'MY_KINDLE_RECIPIENT',
       smtp: {
         host: 'smtp.example.test',
@@ -239,6 +243,10 @@ test('configuration follows explicit, environment, config, and default precedenc
   assert.throws(
     () => parseConfig({ schemaVersion: 1, kindle: { recipientEnv: ['name', 'kindle.com'].join('@') } }),
     /environment variable name/,
+  );
+  assert.throws(
+    () => parseConfig({ schemaVersion: 1, kindle: { credentialStore: 'system', credentialProfile: '../unsafe' } }),
+    /credentialProfile must use lowercase letters/,
   );
   assert.throws(
     () => parseConfig({ schemaVersion: 1, kindle: { smtp: { host: ['sender', 'example.test'].join('@') } } }),
@@ -268,6 +276,8 @@ test('configuration follows explicit, environment, config, and default precedenc
     assert.equal(withObsidian.obsidian?.noteNameTemplate, '{{title}}');
     assert.equal(withObsidian.kindle?.deviceLabel, 'Reader');
     assert.equal(withObsidian.kindle?.defaultFormat, 'epub');
+    assert.equal(withObsidian.kindle?.credentialStore, 'environment');
+    assert.equal(withObsidian.kindle?.credentialProfile, 'default');
     assert.equal(withObsidian.kindle?.recipientEnv, 'PI_READS_KINDLE_ADDRESS');
     assert.equal(withObsidian.kindle?.smtp.host, 'smtp.example.test');
     assert.equal(withObsidian.kindle?.smtp.passwordEnv, 'PI_READS_SMTP_PASSWORD');

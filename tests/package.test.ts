@@ -25,6 +25,8 @@ test('package manifest exposes installable Pi resources and production runtime d
   assert.deepEqual(manifest.pi?.skills, ['./skills/pi-reads']);
   assert.equal(manifest.peerDependencies?.['@earendil-works/pi-coding-agent'], '*');
   assert.equal(manifest.peerDependencies?.['@earendil-works/pi-ai'], '*');
+  assert.equal(manifest.peerDependencies?.['@earendil-works/pi-tui'], '*');
+  assert.equal(manifest.dependencies?.['@napi-rs/keyring'], '1.3.0');
   assert.ok(manifest.dependencies?.playwright);
   assert.equal(manifest.dependencies?.fflate, '0.8.3');
   assert.equal(manifest.dependencies?.nodemailer, '9.0.5');

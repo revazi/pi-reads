@@ -7,6 +7,7 @@ import type { KindleMail, KindleMailTransport } from '../src/adapters/destinatio
 import { EpubService } from '../src/application/epub-service.ts';
 import { ExportService } from '../src/application/export-service.ts';
 import { KindleDeliveryError, KindleService, type KindleEnvironment } from '../src/application/kindle-service.ts';
+import type { KindleCredentialStore } from '../src/application/kindle-credentials.ts';
 import type { ResolvedKindleConfig } from '../src/core/config.ts';
 import { LibraryService } from '../src/application/library-service.ts';
 import type { RecordIdPrefix } from '../src/core/library.ts';
@@ -47,6 +48,8 @@ const environment: KindleEnvironment = {
 const kindleConfig: ResolvedKindleConfig = {
   deviceLabel: 'Fixture Kindle',
   defaultFormat: 'epub',
+  credentialStore: 'environment',
+  credentialProfile: 'default',
   recipientEnv: 'TEST_KINDLE_RECIPIENT',
   smtp: {
     host: 'smtp.example.test',
@@ -99,6 +102,48 @@ test('Kindle dry-run, confirmed delivery, and failure retention use a fake SMTP 
     assert.equal(delivered.record.delivery?.confirmationMethod, 'interactive');
     const manifest = await readFile(delivered.manifestPath, 'utf8');
     assert.doesNotMatch(manifest, /@kindle\.com|@example\.test|test-only-password/);
+
+    let recipientReads = 0;
+    let smtpReads = 0;
+    const credentialStore: KindleCredentialStore = {
+      async getRecipient(profile) {
+        recipientReads += 1;
+        assert.equal(profile, 'default');
+        return kindleAddress;
+      },
+      async getSmtp(profile) {
+        smtpReads += 1;
+        assert.equal(profile, 'default');
+        return {
+          user: 'stored-approved-sender',
+          password: 'stored-test-password',
+          from: senderAddress,
+        };
+      },
+      async set() {},
+      async delete() { return true; },
+    };
+    const storedTransport = new FakeTransport();
+    const storedKindle = new KindleService({
+      library,
+      exports,
+      epub,
+      env: {},
+      config: { ...kindleConfig, credentialStore: 'system' },
+      credentialStore,
+      transport: storedTransport,
+      createId,
+      now,
+    });
+    const storedPreview = await storedKindle.preview(capture.archiveArticle.id, 'epub');
+    await storedKindle.deliver(storedPreview, {
+      confirmedAt: '2026-08-22T10:59:59Z',
+      confirmationMethod: 'interactive',
+    });
+    assert.equal(recipientReads, 1);
+    assert.equal(smtpReads, 1);
+    assert.equal(storedTransport.sent[0].to, kindleAddress);
+    assert.equal(storedTransport.sent[0].from, senderAddress);
 
     const pdfBytes = Buffer.from('%PDF-1.7\nfixture\n%%EOF\n');
     const pdfPath = path.join(libraryDir, 'fixture.pdf');

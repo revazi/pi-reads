@@ -211,12 +211,24 @@ test('Pi extension registers and executes capture, generation, export, and libra
     assert.match(sentMessages[0], /reads_ingest/);
     assert.match(sentMessages[0], /reads_export/);
 
-    const readsSelections = ['archive', 'obsidian'];
+    const readsSelections = ['archive — faithful source capture; no AI rewriting', 'obsidian'];
+    const displayedModeChoices: string[] = [];
     await commands.get('reads')!.handler('https://example.test/obsidian', {
       ...context,
       hasUI: true,
-      ui: { ...context.ui, async select() { return readsSelections.shift(); } },
+      ui: {
+        ...context.ui,
+        async select(title: string, options: string[]) {
+          if (title === 'Article mode') displayedModeChoices.push(...options);
+          return readsSelections.shift();
+        },
+      },
     });
+    assert.deepEqual(displayedModeChoices, [
+      'archive — faithful source capture; no AI rewriting',
+      'digest — shorter cited AI summary of the source',
+      'synthesis — new cited AI article combining or reframing source ideas',
+    ]);
     assert.match(sentMessages[1], /destination "obsidian"/);
     const kindleSelections = ['archive', 'kindle-epub'];
     await commands.get('reads')!.handler('https://example.test/kindle', {
@@ -244,12 +256,17 @@ test('Pi extension registers and executes capture, generation, export, and libra
     assert.equal(interactiveConfig.obsidian.noteNameTemplate, '{{title}} - {{mode}}');
     assert.deepEqual(interactiveConfig.obsidian.tags, ['pi-reads', 'test']);
 
-    const kindleConfigSelections = ['Kindle delivery', 'epub', 'no'];
+    const kindleConfigSelections = [
+      'Kindle delivery',
+      'epub',
+      'no',
+      'Environment variables — advanced/CI',
+    ];
     const kindleConfigInputs = [
       'Test Reader',
-      'TEST_KINDLE_RECIPIENT',
       'smtp.example.test',
       '587',
+      'TEST_KINDLE_RECIPIENT',
       'TEST_SMTP_USER',
       'TEST_SMTP_PASSWORD',
       'TEST_SMTP_FROM',
@@ -264,8 +281,9 @@ test('Pi extension registers and executes capture, generation, export, and libra
       },
     });
     const configuredKindle = JSON.parse(await readFile(process.env.PI_READS_CONFIG, 'utf8')) as {
-      kindle: { recipientEnv: string; smtp: { host: string; passwordEnv: string } };
+      kindle: { credentialStore: string; recipientEnv: string; smtp: { host: string; passwordEnv: string } };
     };
+    assert.equal(configuredKindle.kindle.credentialStore, 'environment');
     assert.equal(configuredKindle.kindle.recipientEnv, 'TEST_KINDLE_RECIPIENT');
     assert.equal(configuredKindle.kindle.smtp.host, 'smtp.example.test');
     assert.equal(configuredKindle.kindle.smtp.passwordEnv, 'TEST_SMTP_PASSWORD');

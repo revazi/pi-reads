@@ -22,7 +22,7 @@ The goal is not merely to save links. It is to keep a faithful, locally owned so
 - **Provenance:** generated articles retain source IDs, citations, model, and generation time.
 - **Local ownership:** the default library is `~/Documents/pi-reads`, outside the package checkout.
 - **Safe delivery:** Obsidian conflicts and Kindle email require explicit interactive confirmation.
-- **No stored secrets:** SMTP credentials and Kindle/sender addresses remain environment values.
+- **Protected credentials:** Kindle/sender addresses and SMTP credentials live in the operating-system credential store, with environment overrides for CI.
 - **Verified print output:** archive exports must pass visible-text fidelity checks.
 
 ## Install the Pi package
@@ -108,7 +108,7 @@ Pi Reads copies/downloads article images, rewrites relative links, preserves pro
 
 ### Kindle
 
-The wizard stores only safe preferences and environment-variable names. Addresses, SMTP usernames, and passwords never belong in `pi-reads.json`. Kindle export defaults to a dry-run that retains the local EPUB/PDF and shows a redacted recipient. Sending is disabled in headless sessions and requires a full-recipient confirmation in interactive use.
+The wizard stores safe preferences in `pi-reads.json` and, by default, protects addresses and SMTP credentials in macOS Keychain, Windows Credential Manager, or Linux Secret Service. Setup is performed once; Pi Reads loads credentials automatically. Environment overrides remain available for CI. Kindle export defaults to a dry-run that retains the local EPUB/PDF and shows a redacted recipient. Sending is disabled in headless sessions and requires a full-recipient confirmation in interactive use.
 
 See [EPUB and Kindle delivery](docs/epub-and-kindle.md) for setup and environment variables.
 

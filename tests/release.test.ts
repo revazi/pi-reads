@@ -46,6 +46,8 @@ test('release metadata, attribution, and sample configuration are complete and s
   const sampleText = await repositoryFile('examples/pi-reads.example.json');
   const sample = parseConfig(JSON.parse(sampleText) as unknown);
   assert.equal(sample.schemaVersion, 1);
+  assert.equal(sample.kindle?.credentialStore, 'system');
+  assert.equal(sample.kindle?.credentialProfile, 'default');
   assert.equal(sample.kindle?.recipientEnv, 'PI_READS_KINDLE_ADDRESS');
   assert.equal(sample.kindle?.smtp?.passwordEnv, 'PI_READS_SMTP_PASSWORD');
   assert.doesNotMatch(sampleText, /@kindle\.com|password\s*[:=]\s*["'][^"']+/iu);
