@@ -130,9 +130,9 @@ An export records:
 - exact artifact hash;
 - non-secret delivery evidence.
 
-Exports are derived and may be regenerated under new export IDs. They never become the source of truth for article content.
+Exports are derived and may be regenerated under new export IDs. They never become the source of truth for article content. EPUB artifacts contain validated package/navigation/spine documents and embed the image bytes needed for offline reading.
 
-Kindle delivery is an external side effect. A successful Kindle export record must contain an interactive confirmation timestamp and delivery timestamp. SMTP credentials and full Kindle addresses must not be written to manifests, logs, article metadata, or Git.
+Kindle delivery is an external side effect. A successful Kindle export record must contain an interactive confirmation timestamp and delivery timestamp. Dry-runs retain a local EPUB or PDF and expose only a redacted recipient outside the confirmation dialog. SMTP credentials and full Kindle/sender addresses must come from environment variables and must not be written to configuration, manifests, logs, article metadata, Pi tool results, or Git.
 
 ## Library location resolution
 

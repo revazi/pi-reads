@@ -8,10 +8,23 @@ import { openReadsServices } from './runtime.ts';
 
 type InputKind = 'url' | 'text' | 'markdown' | 'file';
 type RequestedMode = 'archive' | 'digest' | 'synthesis';
-type RequestedFormat = 'markdown' | 'html' | 'pdf' | 'obsidian';
+type RequestedFormat = 'markdown' | 'html' | 'pdf' | 'epub' | 'obsidian' | 'kindle-epub' | 'kindle-pdf';
 
 function inferArgumentKind(value: string): InputKind {
   return /^https?:\/\//iu.test(value) ? 'url' : 'file';
+}
+
+function exportWorkflowStep(format: RequestedFormat): string {
+  switch (format) {
+    case 'obsidian':
+      return 'Call reads_export with format "markdown" and destination "obsidian".';
+    case 'kindle-epub':
+      return 'Call reads_export with format "epub", destination "kindle", and send true. The tool must obtain interactive confirmation before email delivery.';
+    case 'kindle-pdf':
+      return 'Call reads_export with format "pdf", destination "kindle", and send true. The tool must obtain interactive confirmation before email delivery.';
+    default:
+      return `Call reads_export with format ${JSON.stringify(format)} and destination "local".`;
+  }
 }
 
 function workflowPrompt(kind: InputKind, value: string, mode: RequestedMode, format: RequestedFormat): string {
@@ -25,9 +38,7 @@ function workflowPrompt(kind: InputKind, value: string, mode: RequestedMode, for
     'Run the Pi Reads workflow using the reads_* tools.',
     `1. Call reads_ingest with kind ${JSON.stringify(kind)} and value ${source}.`,
     `2. ${generatedSteps}`,
-    format === 'obsidian'
-      ? '3. Call reads_export with format "markdown" and destination "obsidian".'
-      : `3. Call reads_export with format ${JSON.stringify(format)} and destination "local".`,
+    `3. ${exportWorkflowStep(format)}`,
     '4. Report the source ID, final article ID, and artifact path.',
     'Do not overwrite or rewrite the faithful archive. Generated claims must use [^cite_id] markers backed by captured source IDs.',
   ].join('\n');
@@ -60,7 +71,9 @@ async function promptForWorkflow(ctx: ExtensionCommandContext): Promise<{
   if (!selectedMode) {
     return undefined;
   }
-  const selectedFormat = await ctx.ui.select('Export destination/format', ['markdown', 'html', 'pdf', 'obsidian']);
+  const selectedFormat = await ctx.ui.select('Export destination/format', [
+    'markdown', 'html', 'pdf', 'epub', 'obsidian', 'kindle-epub', 'kindle-pdf',
+  ]);
   if (!selectedFormat) {
     return undefined;
   }
@@ -133,7 +146,9 @@ export function registerReadsCommands(pi: ExtensionAPI): void {
               ? ((await ctx.ui.select('Article mode', ['archive', 'digest', 'synthesis'])) as RequestedMode | undefined)
               : 'archive'),
             format: (ctx.hasUI
-              ? ((await ctx.ui.select('Export destination/format', ['markdown', 'html', 'pdf', 'obsidian'])) as RequestedFormat | undefined)
+              ? ((await ctx.ui.select('Export destination/format', [
+                  'markdown', 'html', 'pdf', 'epub', 'obsidian', 'kindle-epub', 'kindle-pdf',
+                ])) as RequestedFormat | undefined)
               : 'markdown'),
           }
         : await promptForWorkflow(ctx);

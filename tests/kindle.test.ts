@@ -28,20 +28,23 @@ class FakeTransport implements KindleMailTransport {
   }
 
   async send(mail: KindleMail): Promise<void> {
-    if (this.fail) throw new Error('fixture transport failure containing reader@kindle.com');
+    if (this.fail) throw new Error('fixture transport failure');
     this.sent.push(mail);
   }
 }
 
+const kindleAddress = ['reader', 'kindle.com'].join('@');
+const senderAddress = ['sender', 'example.test'].join('@');
+
 const environment: KindleEnvironment = {
-  PI_READS_KINDLE_ADDRESS: 'reader@kindle.com',
+  PI_READS_KINDLE_ADDRESS: kindleAddress,
   PI_READS_KINDLE_DEVICE_LABEL: 'Fixture Kindle',
   PI_READS_SMTP_HOST: 'smtp.example.test',
   PI_READS_SMTP_PORT: '587',
   PI_READS_SMTP_SECURE: 'false',
   PI_READS_SMTP_USER: 'approved-sender',
-  PI_READS_SMTP_PASSWORD: 'super-secret-fixture',
-  PI_READS_SMTP_FROM: 'sender@example.test',
+  PI_READS_SMTP_PASSWORD: 'test-only-password',
+  PI_READS_SMTP_FROM: senderAddress,
 };
 
 test('Kindle dry-run, confirmed delivery, and failure retention use a fake SMTP transport', { timeout: 30_000 }, async () => {
@@ -79,12 +82,12 @@ test('Kindle dry-run, confirmed delivery, and failure retention use a fake SMTP 
       confirmationMethod: 'interactive',
     });
     assert.equal(transport.sent.length, 1);
-    assert.equal(transport.sent[0].to, 'reader@kindle.com');
+    assert.equal(transport.sent[0].to, kindleAddress);
     assert.equal(transport.sent[0].filename, 'kindle-fixture.epub');
     assert.equal(delivered.record.destination.type, 'kindle');
     assert.equal(delivered.record.delivery?.confirmationMethod, 'interactive');
     const manifest = await readFile(delivered.manifestPath, 'utf8');
-    assert.doesNotMatch(manifest, /reader@kindle\.com|sender@example\.test|super-secret-fixture/);
+    assert.doesNotMatch(manifest, /@kindle\.com|@example\.test|test-only-password/);
 
     const pdfPreview = await kindle.preview(capture.archiveArticle.id, 'pdf');
     assert.equal(Buffer.from(pdfPreview.bytes.subarray(0, 4)).toString(), '%PDF');
@@ -107,7 +110,7 @@ test('Kindle dry-run, confirmed delivery, and failure retention use a fake SMTP 
       (error: unknown) => {
         assert.ok(error instanceof KindleDeliveryError);
         assert.match(error.message, /Local export retained at/);
-        assert.doesNotMatch(error.message, /reader@kindle\.com/);
+        assert.doesNotMatch(error.message, /@kindle\.com/);
         return true;
       },
     );

@@ -7,8 +7,8 @@ import { openReadsServices } from './runtime.ts';
 
 const SourceKind = StringEnum(['url', 'text', 'markdown', 'file'] as const);
 const GeneratedMode = StringEnum(['digest', 'synthesis'] as const);
-const ExportFormat = StringEnum(['markdown', 'html', 'pdf'] as const);
-const ExportDestination = StringEnum(['local', 'obsidian'] as const);
+const ExportFormat = StringEnum(['markdown', 'html', 'pdf', 'epub'] as const);
+const ExportDestination = StringEnum(['local', 'obsidian', 'kindle'] as const);
 
 const CitationLocatorSchema = Type.Object({
   url: Type.Optional(Type.String()),
@@ -36,6 +36,12 @@ function sourceInput(kind: 'url' | 'text' | 'markdown' | 'file', value: string, 
     case 'file':
       return { kind, path: value.replace(/^@/, ''), cwd };
   }
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KiB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MiB`;
 }
 
 async function openObsidianNote(
@@ -170,8 +176,8 @@ export function registerReadsTools(pi: ExtensionAPI): void {
     name: 'reads_export',
     label: 'Reads Export',
     description:
-      'Export a stored article locally as Markdown, standalone light-print HTML, or PDF, or deliver Markdown plus copied/downloaded images to the configured Obsidian vault. Obsidian conflicts require confirmation before overwrite. Archive exports enforce text fidelity.',
-    promptSnippet: 'Export stored reading articles locally or to a configured Obsidian vault',
+      'Export a stored article locally as Markdown, standalone light-print HTML, PDF, or validated EPUB; deliver Markdown to Obsidian; or dry-run/send EPUB or PDF to Kindle. Kindle sending always requires an interactive confirmation. Archive exports enforce text fidelity.',
+    promptSnippet: 'Export stored reading articles locally, to Obsidian, or to Kindle with confirmation',
     promptGuidelines: [
       'For reads_export Obsidian conflicts, never set overwrite true unless the user explicitly approved replacing the listed vault files.',
     ],
@@ -181,6 +187,7 @@ export function registerReadsTools(pi: ExtensionAPI): void {
       destination: Type.Optional(ExportDestination),
       overwrite: Type.Optional(Type.Boolean({ description: 'Obsidian only; requires explicit user approval for conflicting files' })),
       open: Type.Optional(Type.Boolean({ description: 'Obsidian only; open the delivered note after export' })),
+      send: Type.Optional(Type.Boolean({ description: 'Kindle only; false/omitted is dry-run, true requests an interactive send confirmation' })),
     }),
     async execute(_toolCallId, params, signal, onUpdate, ctx) {
       const services = await openReadsServices(ctx.cwd);
@@ -189,7 +196,9 @@ export function registerReadsTools(pi: ExtensionAPI): void {
 
       if (destination === 'local') {
         const result = await withFileMutationQueue(services.libraryDir, () =>
-          services.exports.prepare(params.articleId, params.format, signal),
+          params.format === 'epub'
+            ? services.epub.prepare(params.articleId, signal)
+            : services.exports.prepare(params.articleId, params.format, signal),
         );
         return {
           content: [
@@ -210,6 +219,79 @@ export function registerReadsTools(pi: ExtensionAPI): void {
             format: result.record.format,
             artifactPath: result.artifactPath,
             manifestPath: result.manifestPath,
+          },
+        };
+      }
+
+      if (destination === 'kindle') {
+        if (params.format !== 'epub' && params.format !== 'pdf') {
+          throw new Error('Kindle delivery requires format epub or pdf');
+        }
+        const kindleFormat = params.format;
+        const preview = await withFileMutationQueue(services.libraryDir, () =>
+          services.kindle.preview(params.articleId, kindleFormat, signal),
+        );
+        const previewLines = [
+          `Kindle ${params.send ? 'send preview' : 'dry run'} prepared.`,
+          `Recipient: ${preview.redactedRecipient}`,
+          `Subject: ${preview.subject}`,
+          `File: ${preview.artifactPath}`,
+          `Size: ${formatBytes(preview.size)}`,
+        ];
+        if (!params.send) {
+          return {
+            content: [{ type: 'text', text: previewLines.join('\n') }],
+            details: {
+              libraryDir: services.libraryDir,
+              destination,
+              dryRun: true,
+              articleId: preview.articleId,
+              format: preview.format,
+              recipient: preview.redactedRecipient,
+              subject: preview.subject,
+              filename: preview.filename,
+              size: preview.size,
+              artifactPath: preview.artifactPath,
+              manifestPath: preview.localManifestPath,
+            },
+          };
+        }
+        if (!ctx.hasUI) {
+          throw new Error(`Kindle send requires interactive confirmation. Local export retained at ${preview.artifactPath}`);
+        }
+        const confirmed = await ctx.ui.confirm(
+          'Send to Kindle?',
+          `Recipient: ${preview.recipient}\nSubject: ${preview.subject}\nFile: ${preview.filename}\nSize: ${formatBytes(preview.size)}\n\nSend this attachment now?`,
+        );
+        if (!confirmed) {
+          throw new Error(`Kindle delivery cancelled. Local export retained at ${preview.artifactPath}`);
+        }
+        const result = await withFileMutationQueue(services.libraryDir, () =>
+          services.kindle.deliver(preview, {
+            confirmedAt: new Date().toISOString(),
+            confirmationMethod: 'interactive',
+          }, signal),
+        );
+        return {
+          content: [{
+            type: 'text',
+            text: [
+              `Sent ${result.record.format} to ${result.redactedRecipient}.`,
+              `Delivery manifest: ${result.manifestPath}`,
+              `Retained local export: ${result.localArtifactPath}`,
+            ].join('\n'),
+          }],
+          details: {
+            libraryDir: services.libraryDir,
+            destination,
+            dryRun: false,
+            exportId: result.record.id,
+            articleId: result.record.articleId,
+            format: result.record.format,
+            recipient: result.redactedRecipient,
+            artifactPath: result.artifactPath,
+            manifestPath: result.manifestPath,
+            localArtifactPath: result.localArtifactPath,
           },
         };
       }

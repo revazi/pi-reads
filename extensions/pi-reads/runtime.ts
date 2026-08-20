@@ -1,5 +1,7 @@
 import { resolveConfiguration } from '../../src/core/config.ts';
+import { EpubService } from '../../src/application/epub-service.ts';
 import { ExportService } from '../../src/application/export-service.ts';
+import { KindleService } from '../../src/application/kindle-service.ts';
 import { LibraryService } from '../../src/application/library-service.ts';
 import { ObsidianService } from '../../src/application/obsidian-service.ts';
 
@@ -8,17 +10,22 @@ export async function openReadsServices(cwd: string): Promise<{
   libraryDir: string;
   library: LibraryService;
   exports: ExportService;
+  epub: EpubService;
+  kindle: KindleService;
   obsidian?: ObsidianService;
   obsidianConfig: Awaited<ReturnType<typeof resolveConfiguration>>['obsidian'];
 }> {
   const configuration = await resolveConfiguration({ cwd });
   const library = new LibraryService({ libraryDir: configuration.libraryDir });
   const exports = new ExportService({ library });
+  const epub = new EpubService({ library });
   return {
     configPath: configuration.configPath,
     libraryDir: configuration.libraryDir,
     library,
     exports,
+    epub,
+    kindle: new KindleService({ library, exports, epub }),
     ...(configuration.obsidian ? { obsidian: new ObsidianService({ library, exports }) } : {}),
     obsidianConfig: configuration.obsidian,
   };

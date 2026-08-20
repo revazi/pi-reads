@@ -127,7 +127,7 @@ Renderers consume a validated article and resolved source/assets. They do not mu
 
 - Markdown is the canonical readable body format.
 - Astro HTML and PDF retain the existing light print behavior.
-- EPUB is added in Phase 4 as a separate renderer.
+- EPUB is a separate reflowable renderer with validated ZIP/container/package/spine structure and embedded assets.
 
 Archive rendering must run visible-text fidelity verification before an export is reported as prepared.
 
@@ -137,7 +137,7 @@ Destinations receive a prepared export; they do not generate article prose.
 
 - Local destination retains the artifact in the library.
 - Obsidian renders destination frontmatter, copies/downloads assets, rewrites relative links, and writes only conflict-approved targets in a configured vault.
-- Kindle sends an EPUB or PDF only after explicit interactive confirmation.
+- Kindle dry-runs retain a local EPUB/PDF; SMTP delivery sends that exact artifact only after explicit interactive confirmation.
 
 Every external side effect returns delivery evidence suitable for a non-secret export manifest.
 
@@ -208,7 +208,7 @@ Path resolution is defined in the product contract. Core services receive a reso
 
 `pi-reads.json` may hold non-secret preferences. SMTP passwords, tokens, full Kindle addresses, and other credentials come from environment variables or an operating-system credential provider introduced by the owning destination phase.
 
-Logs and errors must redact credential material and recipient addresses.
+Logs, persisted records, and tool results must redact credential material and recipient addresses. The interactive Kindle confirmation may display the full recipient transiently, but it is not persisted.
 
 ## Error behavior
 

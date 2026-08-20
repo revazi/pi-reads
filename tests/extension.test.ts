@@ -5,6 +5,7 @@ import path from 'node:path';
 import test from 'node:test';
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
 import piReadsExtension from '../extensions/pi-reads/index.ts';
+import { validateEpub } from '../src/application/epub-service.ts';
 
 interface ToolResult {
   content: Array<{ type: string; text?: string }>;
@@ -24,8 +25,10 @@ test('Pi extension registers and executes capture, generation, export, and libra
   const libraryDir = await mkdtemp(path.join(os.tmpdir(), 'pi-reads-extension-'));
   const previousLibraryDir = process.env.PI_READS_LIBRARY_DIR;
   const previousConfigPath = process.env.PI_READS_CONFIG;
+  const previousKindleAddress = process.env.PI_READS_KINDLE_ADDRESS;
   process.env.PI_READS_LIBRARY_DIR = libraryDir;
   process.env.PI_READS_CONFIG = path.join(libraryDir, 'config', 'pi-reads.json');
+  process.env.PI_READS_KINDLE_ADDRESS = ['fixture-reader', 'kindle.com'].join('@');
 
   const tools = new Map<string, RegisteredTool>();
   const commands = new Map<string, RegisteredCommand>();
@@ -119,6 +122,36 @@ test('Pi extension registers and executes capture, generation, export, and libra
     const artifactPath = String(exported.details?.artifactPath);
     assert.match(await readFile(artifactPath, 'utf8'), /Extension digest/);
 
+    const epubExport = await tools.get('reads_export')!.execute(
+      'epub-export-call',
+      { articleId: generatedArticleId, format: 'epub', destination: 'local' },
+      signal,
+      undefined,
+      context,
+    );
+    const epubPath = String(epubExport.details?.artifactPath);
+    assert.ok(validateEpub(await readFile(epubPath)).spineItems > 0);
+
+    const kindleDryRun = await tools.get('reads_export')!.execute(
+      'kindle-dry-run-call',
+      { articleId: generatedArticleId, format: 'epub', destination: 'kindle' },
+      signal,
+      undefined,
+      context,
+    );
+    assert.equal(kindleDryRun.details?.dryRun, true);
+    assert.equal(kindleDryRun.details?.recipient, 'f********@kindle.com');
+    await assert.rejects(
+      () => tools.get('reads_export')!.execute(
+        'kindle-headless-send-call',
+        { articleId: generatedArticleId, format: 'epub', destination: 'kindle', send: true },
+        signal,
+        undefined,
+        context,
+      ),
+      /requires interactive confirmation/,
+    );
+
     const obsidianExport = await tools.get('reads_export')!.execute(
       'obsidian-export-call',
       { articleId: generatedArticleId, format: 'markdown', destination: 'obsidian', open: true },
@@ -184,6 +217,14 @@ test('Pi extension registers and executes capture, generation, export, and libra
       ui: { ...context.ui, async select() { return readsSelections.shift(); } },
     });
     assert.match(sentMessages[1], /destination "obsidian"/);
+    const kindleSelections = ['archive', 'kindle-epub'];
+    await commands.get('reads')!.handler('https://example.test/kindle', {
+      ...context,
+      hasUI: true,
+      ui: { ...context.ui, async select() { return kindleSelections.shift(); } },
+    });
+    assert.match(sentMessages[2], /destination "kindle"/);
+    assert.match(sentMessages[2], /interactive confirmation/);
 
     const configSelections = ['Obsidian destination', 'no'];
     const configInputs = [vaultPath, 'Fixture Vault', 'Reading Inbox', 'Attachments/pi-reads', '{{title}} - {{mode}}', 'pi-reads, test'];
@@ -216,6 +257,11 @@ test('Pi extension registers and executes capture, generation, export, and libra
       delete process.env.PI_READS_CONFIG;
     } else {
       process.env.PI_READS_CONFIG = previousConfigPath;
+    }
+    if (previousKindleAddress === undefined) {
+      delete process.env.PI_READS_KINDLE_ADDRESS;
+    } else {
+      process.env.PI_READS_KINDLE_ADDRESS = previousKindleAddress;
     }
     await rm(libraryDir, { recursive: true, force: true });
   }

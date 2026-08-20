@@ -1,12 +1,12 @@
 ---
 name: pi-reads
-description: Captures URLs, pasted text, Markdown, or files as faithful reading archives; creates cited digests or multi-source syntheses; and exports stored articles locally or to Obsidian. Use for reading-library, article-generation, and Obsidian reading-inbox requests.
-compatibility: Requires Node.js 24+; PDF export requires Playwright Chromium.
+description: Captures sources, creates cited reading articles, exports Markdown/HTML/PDF/EPUB, writes Obsidian notes, and dry-runs or confirms Kindle delivery. Use for reading-library, article-generation, Obsidian, EPUB, and Kindle requests.
+compatibility: Requires Node.js 24+; PDF requires Playwright Chromium; Kindle send requires SMTP environment variables and interactive mode.
 ---
 
 # Pi Reads
 
-Use Pi Reads tools for article capture, generation, library inspection, local export, and conflict-safe Obsidian delivery.
+Use Pi Reads tools for article capture, generation, library inspection, local export, conflict-safe Obsidian delivery, and confirmation-gated Kindle delivery.
 
 ## Source safety
 
@@ -45,6 +45,7 @@ Call `reads_export` with a stored `articleId` and:
 - `markdown` for portable Markdown with provenance and generated footnote definitions
 - `html` for standalone light-print HTML with Shiki code highlighting
 - `pdf` for A4 print output
+- `epub` for a validated reflowable book with embedded article images
 
 If PDF export reports that Chromium is missing, ask the user to run `/reads-install-browser`.
 
@@ -52,7 +53,9 @@ For Obsidian, call `reads_export` with `format: "markdown"` and `destination: "o
 
 If the tool lists conflicting vault files, show those paths to the user and obtain explicit approval before calling it again with `overwrite: true`. Never infer overwrite approval. Set `open: true` only when the user wants the delivered note opened in Obsidian.
 
-Kindle delivery is not part of this phase.
+For Kindle dry-run, call `reads_export` with destination `kindle`, format `epub` or `pdf`, and omit `send`. Report only the redacted recipient, file, size, subject, and retained artifact path.
+
+Set `send: true` only when the user explicitly asks for delivery. The tool itself must display the full recipient and obtain interactive confirmation; headless delivery is forbidden. Never place Kindle/sender addresses or SMTP credentials in tool arguments, configuration, prose, manifests, or repository files. If delivery fails or is cancelled, report the retained local artifact path for manual upload.
 
 ## Library
 

@@ -58,7 +58,7 @@ Pi Reads adds:
 - `/reads-install-browser` — install Chromium for PDF exports
 - `reads_ingest`, `reads_save_article`, `reads_export`, and `reads_library` tools
 
-Captured sources and faithful archives are immutable. Digests and syntheses are stored separately with source IDs, citations, and active Pi model provenance. Local exports support Markdown, standalone light-print HTML, and PDF. Markdown notes can also be delivered to a configured Obsidian vault with destination frontmatter and copied/downloaded images.
+Captured sources and faithful archives are immutable. Digests and syntheses are stored separately with source IDs, citations, and active Pi model provenance. Local exports support Markdown, standalone light-print HTML, PDF, and validated reflowable EPUB. Markdown notes can also be delivered to a configured Obsidian vault with destination frontmatter and copied/downloaded images.
 
 Configure Obsidian interactively with `/reads-config`, or set the vault quickly:
 
@@ -67,6 +67,8 @@ Configure Obsidian interactively with `/reads-config`, or set the vault quickly:
 ```
 
 The `/reads` wizard then offers `obsidian` as an output. Re-exporting never silently replaces a different note or asset: interactive use displays the conflicting vault paths and asks before overwriting them. See [Obsidian integration](docs/obsidian.md) for folder, naming, tags, frontmatter, and open-after-export settings.
+
+The wizard also offers local EPUB and Kindle EPUB/PDF outputs. Kindle dry-runs retain a local artifact and show a redacted recipient, subject, filename, and size. Email is never sent in headless mode and always requires an interactive confirmation showing the full recipient. SMTP and Send to Kindle values come only from environment variables; see [EPUB and Kindle delivery](docs/epub-and-kindle.md).
 
 ## Install
 

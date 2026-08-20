@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "packageManager": "pnpm@10.33.0",
-  "description": "Pi package for faithful source capture, cited reading articles, and local Markdown, HTML, and PDF exports.",
+  "description": "Pi package for faithful source capture, cited reading articles, Obsidian, EPUB, PDF, and confirmed Kindle delivery.",
   "keywords": [
     "pi-package",
     "pi-extension",
