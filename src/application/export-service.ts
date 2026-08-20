@@ -252,7 +252,7 @@ ${sourceLinks ? `<p class="article-source">Sources: ${sourceLinks}</p>` : ''}
         const html = await this.renderHtml(articleId);
         signal?.throwIfAborted();
         const browser = await chromium.launch().catch((error: unknown) => {
-          throw new Error(`Chromium is required for PDF export. Run \`pnpm article:install-browser\`. ${String(error)}`);
+          throw new Error(`Chromium is required for PDF export. Run /reads-install-browser or install Playwright Chromium. ${String(error)}`);
         });
         try {
           const page = await browser.newPage({ viewport: { width: 1000, height: 1400 } });
