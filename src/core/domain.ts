@@ -101,6 +101,7 @@ export interface ExportRecord {
   destination: ExportDestination;
   status: ExportStatus;
   artifact: StoredFile;
+  assets?: StoredFile[];
   createdAt: string;
   delivery?: {
     attemptedAt?: string;
@@ -111,6 +112,19 @@ export interface ExportRecord {
   };
 }
 
+export type FrontmatterValue = string | number | boolean | string[];
+
+export interface ObsidianConfig {
+  vaultPath: string;
+  vaultName?: string;
+  inboxFolder?: string;
+  attachmentFolder?: string;
+  noteNameTemplate?: string;
+  tags?: string[];
+  frontmatter?: Record<string, FrontmatterValue>;
+  openAfterExport?: boolean;
+}
+
 export interface PiReadsConfig {
   schemaVersion: 1;
   libraryDir?: string;
@@ -118,6 +132,7 @@ export interface PiReadsConfig {
     mode?: ArticleMode;
     exportFormat?: ExportFormat;
   };
+  obsidian?: ObsidianConfig;
 }
 
 export interface IngestedSourceDraft {

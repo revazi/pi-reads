@@ -24,6 +24,61 @@
           "enum": ["markdown", "html", "pdf", "epub"]
         }
       }
+    },
+    "obsidian": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["vaultPath"],
+      "properties": {
+        "vaultPath": {
+          "type": "string",
+          "minLength": 1
+        },
+        "vaultName": {
+          "type": "string",
+          "minLength": 1
+        },
+        "inboxFolder": {
+          "type": "string",
+          "minLength": 1
+        },
+        "attachmentFolder": {
+          "type": "string",
+          "minLength": 1
+        },
+        "noteNameTemplate": {
+          "type": "string",
+          "minLength": 1
+        },
+        "tags": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "frontmatter": {
+          "type": "object",
+          "additionalProperties": {
+            "oneOf": [
+              { "type": "string" },
+              { "type": "number" },
+              { "type": "boolean" },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            ]
+          }
+        },
+        "openAfterExport": {
+          "type": "boolean"
+        }
+      }
     }
   }
 }

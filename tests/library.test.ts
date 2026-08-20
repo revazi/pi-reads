@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp, readFile, rm, symlink } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -174,6 +174,37 @@ test('configuration follows explicit, environment, config, and default precedenc
   });
   assert.throws(() => parseConfig({ schemaVersion: 1, defaults: { mode: 'rewrite' } }), /Unsupported default article mode/);
   assert.throws(() => parseConfig({ schemaVersion: 1, secret: 'never' }), /unsupported property secret/);
+  assert.deepEqual(
+    parseConfig({
+      schemaVersion: 1,
+      obsidian: {
+        vaultPath: '../vault',
+        tags: ['pi-reads'],
+        frontmatter: { status: 'unread', rating: 5, shared: false, topics: ['typescript'] },
+      },
+    }).obsidian,
+    {
+      vaultPath: '../vault',
+      tags: ['pi-reads'],
+      frontmatter: { status: 'unread', rating: 5, shared: false, topics: ['typescript'] },
+    },
+  );
+  assert.throws(
+    () => parseConfig({ schemaVersion: 1, obsidian: { vaultPath: '/vault', tags: ['same', 'same'] } }),
+    /must not contain duplicates/,
+  );
+  assert.throws(
+    () => parseConfig({ schemaVersion: 1, obsidian: { vaultPath: '/vault', inboxFolder: '../outside' } }),
+    /unsafe path segment/,
+  );
+  assert.throws(
+    () => parseConfig({ schemaVersion: 1, obsidian: { vaultPath: '/vault', noteNameTemplate: '{{unknown}}' } }),
+    /unsupported variable unknown/,
+  );
+  assert.throws(
+    () => parseConfig({ schemaVersion: 1, obsidian: { vaultPath: '/vault', frontmatter: { title: 'replace' } } }),
+    /reserved property title/,
+  );
 
   const resolved = await resolveConfiguration({
     homeDir: home,
@@ -182,4 +213,17 @@ test('configuration follows explicit, environment, config, and default precedenc
   });
   assert.equal(resolved.configPath, path.join(cwd, 'missing.json'));
   assert.equal(resolved.libraryDir, path.join(cwd, 'library'));
+
+  const configRoot = await mkdtemp(path.join(os.tmpdir(), 'pi-reads-config-'));
+  try {
+    const configPath = path.join(configRoot, 'pi-reads.json');
+    await writeFile(configPath, JSON.stringify({ schemaVersion: 1, obsidian: { vaultPath: '../vault' } }));
+    const withObsidian = await resolveConfiguration({ configPath, homeDir: home, cwd, env: {} });
+    assert.equal(withObsidian.obsidian?.vaultPath, path.resolve(configRoot, '../vault'));
+    assert.equal(withObsidian.obsidian?.inboxFolder, 'Reading Inbox');
+    assert.equal(withObsidian.obsidian?.attachmentFolder, 'Attachments/pi-reads');
+    assert.equal(withObsidian.obsidian?.noteNameTemplate, '{{title}}');
+  } finally {
+    await rm(configRoot, { recursive: true, force: true });
+  }
 });

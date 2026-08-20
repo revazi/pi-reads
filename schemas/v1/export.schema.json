@@ -94,6 +94,25 @@
         }
       ]
     },
+    "assets": {
+      "type": "array",
+      "items": {
+        "allOf": [
+          {
+            "$ref": "common.schema.json#/$defs/storedFile"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string",
+                "pattern": "^exports/art_[a-z0-9]{16,64}/exp_[a-z0-9]{16,64}/assets/"
+              }
+            }
+          }
+        ]
+      }
+    },
     "createdAt": {
       "$ref": "common.schema.json#/$defs/timestamp"
     },

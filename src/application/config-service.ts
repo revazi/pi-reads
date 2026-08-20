@@ -2,9 +2,9 @@ import { mkdir, rename, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { parseConfig, readConfig } from '../core/config.ts';
-import type { PiReadsConfig } from '../core/domain.ts';
+import type { ObsidianConfig, PiReadsConfig } from '../core/domain.ts';
 
-export async function writeConfig(configPath: string, config: PiReadsConfig): Promise<void> {
+async function writeConfig(configPath: string, config: PiReadsConfig): Promise<void> {
   const validated = parseConfig(config);
   const absolutePath = path.resolve(configPath);
   const parent = path.dirname(absolutePath);
@@ -24,6 +24,16 @@ export async function updateLibraryDir(configPath: string, libraryDir: string): 
   }
   const current = await readConfig(configPath);
   const next: PiReadsConfig = { ...current, libraryDir };
+  await writeConfig(configPath, next);
+  return next;
+}
+
+export async function updateObsidianConfig(
+  configPath: string,
+  obsidian: ObsidianConfig,
+): Promise<PiReadsConfig> {
+  const current = await readConfig(configPath);
+  const next: PiReadsConfig = { ...current, obsidian };
   await writeConfig(configPath, next);
   return next;
 }

@@ -66,17 +66,24 @@ function sourceUrl(source: SourceRecord): string | undefined {
   return source.origin.canonicalUrl;
 }
 
-function markdownWithCitationDefinitions(article: ArticleRecord, body: string, sources: ArticleSources): string {
-  const metadata = [
-    '---',
-    `piReadsArticleId: ${JSON.stringify(article.id)}`,
-    `mode: ${JSON.stringify(article.mode)}`,
-    `title: ${JSON.stringify(article.title)}`,
-    `slug: ${JSON.stringify(article.slug)}`,
-    `sources: ${JSON.stringify(article.sourceIds)}`,
-    '---',
-    '',
-  ].join('\n');
+function markdownWithCitationDefinitions(
+  article: ArticleRecord,
+  body: string,
+  sources: ArticleSources,
+  includeMetadata = true,
+): string {
+  const metadata = includeMetadata
+    ? [
+        '---',
+        `piReadsArticleId: ${JSON.stringify(article.id)}`,
+        `mode: ${JSON.stringify(article.mode)}`,
+        `title: ${JSON.stringify(article.title)}`,
+        `slug: ${JSON.stringify(article.slug)}`,
+        `sources: ${JSON.stringify(article.sourceIds)}`,
+        '---',
+        '',
+      ].join('\n')
+    : '';
 
   if (article.citations.length === 0) {
     return `${metadata}${body.trim()}\n`;
@@ -174,6 +181,17 @@ export class ExportService {
       article.sourceIds.map(async (sourceId) => [sourceId, (await this.library.loadSource(sourceId)).source] as const),
     );
     return { records: new Map(entries) };
+  }
+
+  async renderMarkdown(articleId: string, options: { includeMetadata?: boolean } = {}): Promise<string> {
+    const stored = await this.library.loadArticle(articleId);
+    const sources = await this.loadSources(stored.article);
+    return markdownWithCitationDefinitions(
+      stored.article,
+      stored.content,
+      sources,
+      options.includeMetadata ?? true,
+    );
   }
 
   async renderHtml(articleId: string): Promise<string> {

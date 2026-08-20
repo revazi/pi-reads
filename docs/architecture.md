@@ -136,7 +136,7 @@ Archive rendering must run visible-text fidelity verification before an export i
 Destinations receive a prepared export; they do not generate article prose.
 
 - Local destination retains the artifact in the library.
-- Obsidian copies Markdown and assets into a configured vault.
+- Obsidian renders destination frontmatter, copies/downloads assets, rewrites relative links, and writes only conflict-approved targets in a configured vault.
 - Kindle sends an EPUB or PDF only after explicit interactive confirmation.
 
 Every external side effect returns delivery evidence suitable for a non-secret export manifest.
@@ -226,7 +226,7 @@ Logs and errors must redact credential material and recipient addresses.
 - Storage: temporary-directory integration tests, including collisions and atomicity.
 - Rendering: existing fidelity verifier plus fixture snapshots where stable.
 - Pi extension: extension-load and tool-contract smoke tests.
-- Obsidian: temporary fake vault.
+- Obsidian: temporary fake vault with local/remote image fixtures, conflict handling, unrelated-file checks, and symlink escape rejection.
 - Kindle: fake SMTP transport and mandatory confirmation tests.
 
 Each phase adds only the tests needed for its layer. The baseline eventually remains:
