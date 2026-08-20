@@ -8,6 +8,7 @@ import type { RecordIdPrefix } from '../src/core/library.ts';
 import { ExportService } from '../src/application/export-service.ts';
 import { LibraryService } from '../src/application/library-service.ts';
 import { ObsidianConflictError, ObsidianService } from '../src/application/obsidian-service.ts';
+import { downloadImageAsset } from '../src/adapters/destinations/obsidian.ts';
 
 function deterministicIds(): (prefix: RecordIdPrefix) => string {
   const counts: Record<RecordIdPrefix, number> = { src: 0, art: 0, cite: 0, exp: 0 };
@@ -17,6 +18,12 @@ function deterministicIds(): (prefix: RecordIdPrefix) => string {
     return `${prefix}_${letters[prefix].repeat(15)}${counts[prefix].toString(36)}`;
   };
 }
+
+test('Obsidian image downloads reject local and credential-bearing URLs before fetching', async () => {
+  await assert.rejects(() => downloadImageAsset('http://127.0.0.1/image.png'), /private or non-routable/);
+  await assert.rejects(() => downloadImageAsset('http://[::1]/image.png'), /private or non-routable/);
+  await assert.rejects(() => downloadImageAsset('https://user:secret@example.com/image.png'), /must not contain credentials/);
+});
 
 test('Obsidian export writes metadata and assets, detects conflicts, and preserves unrelated files', async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), 'pi-reads-obsidian-'));
