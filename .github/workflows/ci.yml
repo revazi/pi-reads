@@ -25,3 +25,5 @@ jobs:
       - run: pnpm article:check
       - run: pnpm test
       - run: pnpm build
+      - run: pnpm exec pi --no-skills -e . --list-models __pi_reads_package_smoke__
+      - run: pnpm audit --prod
