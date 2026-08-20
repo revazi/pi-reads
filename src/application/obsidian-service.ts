@@ -66,7 +66,7 @@ interface ImageReference {
   target: string;
 }
 
-interface PreparedAsset {
+export interface PreparedArticleAsset {
   vaultRelativePath: string;
   exportName: string;
   contents: Uint8Array;
@@ -90,7 +90,7 @@ export interface ObsidianExportPlan {
   openUri: string;
   inspection: ObsidianVaultInspection;
   vaultFiles: ObsidianVaultFile[];
-  assets: PreparedAsset[];
+  assets: PreparedArticleAsset[];
 }
 
 export interface DeliveredObsidianExport {
@@ -307,6 +307,60 @@ async function readLocalImage(target: string, sources: readonly SourceRecord[]):
   return { contents: await readFile(localPath), mediaType };
 }
 
+export async function prepareArticleAssets(
+  markdown: string,
+  article: ArticleRecord,
+  sources: readonly SourceRecord[],
+  options: {
+    attachmentFolder: string;
+    documentRelativePath: string;
+    fetchAsset?: (url: string, signal?: AbortSignal) => Promise<DownloadedAsset>;
+    signal?: AbortSignal;
+  },
+): Promise<{ markdown: string; assets: PreparedArticleAsset[] }> {
+  const references = imageReferences(markdown);
+  if (references.length === 0) {
+    return { markdown, assets: [] };
+  }
+
+  const attachmentFolder = validateVaultRelativePath(options.attachmentFolder, 'Attachment folder');
+  const fetchAsset = options.fetchAsset ?? ((url: string, signal?: AbortSignal) => downloadImageAsset(url, { signal }));
+  const resolved = new Map<string, PreparedArticleAsset>();
+  const replacements = new Map<string, string>();
+  for (const reference of references) {
+    options.signal?.throwIfAborted();
+    if (resolved.has(reference.target)) continue;
+    const asset = /^https?:\/\//iu.test(reference.target)
+      ? await fetchAsset(reference.target, options.signal)
+      : await readLocalImage(reference.target, sources);
+    if (asset.contents.byteLength > MAX_ASSET_BYTES) {
+      throw new Error(`Image exceeds the ${MAX_ASSET_BYTES} byte limit: ${reference.target}`);
+    }
+    const extension = extensionFor(asset.mediaType);
+    const index = resolved.size + 1;
+    const exportName = `${String(index).padStart(3, '0')}-${safeAssetStem(reference.target)}${extension}`;
+    const vaultRelativePath = path.posix.join(attachmentFolder, article.slug, exportName);
+    const relativeLink = path.posix.relative(path.posix.dirname(options.documentRelativePath), vaultRelativePath);
+    resolved.set(reference.target, {
+      vaultRelativePath,
+      exportName,
+      contents: asset.contents,
+      mediaType: asset.mediaType,
+    });
+    replacements.set(reference.target, encodeMarkdownPath(relativeLink));
+  }
+
+  let cursor = 0;
+  let rewritten = '';
+  for (const reference of references) {
+    rewritten += markdown.slice(cursor, reference.start);
+    rewritten += replacements.get(reference.target) ?? reference.target;
+    cursor = reference.end;
+  }
+  rewritten += markdown.slice(cursor);
+  return { markdown: rewritten, assets: [...resolved.values()] };
+}
+
 export class ObsidianService {
   private readonly library: LibraryService;
   private readonly exports: ExportService;
@@ -322,57 +376,6 @@ export class ObsidianService {
     this.fetchAsset = options.fetchAsset ?? ((url, signal) => downloadImageAsset(url, { signal }));
   }
 
-  private async prepareAssets(
-    markdown: string,
-    article: ArticleRecord,
-    sources: readonly SourceRecord[],
-    config: ResolvedObsidianConfig,
-    noteRelativePath: string,
-    signal?: AbortSignal,
-  ): Promise<{ markdown: string; assets: PreparedAsset[] }> {
-    const references = imageReferences(markdown);
-    if (references.length === 0) {
-      return { markdown, assets: [] };
-    }
-
-    const attachmentFolder = validateVaultRelativePath(config.attachmentFolder, 'Obsidian attachment folder');
-    const resolved = new Map<string, PreparedAsset>();
-    const replacements = new Map<string, string>();
-    for (const reference of references) {
-      signal?.throwIfAborted();
-      if (resolved.has(reference.target)) {
-        continue;
-      }
-      let asset: DownloadedAsset;
-      if (/^https?:\/\//iu.test(reference.target)) {
-        asset = await this.fetchAsset(reference.target, signal);
-      } else {
-        asset = await readLocalImage(reference.target, sources);
-      }
-      if (asset.contents.byteLength > MAX_ASSET_BYTES) {
-        throw new Error(`Image exceeds the ${MAX_ASSET_BYTES} byte limit: ${reference.target}`);
-      }
-      const extension = extensionFor(asset.mediaType);
-      const index = resolved.size + 1;
-      const exportName = `${String(index).padStart(3, '0')}-${safeAssetStem(reference.target)}${extension}`;
-      const vaultRelativePath = path.posix.join(attachmentFolder, article.slug, exportName);
-      const relativeLink = path.posix.relative(path.posix.dirname(noteRelativePath), vaultRelativePath);
-      const prepared: PreparedAsset = { vaultRelativePath, exportName, contents: asset.contents, mediaType: asset.mediaType };
-      resolved.set(reference.target, prepared);
-      replacements.set(reference.target, encodeMarkdownPath(relativeLink));
-    }
-
-    let cursor = 0;
-    let rewritten = '';
-    for (const reference of references) {
-      rewritten += markdown.slice(cursor, reference.start);
-      rewritten += replacements.get(reference.target) ?? reference.target;
-      cursor = reference.end;
-    }
-    rewritten += markdown.slice(cursor);
-    return { markdown: rewritten, assets: [...resolved.values()] };
-  }
-
   async plan(
     articleId: string,
     config: ResolvedObsidianConfig,
@@ -386,7 +389,12 @@ export class ObsidianService {
     const noteName = renderNoteName(config.noteNameTemplate, stored.article);
     const noteRelativePath = path.posix.join(inboxFolder, `${noteName}.md`);
     const markdown = await this.exports.renderMarkdown(articleId, { includeMetadata: false });
-    const prepared = await this.prepareAssets(markdown, stored.article, sources, config, noteRelativePath, signal);
+    const prepared = await prepareArticleAssets(markdown, stored.article, sources, {
+      attachmentFolder: config.attachmentFolder,
+      documentRelativePath: noteRelativePath,
+      fetchAsset: this.fetchAsset,
+      signal,
+    });
     const noteContents = `${renderFrontmatter(stored.article, sources, config)}${prepared.markdown}`;
     const vaultFiles: ObsidianVaultFile[] = [
       ...prepared.assets.map((asset) => ({ relativePath: asset.vaultRelativePath, contents: asset.contents })),
