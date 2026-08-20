@@ -1,12 +1,12 @@
 ---
 name: pi-reads
-description: Captures URLs, pasted text, Markdown, or files as faithful reading archives; creates cited digests or multi-source syntheses; and exports stored articles to Markdown, standalone HTML, or PDF. Use for reading-library and article-generation requests.
+description: Captures URLs, pasted text, Markdown, or files as faithful reading archives; creates cited digests or multi-source syntheses; and exports stored articles locally or to Obsidian. Use for reading-library, article-generation, and Obsidian reading-inbox requests.
 compatibility: Requires Node.js 24+; PDF export requires Playwright Chromium.
 ---
 
 # Pi Reads
 
-Use Pi Reads tools for article capture, generation, library inspection, and local export.
+Use Pi Reads tools for article capture, generation, library inspection, local export, and conflict-safe Obsidian delivery.
 
 ## Source safety
 
@@ -48,7 +48,11 @@ Call `reads_export` with a stored `articleId` and:
 
 If PDF export reports that Chromium is missing, ask the user to run `/reads-install-browser`.
 
-Exports remain local. Obsidian and Kindle delivery are not part of this phase.
+For Obsidian, call `reads_export` with `format: "markdown"` and `destination: "obsidian"`. Pi Reads writes destination-specific frontmatter, downloads or copies referenced images, and rewrites their links relative to the note. Obsidian must first be configured with `/reads-config obsidian <vault-path>` or the interactive `/reads-config` flow.
+
+If the tool lists conflicting vault files, show those paths to the user and obtain explicit approval before calling it again with `overwrite: true`. Never infer overwrite approval. Set `open: true` only when the user wants the delivered note opened in Obsidian.
+
+Kindle delivery is not part of this phase.
 
 ## Library
 
@@ -61,4 +65,4 @@ Do not expose raw source bodies in tool output; read the returned local content 
 
 ## Interactive command
 
-Users can run `/reads` for the capture/generate/export wizard, `/reads-config` to change the library directory, `/reads-list` to browse recent articles, and `/reads-install-browser` to install Chromium for PDF export.
+Users can run `/reads` for the capture/generate/export wizard, `/reads-config` to configure the library or Obsidian, `/reads-list` to browse recent articles, and `/reads-install-browser` to install Chromium for PDF export.

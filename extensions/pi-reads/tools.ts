@@ -1,3 +1,4 @@
+import process from 'node:process';
 import { StringEnum, Type } from '@earendil-works/pi-ai';
 import { withFileMutationQueue, type ExtensionAPI } from '@earendil-works/pi-coding-agent';
 import type { Citation } from '../../src/core/domain.ts';
@@ -7,6 +8,7 @@ import { openReadsServices } from './runtime.ts';
 const SourceKind = StringEnum(['url', 'text', 'markdown', 'file'] as const);
 const GeneratedMode = StringEnum(['digest', 'synthesis'] as const);
 const ExportFormat = StringEnum(['markdown', 'html', 'pdf'] as const);
+const ExportDestination = StringEnum(['local', 'obsidian'] as const);
 
 const CitationLocatorSchema = Type.Object({
   url: Type.Optional(Type.String()),
@@ -34,6 +36,17 @@ function sourceInput(kind: 'url' | 'text' | 'markdown' | 'file', value: string, 
     case 'file':
       return { kind, path: value.replace(/^@/, ''), cwd };
   }
+}
+
+async function openObsidianNote(
+  pi: ExtensionAPI,
+  uri: string,
+  signal: AbortSignal | undefined,
+): Promise<string | undefined> {
+  const command = process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'rundll32' : 'xdg-open';
+  const args = process.platform === 'win32' ? ['url.dll,FileProtocolHandler', uri] : [uri];
+  const result = await pi.exec(command, args, { signal, timeout: 15_000 });
+  return result.code === 0 ? undefined : (result.stderr || `exit code ${result.code}`);
 }
 
 export function registerReadsTools(pi: ExtensionAPI): void {
@@ -157,36 +170,112 @@ export function registerReadsTools(pi: ExtensionAPI): void {
     name: 'reads_export',
     label: 'Reads Export',
     description:
-      'Prepare a local Markdown, standalone light-print HTML, or PDF export for a stored article ID. Archive exports enforce text fidelity. PDF export requires Playwright Chromium.',
-    promptSnippet: 'Export stored reading articles to Markdown, HTML, or PDF',
+      'Export a stored article locally as Markdown, standalone light-print HTML, or PDF, or deliver Markdown plus copied/downloaded images to the configured Obsidian vault. Obsidian conflicts require confirmation before overwrite. Archive exports enforce text fidelity.',
+    promptSnippet: 'Export stored reading articles locally or to a configured Obsidian vault',
+    promptGuidelines: [
+      'For reads_export Obsidian conflicts, never set overwrite true unless the user explicitly approved replacing the listed vault files.',
+    ],
     parameters: Type.Object({
       articleId: Type.String(),
       format: ExportFormat,
+      destination: Type.Optional(ExportDestination),
+      overwrite: Type.Optional(Type.Boolean({ description: 'Obsidian only; requires explicit user approval for conflicting files' })),
+      open: Type.Optional(Type.Boolean({ description: 'Obsidian only; open the delivered note after export' })),
     }),
     async execute(_toolCallId, params, signal, onUpdate, ctx) {
       const services = await openReadsServices(ctx.cwd);
-      onUpdate?.({ content: [{ type: 'text', text: `Preparing ${params.format} export…` }], details: {} });
-      const result = await withFileMutationQueue(services.libraryDir, () =>
-        services.exports.prepare(params.articleId, params.format, signal),
+      const destination = params.destination ?? 'local';
+      onUpdate?.({ content: [{ type: 'text', text: `Preparing ${destination} ${params.format} export…` }], details: {} });
+
+      if (destination === 'local') {
+        const result = await withFileMutationQueue(services.libraryDir, () =>
+          services.exports.prepare(params.articleId, params.format, signal),
+        );
+        return {
+          content: [
+            {
+              type: 'text',
+              text: [
+                `Prepared ${result.record.format} export ${result.record.id}.`,
+                `Artifact: ${result.artifactPath}`,
+                `Manifest: ${result.manifestPath}`,
+              ].join('\n'),
+            },
+          ],
+          details: {
+            libraryDir: services.libraryDir,
+            destination,
+            exportId: result.record.id,
+            articleId: result.record.articleId,
+            format: result.record.format,
+            artifactPath: result.artifactPath,
+            manifestPath: result.manifestPath,
+          },
+        };
+      }
+
+      if (params.format !== 'markdown') {
+        throw new Error('Obsidian exports require format markdown');
+      }
+      if (!services.obsidian || !services.obsidianConfig) {
+        throw new Error('Obsidian is not configured. Run /reads-config and choose Obsidian destination.');
+      }
+
+      const plan = await services.obsidian.plan(params.articleId, services.obsidianConfig, signal);
+      let overwrite = false;
+      let confirmedAt: string | undefined;
+      if (plan.inspection.conflicts.length > 0) {
+        if (ctx.hasUI) {
+          const confirmed = await ctx.ui.confirm(
+            'Overwrite Obsidian files?',
+            `The following files differ:\n${plan.inspection.conflicts.join('\n')}\n\nReplace only these Pi Reads targets?`,
+          );
+          if (!confirmed) {
+            throw new Error('Obsidian export cancelled; no vault files were changed');
+          }
+          overwrite = true;
+          confirmedAt = new Date().toISOString();
+        } else if (params.overwrite) {
+          overwrite = true;
+        } else {
+          throw new Error(`Obsidian export conflicts with ${plan.inspection.conflicts.join(', ')}; rerun with overwrite true only after explicit approval`);
+        }
+      }
+
+      const result = await withFileMutationQueue(services.obsidianConfig.vaultPath, () =>
+        services.obsidian!.deliver(plan, { overwrite, ...(confirmedAt ? { confirmedAt } : {}) }),
       );
+      let openWarning: string | undefined;
+      if (params.open ?? services.obsidianConfig.openAfterExport) {
+        openWarning = await openObsidianNote(pi, result.openUri, signal);
+      }
       return {
         content: [
           {
             type: 'text',
             text: [
-              `Prepared ${result.record.format} export ${result.record.id}.`,
-              `Artifact: ${result.artifactPath}`,
+              `Delivered Obsidian export ${result.record.id}.`,
+              `Note: ${result.notePath}`,
+              `Assets: ${result.assetPaths.length}`,
               `Manifest: ${result.manifestPath}`,
+              ...(openWarning ? [`Obsidian open warning: ${openWarning}`] : []),
             ].join('\n'),
           },
         ],
         details: {
           libraryDir: services.libraryDir,
+          destination,
           exportId: result.record.id,
           articleId: result.record.articleId,
           format: result.record.format,
           artifactPath: result.artifactPath,
           manifestPath: result.manifestPath,
+          notePath: result.notePath,
+          noteRelativePath: result.noteRelativePath,
+          assetPaths: result.assetPaths,
+          changedPaths: result.changedPaths,
+          openUri: result.openUri,
+          ...(openWarning ? { openWarning } : {}),
         },
       };
     },

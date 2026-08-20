@@ -1,12 +1,14 @@
+import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 import type { ExtensionAPI, ExtensionCommandContext } from '@earendil-works/pi-coding-agent';
-import { updateLibraryDir } from '../../src/application/config-service.ts';
+import { updateLibraryDir, updateObsidianConfig } from '../../src/application/config-service.ts';
+import type { ObsidianConfig } from '../../src/core/domain.ts';
 import { openReadsServices } from './runtime.ts';
 
 type InputKind = 'url' | 'text' | 'markdown' | 'file';
 type RequestedMode = 'archive' | 'digest' | 'synthesis';
-type RequestedFormat = 'markdown' | 'html' | 'pdf';
+type RequestedFormat = 'markdown' | 'html' | 'pdf' | 'obsidian';
 
 function inferArgumentKind(value: string): InputKind {
   return /^https?:\/\//iu.test(value) ? 'url' : 'file';
@@ -23,7 +25,9 @@ function workflowPrompt(kind: InputKind, value: string, mode: RequestedMode, for
     'Run the Pi Reads workflow using the reads_* tools.',
     `1. Call reads_ingest with kind ${JSON.stringify(kind)} and value ${source}.`,
     `2. ${generatedSteps}`,
-    `3. Call reads_export with format ${JSON.stringify(format)}.`,
+    format === 'obsidian'
+      ? '3. Call reads_export with format "markdown" and destination "obsidian".'
+      : `3. Call reads_export with format ${JSON.stringify(format)} and destination "local".`,
     '4. Report the source ID, final article ID, and artifact path.',
     'Do not overwrite or rewrite the faithful archive. Generated claims must use [^cite_id] markers backed by captured source IDs.',
   ].join('\n');
@@ -56,7 +60,7 @@ async function promptForWorkflow(ctx: ExtensionCommandContext): Promise<{
   if (!selectedMode) {
     return undefined;
   }
-  const selectedFormat = await ctx.ui.select('Export format', ['markdown', 'html', 'pdf']);
+  const selectedFormat = await ctx.ui.select('Export destination/format', ['markdown', 'html', 'pdf', 'obsidian']);
   if (!selectedFormat) {
     return undefined;
   }
@@ -67,6 +71,53 @@ async function promptForWorkflow(ctx: ExtensionCommandContext): Promise<{
     mode: selectedMode as RequestedMode,
     format: selectedFormat as RequestedFormat,
   };
+}
+
+async function configureObsidian(
+  configPath: string,
+  current: ObsidianConfig | undefined,
+  ctx: ExtensionCommandContext,
+  suppliedVaultPath?: string,
+): Promise<void> {
+  const vaultPath = suppliedVaultPath ?? await ctx.ui.input('Obsidian vault path', current?.vaultPath ?? '');
+  if (!vaultPath?.trim()) {
+    ctx.ui.notify('Obsidian configuration was not changed', 'warning');
+    return;
+  }
+  const defaults: ObsidianConfig = {
+    vaultPath: vaultPath.trim(),
+    vaultName: current?.vaultName ?? path.basename(vaultPath.trim()),
+    inboxFolder: current?.inboxFolder ?? 'Reading Inbox',
+    attachmentFolder: current?.attachmentFolder ?? 'Attachments/pi-reads',
+    noteNameTemplate: current?.noteNameTemplate ?? '{{title}}',
+    tags: current?.tags ?? ['pi-reads'],
+    frontmatter: current?.frontmatter ?? {},
+    openAfterExport: current?.openAfterExport ?? false,
+  };
+
+  if (ctx.hasUI && !suppliedVaultPath) {
+    const vaultName = await ctx.ui.input('Obsidian vault name', defaults.vaultName);
+    if (vaultName === undefined) return;
+    const inboxFolder = await ctx.ui.input('Reading inbox folder', defaults.inboxFolder);
+    if (inboxFolder === undefined) return;
+    const attachmentFolder = await ctx.ui.input('Attachment folder', defaults.attachmentFolder);
+    if (attachmentFolder === undefined) return;
+    const noteNameTemplate = await ctx.ui.input('Note name template', defaults.noteNameTemplate);
+    if (noteNameTemplate === undefined) return;
+    const tags = await ctx.ui.input('Tags (comma-separated)', defaults.tags?.join(', ') ?? '');
+    if (tags === undefined) return;
+    const openChoice = await ctx.ui.select('Open note after export?', ['no', 'yes']);
+    if (!openChoice) return;
+    defaults.vaultName = vaultName.trim();
+    defaults.inboxFolder = inboxFolder.trim();
+    defaults.attachmentFolder = attachmentFolder.trim();
+    defaults.noteNameTemplate = noteNameTemplate.trim();
+    defaults.tags = tags.split(',').map((tag) => tag.trim()).filter(Boolean);
+    defaults.openAfterExport = openChoice === 'yes';
+  }
+
+  await updateObsidianConfig(configPath, defaults);
+  ctx.ui.notify(`Obsidian vault: ${defaults.vaultPath}\nConfig: ${configPath}`, 'info');
 }
 
 export function registerReadsCommands(pi: ExtensionAPI): void {
@@ -82,7 +133,7 @@ export function registerReadsCommands(pi: ExtensionAPI): void {
               ? ((await ctx.ui.select('Article mode', ['archive', 'digest', 'synthesis'])) as RequestedMode | undefined)
               : 'archive'),
             format: (ctx.hasUI
-              ? ((await ctx.ui.select('Export format', ['markdown', 'html', 'pdf'])) as RequestedFormat | undefined)
+              ? ((await ctx.ui.select('Export destination/format', ['markdown', 'html', 'pdf', 'obsidian'])) as RequestedFormat | undefined)
               : 'markdown'),
           }
         : await promptForWorkflow(ctx);
@@ -95,19 +146,49 @@ export function registerReadsCommands(pi: ExtensionAPI): void {
   });
 
   pi.registerCommand('reads-config', {
-    description: 'Set the Pi Reads library directory',
+    description: 'Configure the Pi Reads library or Obsidian destination',
     handler: async (args, ctx) => {
       const services = await openReadsServices(ctx.cwd);
-      const value = args.trim() || (ctx.hasUI
-        ? await ctx.ui.input('Pi Reads library directory', services.libraryDir)
-        : undefined);
-      if (!value?.trim()) {
-        ctx.ui.notify('Library directory was not changed', 'warning');
+      const value = args.trim();
+      if (/^obsidian(?:\s|$)/iu.test(value)) {
+        const vaultPath = value.replace(/^obsidian\s*/iu, '').trim();
+        if (!vaultPath) {
+          ctx.ui.notify('Usage: /reads-config obsidian <vault-path>', 'error');
+          return;
+        }
+        await configureObsidian(services.configPath, services.obsidianConfig, ctx, vaultPath);
         return;
       }
 
-      await updateLibraryDir(services.configPath, value.trim());
-      ctx.ui.notify(`Pi Reads library: ${value.trim()}\nConfig: ${services.configPath}`, 'info');
+      const usesLibraryKeyword = /^library(?:\s|$)/iu.test(value);
+      const explicitLibrary = usesLibraryKeyword ? value.replace(/^library\s*/iu, '').trim() : value;
+      if (usesLibraryKeyword && !explicitLibrary) {
+        ctx.ui.notify('Usage: /reads-config library <path>', 'error');
+        return;
+      }
+      if (explicitLibrary) {
+        await updateLibraryDir(services.configPath, explicitLibrary);
+        ctx.ui.notify(`Pi Reads library: ${explicitLibrary}\nConfig: ${services.configPath}`, 'info');
+        return;
+      }
+      if (!ctx.hasUI) {
+        ctx.ui.notify('Usage: /reads-config library <path> or /reads-config obsidian <vault-path>', 'error');
+        return;
+      }
+
+      const target = await ctx.ui.select('Configure Pi Reads', ['Library directory', 'Obsidian destination']);
+      if (target === 'Obsidian destination') {
+        await configureObsidian(services.configPath, services.obsidianConfig, ctx);
+        return;
+      }
+      if (target !== 'Library directory') return;
+      const libraryDir = await ctx.ui.input('Pi Reads library directory', services.libraryDir);
+      if (!libraryDir?.trim()) {
+        ctx.ui.notify('Library directory was not changed', 'warning');
+        return;
+      }
+      await updateLibraryDir(services.configPath, libraryDir.trim());
+      ctx.ui.notify(`Pi Reads library: ${libraryDir.trim()}\nConfig: ${services.configPath}`, 'info');
     },
   });
 
