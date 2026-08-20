@@ -239,6 +239,12 @@ export function registerReadsTools(pi: ExtensionAPI): void {
           `Size: ${formatBytes(preview.size)}`,
         ];
         if (!params.send) {
+          if (ctx.hasUI) {
+            ctx.ui.notify(
+              `Kindle dry run\nRecipient: ${preview.recipient}\nSubject: ${preview.subject}\nFile: ${preview.filename}\nSize: ${formatBytes(preview.size)}`,
+              'info',
+            );
+          }
           return {
             content: [{ type: 'text', text: previewLines.join('\n') }],
             details: {

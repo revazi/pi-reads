@@ -46,7 +46,7 @@ A Kindle export is a dry-run unless `send: true` is explicitly requested:
 }
 ```
 
-Dry-run output includes only a redacted recipient, subject, filename, size, and retained local artifact path. It does not require SMTP credentials and does not send email.
+Persisted dry-run output includes only a redacted recipient, subject, filename, size, and retained local artifact path. In interactive mode, a transient notification also shows the full recipient for verification. A dry-run does not require SMTP credentials and does not send email.
 
 To request delivery, use `send: true`. Pi Reads then:
 
