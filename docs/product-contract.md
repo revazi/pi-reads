@@ -203,12 +203,12 @@ All records currently use `schemaVersion: 1` and validate against `schemas/v1`.
 
 ## Legacy compatibility
 
-Until the Phase 5 rename:
+After the Phase 5 rename:
 
 - existing `pnpm article:*` commands remain available;
 - `skills/irakli-reads` remains a compatibility entry point;
 - current `articles/<slug>.md` output remains supported by thin legacy wrappers;
-- new core APIs, Pi tools, configuration, manifests, and package resources use `pi-reads` or stable `reads_*` names.
+- core APIs, Pi tools, configuration, manifests, and package resources use `pi-reads` or stable `reads_*` names.
 
 Legacy Markdown can be imported as a version 1 source plus archive article. Import must preserve the existing `source`, `sourceTextHash`, and presentation frontmatter and must not modify the original file.
 
@@ -221,4 +221,4 @@ The following are fixed for version 1:
 3. The only article modes are `archive`, `digest`, and `synthesis`.
 4. Stable Pi tool names use the `reads_` prefix and the primary command is `/reads`.
 5. User configuration is named `pi-reads.json` and stores no credentials.
-6. Existing Irakli Reads commands and skill remain temporary compatibility surfaces until Phase 5.
+6. Existing Irakli Reads print commands and skill remain documented compatibility surfaces after the Pi Reads rename.

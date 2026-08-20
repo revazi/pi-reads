@@ -31,24 +31,16 @@ npm pack --dry-run
 
 The package must not contain `.agents`, tests, copied article bodies, raw source captures, credentials, PDFs, EPUBs, or other generated library artifacts.
 
-## Current-repository release
+## Publishing a release
 
-Before the repository rename, the install check is:
-
-```sh
-pi install git:github.com/revazi/irakli-reads@v0.1.0
-```
-
-Create a signed or annotated tag only after CI passes for the exact release commit. Publish release notes from `CHANGELOG.md`. Do not tag from a dirty tree, retag a published version, or publish SMTP values while collecting diagnostics.
-
-## Pi Reads rename release
-
-The external rename requires explicit owner approval. Follow [the naming and compatibility procedure](naming-and-compatibility.md), update the local `origin`, verify GitHub's redirect, and rerun the complete release checks from a clean clone of `revazi/pi-reads`.
-
-The stable install check will be:
+The stable install check is:
 
 ```sh
 pi install git:github.com/revazi/pi-reads@v1.0.0
 ```
+
+Create a signed or annotated tag only after CI passes for the exact release commit. Publish release notes from `CHANGELOG.md`. Do not tag from a dirty tree, retag a published version, or publish SMTP values while collecting diagnostics.
+
+The historical `v0.1.0` release was created before the GitHub rename. GitHub redirects its old URL to `revazi/pi-reads`; new documentation and installs must use the Pi Reads repository name.
 
 Keep the `article:*` print workflow and its compatibility skill until a documented release explicitly removes them.

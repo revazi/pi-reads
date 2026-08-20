@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-08-20
+
+### Changed
+
+- Renamed the repository and Git package from `irakli-reads` to `pi-reads`.
+- Updated package metadata, extraction user agent, Nix shell naming, documentation, and install instructions to the stable Pi Reads identity.
+- Retained `article:*` commands and `skills/irakli-reads` as documented print-workflow compatibility surfaces.
+
 ## [0.1.0] - 2026-08-20
 
 ### Added
@@ -25,5 +33,6 @@ All notable changes to this project are documented here. The format follows [Kee
 
 - Retain the original `article:*` print workflow and `skills/irakli-reads` compatibility entry point while the repository transitions to Pi Reads.
 
-[Unreleased]: https://github.com/revazi/irakli-reads/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/revazi/irakli-reads/releases/tag/v0.1.0
+[Unreleased]: https://github.com/revazi/pi-reads/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/revazi/pi-reads/compare/v0.1.0...v1.0.0
+[0.1.0]: https://github.com/revazi/pi-reads/releases/tag/v0.1.0

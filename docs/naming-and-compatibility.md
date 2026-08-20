@@ -1,10 +1,10 @@
 # Pi Reads naming and compatibility
 
-Status: accepted for Phase 0
+Status: Phase 5 rename complete
 
 Date: 2026-08-20
 
-The repository is currently `revazi/irakli-reads` and is expected to become `revazi/pi-reads` in Phase 5. New public surfaces use their final names now so the repository rename does not force another API migration.
+The repository and Git package are now `revazi/pi-reads`. GitHub redirects the former `revazi/irakli-reads` URL, while the upstream remote remains attached to Irakli Janiashvili's original repository for provenance.
 
 ## Stable names introduced by the roadmap
 
@@ -25,18 +25,15 @@ Domain types remain unbranded: `Source`, `Article`, `Citation`, and `Export`.
 
 The `reads_*` tool prefix is intentionally independent of npm scope and GitHub owner. Tool calls saved in Pi sessions remain valid after the repository rename.
 
-## Temporary legacy surfaces
+## Retained compatibility surfaces
 
-The following stay available until the Phase 5 migration is complete:
+The stable package keeps these original print-workflow entry points:
 
-- package name `irakli-reads`;
-- README title “Irakli Reads”;
 - `pnpm article:*` scripts;
 - `skills/irakli-reads` and its wrapper;
-- legacy `articles/`, `sources/`, and `pdfs/` working directories;
-- current extraction user-agent string.
+- legacy `articles/`, `sources/`, and `pdfs/` working directories.
 
-Phase 1 may turn legacy scripts into thin wrappers, but it must preserve their arguments and outputs. Phase 2 adds final Pi Reads package resources without removing the old skill. Deprecation warnings should be concise and must not alter generated article output.
+Their arguments, deterministic output, Astro/Shiki light styling, and fidelity verification remain supported. Any future removal requires a documented release boundary and migration path; warnings must never alter generated article output.
 
 ## Compatibility policy
 
@@ -63,19 +60,14 @@ Phase 1 may turn legacy scripts into thin wrappers, but it must preserve their a
 
 Import creates new immutable source and archive records. It does not edit, move, or delete the legacy Markdown file.
 
-## Phase 5 rename procedure
+## Phase 5 rename outcome
 
-1. Ensure all new code and documentation already use stable names from this document.
-2. Rename the GitHub repository from `irakli-reads` to `pi-reads`.
-3. Change the package name and display metadata.
-4. Remove or formally deprecate the old end-user skill after its compatibility window.
-5. Update the extraction user-agent and Nix shell display name.
-6. Update local `origin` to `https://github.com/revazi/pi-reads.git`.
-7. Verify GitHub's old URL redirect and a fresh Pi Git-package installation.
-8. Tag the first release intended for installation from the renamed repository.
+- GitHub repository: `revazi/pi-reads`
+- package name: `pi-reads`
+- extraction user agent: `pi-reads/1.0`
+- Nix shell: `pi-reads-dev-shell`
+- local `origin`: `https://github.com/revazi/pi-reads.git`
+- preserved upstream provenance: `https://github.com/IrakliJani/irakli-reads.git`
+- stable install target: `git:github.com/revazi/pi-reads@v1.0.0`
 
-The `upstream` remote may remain pointed at `IrakliJani/irakli-reads` to preserve fork provenance.
-
-## Out of scope before Phase 5
-
-Do not rename the GitHub repository, remove legacy commands, or rewrite historical commits during earlier phases. The compatibility layer allows feature development and migration to proceed incrementally.
+The compatibility print workflow remains included and covered by the real Astro, fidelity, and Playwright PDF test.

@@ -1,5 +1,5 @@
 {
-  description = "Development shell for Irakli Reads";
+  description = "Development shell for Pi Reads";
 
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
@@ -23,7 +23,7 @@
         in
         {
           default = pkgs.mkShell {
-            name = "irakli-reads-dev-shell";
+            name = "pi-reads-dev-shell";
 
             buildInputs = with pkgs; [
               nodejs_24

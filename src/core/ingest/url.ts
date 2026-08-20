@@ -15,7 +15,7 @@ export async function fetchArticleHtml(url: string, signal?: AbortSignal): Promi
   assertHttpUrl(url);
   const response = await fetch(url, {
     headers: {
-      'user-agent': 'irakli-reads/0.1',
+      'user-agent': 'pi-reads/1.0',
       accept: 'text/html,application/xhtml+xml',
     },
     signal,

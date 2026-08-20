@@ -1,6 +1,6 @@
 # Pi Reads
 
-[![CI](https://github.com/revazi/irakli-reads/actions/workflows/ci.yml/badge.svg)](https://github.com/revazi/irakli-reads/actions/workflows/ci.yml)
+[![CI](https://github.com/revazi/pi-reads/actions/workflows/ci.yml/badge.svg)](https://github.com/revazi/pi-reads/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 Pi Reads is a [Pi](https://github.com/badlogic/pi-mono) package for turning web pages, pasted text, Markdown, and local files into a trustworthy reading library. It keeps faithful archives separate from AI-authored digests and syntheses, then exports them to Markdown, print HTML, PDF, EPUB, Obsidian, or Kindle.
@@ -34,7 +34,7 @@ Requirements:
 Install the current Git package:
 
 ```sh
-pi install git:github.com/revazi/irakli-reads
+pi install git:github.com/revazi/pi-reads@v1.0.0
 ```
 
 Or load a local checkout:

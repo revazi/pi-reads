@@ -4,6 +4,8 @@ import test from 'node:test';
 import { parseConfig } from '../src/core/config.ts';
 
 interface PackageManifest {
+  name?: string;
+  version?: string;
   author?: string;
   bugs?: { url?: string };
   contributors?: string[];
@@ -20,13 +22,15 @@ async function repositoryFile(path: string): Promise<string> {
 
 test('release metadata, attribution, and sample configuration are complete and secret-free', async () => {
   const manifest = JSON.parse(await repositoryFile('package.json')) as PackageManifest;
+  assert.equal(manifest.name, 'pi-reads');
+  assert.equal(manifest.version, '1.0.0');
   assert.equal(manifest.license, 'MIT');
   assert.equal(manifest.author, 'Revaz Zakalashvili');
   assert.ok(manifest.contributors?.includes('Irakli Janiashvili'));
   assert.equal(manifest.repository?.type, 'git');
-  assert.match(manifest.repository?.url ?? '', /github\.com\/revazi\/irakli-reads/);
-  assert.match(manifest.homepage ?? '', /github\.com\/revazi\/irakli-reads/);
-  assert.match(manifest.bugs?.url ?? '', /github\.com\/revazi\/irakli-reads\/issues/);
+  assert.match(manifest.repository?.url ?? '', /github\.com\/revazi\/pi-reads/);
+  assert.match(manifest.homepage ?? '', /github\.com\/revazi\/pi-reads/);
+  assert.match(manifest.bugs?.url ?? '', /github\.com\/revazi\/pi-reads\/issues/);
   assert.ok(manifest.files?.includes('examples'));
   assert.ok(manifest.files?.includes('SECURITY.md'));
 

@@ -2,11 +2,13 @@
 
 ## Supported versions
 
-Until Pi Reads reaches 1.0, security fixes are applied to the latest release and the `main` branch. Older Git tags may not receive backports.
+Security fixes are applied to the latest release and the `main` branch. Older Git tags may not receive backports.
 
 ## Reporting a vulnerability
 
-Use GitHub's **Report a vulnerability** button when private vulnerability reporting is enabled for the repository. If it is unavailable, contact the maintainer through a private channel listed on the [`@revazi`](https://github.com/revazi) profile before sharing details.
+Use GitHub's private **Report a vulnerability** flow:
+
+<https://github.com/revazi/pi-reads/security/advisories/new>
 
 Do not open a public issue for a suspected vulnerability and do not include credentials, Kindle addresses, private article content, or SMTP transcripts in a report. A minimal synthetic reproduction is preferred.
 

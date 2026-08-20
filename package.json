@@ -1,6 +1,6 @@
 {
-  "name": "irakli-reads",
-  "version": "0.1.0",
+  "name": "pi-reads",
+  "version": "1.0.0",
   "private": true,
   "packageManager": "pnpm@10.33.0",
   "description": "Pi package for faithful source capture, cited reading articles, Obsidian, EPUB, PDF, and confirmed Kindle delivery.",
@@ -11,11 +11,11 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/revazi/irakli-reads.git"
+    "url": "git+https://github.com/revazi/pi-reads.git"
   },
-  "homepage": "https://github.com/revazi/irakli-reads#readme",
+  "homepage": "https://github.com/revazi/pi-reads#readme",
   "bugs": {
-    "url": "https://github.com/revazi/irakli-reads/issues"
+    "url": "https://github.com/revazi/pi-reads/issues"
   },
   "keywords": [
     "pi-package",
