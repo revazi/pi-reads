@@ -19,7 +19,7 @@ Use `reads_export` with `format: "epub"` and `destination: "local"`, or select `
 
 ## Kindle configuration
 
-Run `/reads-config` and choose **Kindle delivery**. For normal interactive use, choose **System credential store — configure once**. The wizard collects the Send-to-Kindle address, SMTP username/sender, and app-specific password once; password input is masked. It stores protected credential entries using macOS Keychain, Windows Credential Manager, or Linux Secret Service. Pi Reads retrieves that record automatically when preparing or sending a Kindle export—no launcher script, shell exports, or Pi restart is required.
+Run `/reads-config` and choose **Kindle delivery**. For normal interactive use, choose **System credential store — configure once**. The wizard collects the Send-to-Kindle address, SMTP username/sender, and app-specific password once; password input is masked. It stores protected credential entries using macOS Keychain, Windows Credential Manager, or Linux Secret Service. Pi Reads retrieves those entries automatically when preparing or sending a Kindle export—no launcher script, shell exports, or Pi restart is required.
 
 `pi-reads.json` still contains only non-secret preferences and a credential profile name:
 

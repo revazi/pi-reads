@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-08-20
+
 ### Added
 
 - One-time Kindle setup backed by macOS Keychain, Windows Credential Manager, or Linux Secret Service, with masked password entry and automatic credential loading.
@@ -12,6 +14,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 - Environment variables are now optional per-field overrides for CI/headless use rather than the default desktop credential workflow.
 - `/reads` mode selection now explains archive, digest, and synthesis inline.
+- The README now focuses on installation and common user workflows, with detailed behavior linked from the documentation.
 
 ## [1.0.1] - 2026-08-20
 
@@ -50,7 +53,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 - Retain the original `article:*` print workflow and `skills/irakli-reads` compatibility entry point while the repository transitions to Pi Reads.
 
-[Unreleased]: https://github.com/revazi/pi-reads/compare/v1.0.1...HEAD
+[Unreleased]: https://github.com/revazi/pi-reads/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/revazi/pi-reads/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/revazi/pi-reads/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/revazi/pi-reads/compare/v0.1.0...v1.0.0
 [0.1.0]: https://github.com/revazi/pi-reads/releases/tag/v0.1.0

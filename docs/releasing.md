@@ -1,6 +1,6 @@
 # Release process
 
-Pi Reads is distributed through npm and as a versioned Git-based Pi package. Releases must preserve archive fidelity, keep local content and credentials out of the package, and remain installable without relying on this checkout.
+Pi Reads is distributed through npm, listed in the [Pi package gallery](https://pi.dev/packages/pi-reads), and available as a versioned Git-based Pi package. Releases must preserve archive fidelity, keep local content and credentials out of the package, and remain installable without relying on this checkout.
 
 ## Prerequisites
 
@@ -37,7 +37,7 @@ Stable install checks are:
 
 ```sh
 pi install npm:pi-reads
-pi install git:github.com/revazi/pi-reads@v1.0.1
+pi install git:github.com/revazi/pi-reads@v1.1.0
 ```
 
 The first npm publication establishes the package. Subsequent tagged releases use `.github/workflows/release.yml` with npm trusted publishing and provenance; no long-lived npm token belongs in GitHub secrets. The npm trusted publisher must match repository `revazi/pi-reads`, workflow `release.yml`, and environment `npm` exactly.
