@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/revazi/pi-reads/schemas/v1/common.schema.json",
+  "title": "Pi Reads common values",
+  "$defs": {
+    "contentHash": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "libraryRelativePath": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!/)(?![A-Za-z]:)(?!.*(?:^|/)\\.\\.(?:/|$))[^\\\\]+$"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "storedFile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "mediaType", "contentHash", "byteLength"],
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/libraryRelativePath"
+        },
+        "mediaType": {
+          "type": "string",
+          "minLength": 1
+        },
+        "contentHash": {
+          "$ref": "#/$defs/contentHash"
+        },
+        "byteLength": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "storedText": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "mediaType", "contentHash", "textHash", "byteLength"],
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/libraryRelativePath"
+        },
+        "mediaType": {
+          "type": "string",
+          "minLength": 1
+        },
+        "contentHash": {
+          "$ref": "#/$defs/contentHash"
+        },
+        "textHash": {
+          "$ref": "#/$defs/contentHash"
+        },
+        "byteLength": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    }
+  }
+}

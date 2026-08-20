@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/revazi/pi-reads/schemas/v1/config.schema.json",
+  "title": "Pi Reads configuration",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion"],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "libraryDir": {
+      "type": "string",
+      "minLength": 1
+    },
+    "defaults": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "enum": ["archive", "digest", "synthesis"]
+        },
+        "exportFormat": {
+          "enum": ["markdown", "html", "pdf", "epub"]
+        }
+      }
+    }
+  }
+}

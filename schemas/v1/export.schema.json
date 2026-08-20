@@ -1,0 +1,149 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/revazi/pi-reads/schemas/v1/export.schema.json",
+  "title": "Pi Reads Export",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "id",
+    "articleId",
+    "format",
+    "destination",
+    "status",
+    "artifact",
+    "createdAt"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^exp_[a-z0-9]{16,64}$"
+    },
+    "articleId": {
+      "type": "string",
+      "pattern": "^art_[a-z0-9]{16,64}$"
+    },
+    "format": {
+      "enum": ["markdown", "html", "pdf", "epub"]
+    },
+    "destination": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type"],
+          "properties": {
+            "type": {
+              "const": "local"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "vaultName", "notePath"],
+          "properties": {
+            "type": {
+              "const": "obsidian"
+            },
+            "vaultName": {
+              "type": "string",
+              "minLength": 1
+            },
+            "notePath": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type"],
+          "properties": {
+            "type": {
+              "const": "kindle"
+            },
+            "deviceLabel": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      ]
+    },
+    "status": {
+      "enum": ["prepared", "delivered", "failed"]
+    },
+    "artifact": {
+      "allOf": [
+        {
+          "$ref": "common.schema.json#/$defs/storedFile"
+        },
+        {
+          "properties": {
+            "path": {
+              "pattern": "^exports/art_[a-z0-9]{16,64}/exp_[a-z0-9]{16,64}/"
+            }
+          }
+        }
+      ]
+    },
+    "createdAt": {
+      "$ref": "common.schema.json#/$defs/timestamp"
+    },
+    "delivery": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "attemptedAt": {
+          "$ref": "common.schema.json#/$defs/timestamp"
+        },
+        "confirmedAt": {
+          "$ref": "common.schema.json#/$defs/timestamp"
+        },
+        "confirmationMethod": {
+          "const": "interactive"
+        },
+        "deliveredAt": {
+          "$ref": "common.schema.json#/$defs/timestamp"
+        },
+        "failure": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "destination": {
+            "properties": {
+              "type": {
+                "const": "kindle"
+              }
+            },
+            "required": ["type"]
+          },
+          "status": {
+            "const": "delivered"
+          }
+        },
+        "required": ["destination", "status"]
+      },
+      "then": {
+        "required": ["delivery"],
+        "properties": {
+          "delivery": {
+            "required": ["confirmedAt", "confirmationMethod", "deliveredAt"]
+          }
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/revazi/pi-reads/schemas/v1/citation.schema.json",
+  "title": "Pi Reads Citation",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "sourceId"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^cite_[a-z0-9][a-z0-9_-]{0,63}$"
+    },
+    "sourceId": {
+      "type": "string",
+      "pattern": "^src_[a-z0-9]{16,64}$"
+    },
+    "locator": {
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "properties": {
+        "url": {
+          "type": "string",
+          "format": "uri"
+        },
+        "heading": {
+          "type": "string",
+          "minLength": 1
+        },
+        "paragraph": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "fragment": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "quote": {
+      "type": "string",
+      "minLength": 1
+    },
+    "note": {
+      "type": "string",
+      "minLength": 1
+    }
+  }
+}
