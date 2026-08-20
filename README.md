@@ -1,206 +1,132 @@
 # Pi Reads
 
+[![Pi package](https://img.shields.io/badge/Pi-package-111.svg)](https://pi.dev/packages/pi-reads)
 [![npm version](https://img.shields.io/npm/v/pi-reads.svg)](https://www.npmjs.com/package/pi-reads)
-[![npm downloads](https://img.shields.io/npm/dm/pi-reads.svg)](https://www.npmjs.com/package/pi-reads)
 [![CI](https://github.com/revazi/pi-reads/actions/workflows/ci.yml/badge.svg)](https://github.com/revazi/pi-reads/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-Pi Reads is a [Pi](https://github.com/badlogic/pi-mono) package for turning web pages, pasted text, Markdown, and local files into a trustworthy reading library. It keeps faithful archives separate from AI-authored digests and syntheses, then exports them to Markdown, print HTML, PDF, EPUB, Obsidian, or Kindle.
+Pi Reads turns web pages, pasted text, Markdown, and local files into a private reading library inside [Pi](https://github.com/earendil-works/pi). Keep a faithful copy, create a cited digest or synthesis, and export it to Markdown, HTML, PDF, EPUB, Obsidian, or Kindle.
 
-The original deterministic printing workflow remains a first-class feature: source prose is preserved word-for-word, rendered with Astro and Shiki, verified by visible-text hash, and printed to PDF with Playwright.
+## What it does
 
-## Motivation and origin
+- **Faithful archive** — captures the source without AI rewriting.
+- **Digest** — creates a shorter, cited version.
+- **Synthesis** — creates a new, cited article from source ideas.
+- **Local library** — stores sources, articles, provenance, and exports under `~/Documents/pi-reads` by default.
+- **Reading destinations** — exports to local files, Obsidian, and Kindle.
+- **Safe delivery** — asks before overwriting Obsidian files or sending Kindle email.
 
-Pi Reads grew out of [`IrakliJani/irakli-reads`](https://github.com/IrakliJani/irakli-reads), the article-to-print workflow created by my friend [Irakli Janiashvili](https://github.com/IrakliJani). I told Irakli I would turn the idea into a Pi package; this project is that extension of his original work.
+Archive content and AI-authored content are always stored separately.
 
-The goal is not merely to save links. It is to keep a faithful, locally owned source archive while making it easy to create clearly labeled, cited reading material and send it to the tools and devices where reading actually happens.
+## Quick start
 
-## Core guarantees
-
-- **Faithful archives:** deterministic cleanup only; no model rewriting.
-- **Separated authorship:** `archive`, `digest`, and `synthesis` records use separate immutable paths.
-- **Provenance:** generated articles retain source IDs, citations, model, and generation time.
-- **Local ownership:** the default library is `~/Documents/pi-reads`, outside the package checkout.
-- **Safe delivery:** Obsidian conflicts and Kindle email require explicit interactive confirmation.
-- **Protected credentials:** Kindle/sender addresses and SMTP credentials live in the operating-system credential store, with environment overrides for CI.
-- **Verified print output:** archive exports must pass visible-text fidelity checks.
-
-## Install the Pi package
-
-Requirements:
-
-- Node.js 24+
-- Pi
-- pnpm for local development and the compatibility print CLI
-
-Install the published npm package:
+Requirements: Node.js 24+ and Pi.
 
 ```sh
 pi install npm:pi-reads
 ```
 
-A version-pinned Git install is also available:
-
-```sh
-pi install git:github.com/revazi/pi-reads@v1.0.1
-```
-
-Or load a local checkout:
-
-```sh
-pi -e .
-```
-
-Install Chromium before the first PDF export:
-
-```text
-/reads-install-browser
-```
-
-## Use Pi Reads
-
-Pi Reads provides four tools and four commands:
-
-| Surface | Purpose |
-|---|---|
-| `/reads` | Capture or generate an article and choose an output |
-| `/reads-config` | Configure the library, Obsidian, and safe Kindle preferences |
-| `/reads-list` | Browse recent stored articles |
-| `/reads-install-browser` | Install Chromium for PDF rendering |
-| `reads_ingest` | Capture URL, text, Markdown, or a local file |
-| `reads_save_article` | Save a cited digest or synthesis with active-model provenance |
-| `reads_export` | Export locally or deliver to Obsidian/Kindle |
-| `reads_library` | List and inspect source/article metadata |
-
-A typical interactive flow starts with:
+In Pi, capture an article:
 
 ```text
 /reads https://example.com/article
 ```
 
-Choose one of:
+Choose a mode:
 
-- `archive` for a faithful captured copy;
-- `digest` for a cited condensed version;
-- `synthesis` for a cited article built from one or more sources.
+| Mode | Use it when you want… |
+|---|---|
+| `archive` | the source captured faithfully |
+| `digest` | a shorter cited reading version |
+| `synthesis` | a newly written cited article |
 
-Local exports support Markdown, standalone light-print HTML, PDF, and validated reflowable EPUB.
+Then choose an output such as Markdown, PDF, EPUB, Obsidian, or Kindle.
 
-## Configure destinations
-
-Run the interactive configuration command:
+For the first PDF export, install Chromium once:
 
 ```text
-/reads-config
+/reads-install-browser
 ```
 
-Configuration is stored at `~/.config/pi-reads/pi-reads.json` by default. A complete secret-free example is available at [`examples/pi-reads.example.json`](examples/pi-reads.example.json).
+Browse saved articles with:
 
-### Obsidian
+```text
+/reads-list
+```
 
-Set a vault interactively or use:
+## Obsidian
+
+Run `/reads-config`, choose **Obsidian destination**, and select your vault and inbox folders. Pi Reads writes a Markdown note, copies its images, preserves provenance, and asks before replacing a conflicting file.
+
+You can also set the vault directly:
 
 ```text
 /reads-config obsidian ~/Documents/MyVault
 ```
 
-Pi Reads copies/downloads article images, rewrites relative links, preserves provenance in frontmatter, and refuses to overwrite differing notes or assets without confirmation. See [Obsidian integration](docs/obsidian.md).
+See [Obsidian integration](docs/obsidian.md).
 
-### Kindle
+## Kindle
 
-The wizard stores safe preferences in `pi-reads.json` and, by default, protects addresses and SMTP credentials in macOS Keychain, Windows Credential Manager, or Linux Secret Service. Setup is performed once; Pi Reads loads credentials automatically. Environment overrides remain available for CI. Kindle export defaults to a dry-run that retains the local EPUB/PDF and shows a redacted recipient. Sending is disabled in headless sessions and requires a full-recipient confirmation in interactive use.
+Run `/reads-config`, choose **Kindle delivery**, then choose **System credential store — configure once**. The wizard saves your Kindle and SMTP credentials in macOS Keychain, Windows Credential Manager, or Linux Secret Service. The password is masked and credentials are not written to `pi-reads.json`.
 
-See [EPUB and Kindle delivery](docs/epub-and-kindle.md) for setup and environment variables.
+A Kindle export starts as a dry run, showing the recipient and prepared EPUB or PDF without sending it. Ask Pi to send the article when ready; Pi displays the full recipient and requires confirmation before email delivery.
 
-## Deterministic article printing
+For iCloud Mail settings and CI environment overrides, see [EPUB and Kindle delivery](docs/epub-and-kindle.md).
 
-The original print pipeline remains available through the `article:*` commands.
+## Commands
 
-Install dependencies and Chromium:
+| Command | Purpose |
+|---|---|
+| `/reads` | Capture an article and choose a mode and destination |
+| `/reads-config` | Configure the library, Obsidian, or Kindle |
+| `/reads-list` | Browse saved articles |
+| `/reads-install-browser` | Install Chromium for PDF export |
+
+Pi Reads also provides the `reads_ingest`, `reads_save_article`, `reads_export`, and `reads_library` tools for agent-driven workflows.
+
+## Privacy and safety
+
+- Your library stays outside the installed package and is not uploaded by Pi Reads.
+- Archived source prose is immutable and separate from generated prose.
+- Generated articles retain source IDs, citations, model information, and timestamps.
+- Kindle credentials stay in the operating-system credential store; environment overrides are available for CI.
+- Kindle sending and conflicting Obsidian overwrites require interactive confirmation.
+
+See the [product contract](docs/product-contract.md) and [security policy](SECURITY.md) for details.
+
+## Updating or removing
+
+```sh
+pi update npm:pi-reads
+pi remove npm:pi-reads
+```
+
+Removing the package does not delete the external reading library.
+
+## Development
 
 ```sh
 pnpm install --frozen-lockfile
 pnpm article:install-browser
-```
-
-Fetch, verify, and print one article:
-
-```sh
-pnpm article:read '<article-url>' --slug '<slug>'
-```
-
-This pipeline:
-
-```text
-URL
-  → Readability extraction
-  → deterministic cleanup and clean links
-  → source serif/sans-serif detection
-  → faithful Markdown archive
-  → Astro + Shiki github-light print HTML
-  → visible-text hash verification
-  → Playwright PDF
-```
-
-The output is written to:
-
-```text
-articles/<slug>.md
-dist/read/<slug>/index.html
-pdfs/<slug>.pdf
-```
-
-Useful deterministic presentation options:
-
-```sh
-pnpm article:read '<article-url>' --slug '<slug>' --smaller-body-font
-pnpm article:read '<article-url>' --slug '<slug>' --image-scale 80
-```
-
-The options are recorded in article frontmatter and do not alter source prose. The compatibility skill wrapper remains available:
-
-```sh
-node skills/irakli-reads/scripts/print-article.ts '<article-url>' --slug '<slug>'
-```
-
-Individual print steps:
-
-```sh
-pnpm article:fetch '<article-url>' --slug '<slug>' --save-html 'sources/<slug>.html'
-pnpm article:render       # Astro build + fidelity verification
-pnpm article:pdf -- '<slug>'
-pnpm article:verify
-```
-
-Printed links use `label {clean-url}`, body text is black on white, syntax highlighting uses Shiki `github-light`, and the source page's serif/sans-serif category is mapped to controlled local print stacks.
-
-## Data and repository hygiene
-
-Captured content and generated artifacts belong in the external Pi Reads library. The legacy `articles/`, `sources/`, `dist/`, and `pdfs/` paths are local compatibility outputs and are ignored by Git. Never commit copied prose, raw source captures, credentials, local configuration, PDFs, or EPUBs.
-
-If archive verification fails, fix deterministic extraction or rendering. Do not edit source prose to make the hash pass.
-
-## Development and release checks
-
-```sh
-pnpm article:check
-pnpm test
-pnpm build
 pnpm release:check
 ```
 
-`pnpm release:check` also runs the real fixture-based Astro/fidelity/PDF pipeline, validates EPUB structure, audits package contents, smoke-loads the Pi extension, and checks production dependencies. See [Contributing](CONTRIBUTING.md), [Security](SECURITY.md), and [Release process](docs/releasing.md).
+The original deterministic `article:*` print workflow remains supported. Contributor guidance is in [CONTRIBUTING.md](CONTRIBUTING.md), and release instructions are in [docs/releasing.md](docs/releasing.md).
 
 ## Documentation
 
+- [EPUB and Kindle delivery](docs/epub-and-kindle.md)
+- [Obsidian integration](docs/obsidian.md)
 - [Product and storage contract](docs/product-contract.md)
 - [Architecture](docs/architecture.md)
-- [Naming and compatibility](docs/naming-and-compatibility.md)
-- [Obsidian integration](docs/obsidian.md)
-- [EPUB and Kindle delivery](docs/epub-and-kindle.md)
-- [Versioned JSON Schemas](schemas/README.md)
+- [Versioned JSON schemas](schemas/README.md)
 - [Changelog](CHANGELOG.md)
 
-## License
+## Author and license
 
-[MIT](LICENSE). Copyright belongs to the contributors named in the license and Git history.
+Created and maintained by [Revaz Zakalashvili](https://github.com/revazi).
+
+Pi Reads grew from the original [`IrakliJani/irakli-reads`](https://github.com/IrakliJani/irakli-reads) print workflow by [Irakli Janiashvili](https://github.com/IrakliJani).
+
+Licensed under the [MIT License](LICENSE).

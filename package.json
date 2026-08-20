@@ -1,6 +1,6 @@
 {
   "name": "pi-reads",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "packageManager": "pnpm@10.33.0",
   "description": "Pi package for faithful source capture, cited reading articles, Obsidian, EPUB, PDF, and confirmed Kindle delivery.",
   "license": "MIT",

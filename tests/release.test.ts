@@ -15,6 +15,7 @@ interface PackageManifest {
   license?: string;
   repository?: { type?: string; url?: string };
   publishConfig?: { access?: string; registry?: string };
+  scripts?: Record<string, string>;
 }
 
 async function repositoryFile(path: string): Promise<string> {
@@ -24,7 +25,7 @@ async function repositoryFile(path: string): Promise<string> {
 test('release metadata, attribution, and sample configuration are complete and secret-free', async () => {
   const manifest = JSON.parse(await repositoryFile('package.json')) as PackageManifest;
   assert.equal(manifest.name, 'pi-reads');
-  assert.equal(manifest.version, '1.0.1');
+  assert.equal(manifest.version, '1.1.0');
   assert.equal(manifest.license, 'MIT');
   assert.equal(manifest.author, 'Revaz Zakalashvili');
   assert.ok(manifest.contributors?.includes('Irakli Janiashvili'));
@@ -55,8 +56,11 @@ test('release metadata, attribution, and sample configuration are complete and s
   const readme = await repositoryFile('README.md');
   assert.match(readme, /^# Pi Reads$/mu);
   assert.match(readme, /Irakli Janiashvili/);
-  assert.match(readme, /article:read/);
-  assert.match(readme, /visible-text hash/);
+  assert.match(readme, /Revaz Zakalashvili/);
+  assert.match(readme, /pi install npm:pi-reads/);
+  assert.match(readme, /System credential store — configure once/);
+  assert.equal(typeof manifest.scripts?.['article:read'], 'string');
+  assert.equal(typeof manifest.scripts?.['article:verify'], 'string');
 
   await Promise.all([
     repositoryFile('LICENSE'),

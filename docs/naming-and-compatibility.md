@@ -68,6 +68,6 @@ Import creates new immutable source and archive records. It does not edit, move,
 - Nix shell: `pi-reads-dev-shell`
 - local `origin`: `https://github.com/revazi/pi-reads.git`
 - preserved upstream provenance: `https://github.com/IrakliJani/irakli-reads.git`
-- stable install targets: `npm:pi-reads` and `git:github.com/revazi/pi-reads@v1.0.1`
+- stable install targets: `npm:pi-reads` and `git:github.com/revazi/pi-reads@v1.1.0`
 
 The compatibility print workflow remains included and covered by the real Astro, fidelity, and Playwright PDF test.
