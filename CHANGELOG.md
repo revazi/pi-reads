@@ -4,6 +4,15 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+
+- One-time Kindle setup backed by macOS Keychain, Windows Credential Manager, or Linux Secret Service, with masked password entry and automatic credential loading.
+
+### Changed
+
+- Environment variables are now optional per-field overrides for CI/headless use rather than the default desktop credential workflow.
+- `/reads` mode selection now explains archive, digest, and synthesis inline.
+
 ## [1.0.1] - 2026-08-20
 
 ### Added

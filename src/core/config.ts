@@ -40,6 +40,8 @@ export interface ResolvedObsidianConfig {
 export interface ResolvedKindleConfig {
   deviceLabel?: string;
   defaultFormat: 'epub' | 'pdf';
+  credentialStore: 'system' | 'environment';
+  credentialProfile: string;
   recipientEnv: string;
   smtp: {
     host?: string;
@@ -180,13 +182,24 @@ function parseKindleConfig(value: unknown): KindleConfig {
     throw new Error('kindle must be a JSON object');
   }
   const candidate = value as Record<string, unknown>;
-  assertKnownKeys(candidate, new Set(['deviceLabel', 'defaultFormat', 'recipientEnv', 'smtp']), 'kindle');
+  assertKnownKeys(
+    candidate,
+    new Set(['deviceLabel', 'defaultFormat', 'credentialStore', 'credentialProfile', 'recipientEnv', 'smtp']),
+    'kindle',
+  );
   assertOptionalString(candidate.deviceLabel, 'kindle.deviceLabel');
   if (typeof candidate.deviceLabel === 'string' && /[\r\n]/u.test(candidate.deviceLabel)) {
     throw new Error('kindle.deviceLabel must be a single-line string');
   }
   if (candidate.defaultFormat !== undefined && candidate.defaultFormat !== 'epub' && candidate.defaultFormat !== 'pdf') {
     throw new Error('kindle.defaultFormat must be epub or pdf');
+  }
+  if (candidate.credentialStore !== undefined && candidate.credentialStore !== 'system' && candidate.credentialStore !== 'environment') {
+    throw new Error('kindle.credentialStore must be system or environment');
+  }
+  assertOptionalString(candidate.credentialProfile, 'kindle.credentialProfile');
+  if (typeof candidate.credentialProfile === 'string' && !/^[a-z0-9][a-z0-9._-]{0,63}$/u.test(candidate.credentialProfile)) {
+    throw new Error('kindle.credentialProfile must use lowercase letters, digits, dots, underscores, or hyphens');
   }
   assertEnvironmentName(candidate.recipientEnv, 'kindle.recipientEnv');
 
@@ -223,6 +236,8 @@ function parseKindleConfig(value: unknown): KindleConfig {
   return {
     ...(candidate.deviceLabel === undefined ? {} : { deviceLabel: candidate.deviceLabel as string }),
     ...(candidate.defaultFormat === undefined ? {} : { defaultFormat: candidate.defaultFormat as 'epub' | 'pdf' }),
+    ...(candidate.credentialStore === undefined ? {} : { credentialStore: candidate.credentialStore as 'system' | 'environment' }),
+    ...(candidate.credentialProfile === undefined ? {} : { credentialProfile: candidate.credentialProfile as string }),
     ...(candidate.recipientEnv === undefined ? {} : { recipientEnv: candidate.recipientEnv as string }),
     ...(smtp === undefined ? {} : { smtp }),
   };
@@ -363,6 +378,8 @@ export async function resolveConfiguration(
     ? {
         ...(config.kindle.deviceLabel ? { deviceLabel: config.kindle.deviceLabel } : {}),
         defaultFormat: config.kindle.defaultFormat ?? 'epub',
+        credentialStore: config.kindle.credentialStore ?? 'environment',
+        credentialProfile: config.kindle.credentialProfile ?? 'default',
         recipientEnv: config.kindle.recipientEnv ?? 'PI_READS_KINDLE_ADDRESS',
         smtp: {
           ...(config.kindle.smtp?.host ? { host: config.kindle.smtp.host } : {}),

@@ -19,15 +19,17 @@ Use `reads_export` with `format: "epub"` and `destination: "local"`, or select `
 
 ## Kindle configuration
 
-Run `/reads-config` and choose **Kindle delivery**. The wizard asks only for non-secret preferences and names of environment variables—it never asks for an address, username, or password value.
+Run `/reads-config` and choose **Kindle delivery**. For normal interactive use, choose **System credential store — configure once**. The wizard collects the Send-to-Kindle address, SMTP username/sender, and app-specific password once; password input is masked. It stores protected credential entries using macOS Keychain, Windows Credential Manager, or Linux Secret Service. Pi Reads retrieves that record automatically when preparing or sending a Kindle export—no launcher script, shell exports, or Pi restart is required.
 
-The safe configuration in `pi-reads.json` has this shape:
+`pi-reads.json` still contains only non-secret preferences and a credential profile name:
 
 ```json
 {
   "kindle": {
     "deviceLabel": "My Kindle",
     "defaultFormat": "epub",
+    "credentialStore": "system",
+    "credentialProfile": "default",
     "recipientEnv": "PI_READS_KINDLE_ADDRESS",
     "smtp": {
       "host": "smtp.example.com",
@@ -41,13 +43,21 @@ The safe configuration in `pi-reads.json` has this shape:
 }
 ```
 
-The SMTP host, port, TLS mode, device label, default format, and environment-variable names are non-secret. The host may be omitted to keep using `PI_READS_SMTP_HOST`. Environment-variable names must use uppercase letters, digits, and underscores.
+The SMTP host, port, TLS mode, device label, default format, credential backend/profile, and environment-variable names are non-secret. Addresses and credentials are never copied into JSON configuration, manifests, logs, tool results, or Git.
 
-For a quick non-interactive setup, `/reads-config kindle <smtp-host>` writes the host with safe default environment-variable names. Interactive `/reads-config` is recommended.
+For iCloud Mail, create an app-specific password at `account.apple.com`, approve the iCloud sender in Amazon's Personal Document Settings, and use:
 
-## Kindle environment
+- SMTP host: `smtp.mail.me.com`
+- port: `587`
+- implicit TLS: `no` (the connection upgrades with STARTTLS)
+- SMTP username/from: the approved full iCloud address
+- password: the Apple app-specific password
 
-Kindle delivery uses SMTP. Keep all addresses and credentials in environment variables, never `pi-reads.json`, command arguments, manifests, or repository files:
+The wizard masks the password and writes it only to the system credential store. For a quick non-interactive or CI setup, `/reads-config kindle <smtp-host>` writes the host with safe default environment-variable names. Interactive `/reads-config` is recommended for one-time desktop setup.
+
+## Environment overrides
+
+Environment variables remain available for CI, headless systems without a credential service, and temporary per-field overrides. Select **Environment variables — advanced/CI** in the wizard when they should be the primary source:
 
 | Variable | Meaning |
 |---|---|
@@ -60,7 +70,7 @@ Kindle delivery uses SMTP. Keep all addresses and credentials in environment var
 | `PI_READS_SMTP_PASSWORD` | SMTP password or application password |
 | `PI_READS_SMTP_FROM` | Sender address approved in Amazon's personal document settings |
 
-When custom `recipientEnv`, `userEnv`, `passwordEnv`, or `fromEnv` names are configured, set those variables instead of the defaults above. The Kindle recipient must use the `kindle.com` domain. Configure the sender address in Amazon's approved personal document email list before attempting delivery.
+When custom `recipientEnv`, `userEnv`, `passwordEnv`, or `fromEnv` names are configured, set those variables instead of the defaults above. Environment values take precedence over stored credentials, allowing automation without modifying desktop setup. The Kindle recipient must use the `kindle.com` domain. Configure the sender address in Amazon's approved personal document email list before attempting delivery.
 
 ## Dry-run and confirmation
 

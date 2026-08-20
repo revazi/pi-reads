@@ -1,7 +1,7 @@
 ---
 name: pi-reads
 description: Captures sources, creates cited reading articles, exports Markdown/HTML/PDF/EPUB, writes Obsidian notes, and dry-runs or confirms Kindle delivery. Use for reading-library, article-generation, Obsidian, EPUB, and Kindle requests.
-compatibility: Requires Node.js 24+; PDF requires Playwright Chromium; Kindle send requires SMTP environment variables and interactive mode.
+compatibility: Requires Node.js 24+; PDF requires Playwright Chromium; Kindle send requires configured SMTP credentials and interactive mode.
 ---
 
 # Pi Reads
@@ -55,7 +55,7 @@ If the tool lists conflicting vault files, show those paths to the user and obta
 
 For Kindle dry-run, call `reads_export` with destination `kindle`, format `epub` or `pdf`, and omit `send`. Report only the redacted recipient, file, size, subject, and retained artifact path.
 
-Set `send: true` only when the user explicitly asks for delivery. The tool itself must display the full recipient and obtain interactive confirmation; headless delivery is forbidden. `/reads-config` may store safe Kindle defaults and environment-variable names, but never actual Kindle/sender addresses, SMTP usernames, or passwords. Never place those values in tool arguments, prose, manifests, or repository files. If delivery fails or is cancelled, report the retained local artifact path for manual upload.
+Set `send: true` only when the user explicitly asks for delivery. The tool itself must display the full recipient and obtain interactive confirmation; headless delivery is forbidden. `/reads-config` may store safe Kindle preferences in JSON and actual Kindle/sender addresses, SMTP usernames, and passwords only in the operating-system credential store. Never place those values in tool arguments, prose, manifests, or repository files. Environment overrides are reserved for CI/headless use. If delivery fails or is cancelled, report the retained local artifact path for manual upload.
 
 ## Library
 

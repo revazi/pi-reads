@@ -22,6 +22,8 @@
   "kindle": {
     "deviceLabel": "My Kindle",
     "defaultFormat": "epub",
+    "credentialStore": "system",
+    "credentialProfile": "default",
     "recipientEnv": "PI_READS_KINDLE_ADDRESS",
     "smtp": {
       "host": "smtp.example.com",
