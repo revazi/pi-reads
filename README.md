@@ -2,6 +2,7 @@
 
 [![Pi package](https://img.shields.io/badge/Pi-package-111.svg)](https://pi.dev/packages/pi-reads)
 [![npm version](https://img.shields.io/npm/v/pi-reads.svg)](https://www.npmjs.com/package/pi-reads)
+[![npm downloads](https://img.shields.io/npm/dm/pi-reads.svg)](https://www.npmjs.com/package/pi-reads)
 [![CI](https://github.com/revazi/pi-reads/actions/workflows/ci.yml/badge.svg)](https://github.com/revazi/pi-reads/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
