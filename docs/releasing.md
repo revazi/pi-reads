@@ -37,7 +37,7 @@ Stable install checks are:
 
 ```sh
 pi install npm:pi-reads
-pi install git:github.com/revazi/pi-reads@v1.1.0
+pi install git:github.com/revazi/pi-reads@v1.1.1
 ```
 
 The first npm publication establishes the package. Subsequent tagged releases use `.github/workflows/release.yml` with npm trusted publishing and provenance; no long-lived npm token belongs in GitHub secrets. The npm trusted publisher must match repository `revazi/pi-reads`, workflow `release.yml`, and environment `npm` exactly.

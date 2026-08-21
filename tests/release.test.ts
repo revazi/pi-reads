@@ -25,7 +25,7 @@ async function repositoryFile(path: string): Promise<string> {
 test('release metadata, attribution, and sample configuration are complete and secret-free', async () => {
   const manifest = JSON.parse(await repositoryFile('package.json')) as PackageManifest;
   assert.equal(manifest.name, 'pi-reads');
-  assert.equal(manifest.version, '1.1.0');
+  assert.equal(manifest.version, '1.1.1');
   assert.equal(manifest.license, 'MIT');
   assert.equal(manifest.author, 'Revaz Zakalashvili');
   assert.ok(manifest.contributors?.includes('Irakli Janiashvili'));

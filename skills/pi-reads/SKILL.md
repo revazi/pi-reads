@@ -6,7 +6,7 @@ compatibility: Requires Node.js 24+; PDF requires Playwright Chromium; Kindle se
 
 # Pi Reads
 
-Use Pi Reads tools for article capture, generation, library inspection, local export, conflict-safe Obsidian delivery, and confirmation-gated Kindle delivery.
+Use Pi Reads tools for article capture, generation, library inspection, local export, conflict-safe Obsidian delivery, and Kindle delivery with explicit confirmation.
 
 ## Source safety
 

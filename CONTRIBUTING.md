@@ -20,7 +20,7 @@ Keep CLI scripts thin, reusable behavior importable, and TypeScript strict. Test
 - Digests and syntheses are generated content and must retain provenance and citations.
 - Do not commit article bodies, source HTML, PDFs, EPUBs, credentials, Kindle addresses, or local configuration.
 - Do not silently overwrite immutable records or conflicting destination files.
-- External delivery must remain confirmation-gated.
+- External delivery must require explicit confirmation.
 - Preserve the Astro/Shiki light print design and visible-text fidelity verification.
 
 ## Pull requests

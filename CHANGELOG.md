@@ -4,6 +4,12 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-08-20
+
+### Changed
+
+- Restored the npm downloads badge and simplified the public Kindle delivery wording.
+
 ## [1.1.0] - 2026-08-20
 
 ### Added
@@ -40,7 +46,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - Immutable URL, text, Markdown, and file capture with archive/digest/synthesis separation.
 - Markdown, standalone HTML, print-fidelity PDF, and validated reflowable EPUB exports.
 - Conflict-safe Obsidian notes and assets.
-- Dry-run and confirmation-gated Kindle EPUB/PDF delivery using environment-held credentials.
+- Kindle EPUB/PDF delivery with dry runs, explicit confirmation, and environment-held credentials.
 - Non-secret Kindle preferences and environment-variable indirection in `/reads-config`.
 - Deterministic extraction, fidelity, package, destination, and fake-SMTP tests.
 
@@ -53,7 +59,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 - Retain the original `article:*` print workflow and `skills/irakli-reads` compatibility entry point while the repository transitions to Pi Reads.
 
-[Unreleased]: https://github.com/revazi/pi-reads/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/revazi/pi-reads/compare/v1.1.1...HEAD
+[1.1.1]: https://github.com/revazi/pi-reads/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/revazi/pi-reads/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/revazi/pi-reads/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/revazi/pi-reads/compare/v0.1.0...v1.0.0
