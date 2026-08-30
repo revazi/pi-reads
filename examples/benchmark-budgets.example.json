@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "maximums": {
+    "archive-only-short": {
+      "toolCalls": 1,
+      "sourceCharactersExposedToModel": 0
+    },
+    "digest-long": {
+      "toolCalls": 2,
+      "sourceCharactersExposedToModel": 1000000
+    },
+    "synthesis-five-source": {
+      "toolCalls": 6,
+      "sourceCharactersExposedToModel": 1000000
+    },
+    "kindle-preview": {
+      "toolCalls": 1
+    },
+    "kindle-send": {
+      "toolCalls": 1
+    }
+  }
+}
