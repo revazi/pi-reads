@@ -219,6 +219,14 @@ test('Pi extension registers and executes capture, generation, export, and libra
       context,
     );
     assert.match(listed.content[0]?.text ?? '', /Extension digest/);
+    const searched = await tools.get('reads_library')!.execute(
+      'search-call',
+      { action: 'search', query: 'extension digest', limit: 10 },
+      signal,
+      undefined,
+      context,
+    );
+    assert.match(searched.content[0]?.text ?? '', /Extension digest/);
 
     const readsSelections = ['digest — shorter cited AI summary of the source', 'obsidian'];
     const displayedModeChoices: string[] = [];

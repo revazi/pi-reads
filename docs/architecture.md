@@ -118,7 +118,10 @@ The filesystem adapter implements the layout in the product contract. It must:
 - resolve all record paths beneath a configured library root;
 - reject traversal and absolute record paths;
 - write atomically and create-only;
-- treat manifests as canonical and indexes as rebuildable;
+- treat manifests as canonical and `indexes/library.json` as a rebuildable metadata cache;
+- update the index with synced temporary files and atomic renames while an interruption marker protects canonical record/index consistency;
+- detect stale indexes from constant-time source/mode directory stamps and rebuild from immutable manifests when the index is missing, malformed, stale, or interrupted;
+- serialize in-process index mutations in addition to the Pi-facing file mutation queue;
 - reject a Git working tree as a production library root by default.
 
 ### Render adapters

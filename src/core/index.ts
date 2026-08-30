@@ -3,6 +3,7 @@ export * from './domain.ts';
 export * from './errors.ts';
 export * from './frontmatter.ts';
 export * from './library.ts';
+export * from './library-index.ts';
 export * from './network.ts';
 export * from './slugs.ts';
 export * from './text.ts';
