@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { access, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { access, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -67,7 +67,14 @@ test('Kindle dry-run, confirmed delivery, and failure retention use a fake SMTP 
   const now = () => new Date('2026-08-22T11:00:00Z');
   const library = new LibraryService({ libraryDir, createId, now });
   const exports = new ExportService({ library, createId, now });
-  const epub = new EpubService({ library, createId, now });
+  const epubRenderer = new EpubService({ library, createId, now });
+  let epubRenderCount = 0;
+  const epub = {
+    async prepare(articleId: string, signal?: AbortSignal) {
+      epubRenderCount += 1;
+      return epubRenderer.prepare(articleId, signal);
+    },
+  };
   const transport = new FakeTransport();
   const kindle = new KindleService({ library, exports, epub, env: environment, config: kindleConfig, transport, createId, now });
 
@@ -82,6 +89,9 @@ test('Kindle dry-run, confirmed delivery, and failure retention use a fake SMTP 
     assert.equal(preview.subject, 'Pi Reads: Kindle Fixture');
     assert.equal(preview.filename, 'kindle-fixture.epub');
     assert.ok(preview.size > 0);
+    assert.match(preview.localExportId, /^exp_/u);
+    assert.equal(preview.contentHash, versionedSha256(preview.bytes));
+    assert.equal(epubRenderCount, 1);
     assert.equal(transport.sent.length, 0);
     await access(preview.artifactPath);
 
@@ -91,17 +101,39 @@ test('Kindle dry-run, confirmed delivery, and failure retention use a fake SMTP 
     );
     assert.equal(transport.sent.length, 0);
 
-    const delivered = await kindle.deliver(preview, {
+    const reusedPreview = await kindle.previewPrepared(
+      capture.archiveArticle.id,
+      'epub',
+      preview.localExportId,
+    );
+    assert.equal(reusedPreview.contentHash, preview.contentHash);
+    assert.deepEqual(reusedPreview.bytes, preview.bytes);
+    const delivered = await kindle.deliver(reusedPreview, {
       confirmedAt: '2026-08-22T10:59:59Z',
       confirmationMethod: 'interactive',
     });
+    assert.equal(epubRenderCount, 1);
     assert.equal(transport.sent.length, 1);
     assert.equal(transport.sent[0].to, kindleAddress);
     assert.equal(transport.sent[0].filename, 'kindle-fixture.epub');
+    assert.equal(versionedSha256(transport.sent[0].content), preview.contentHash);
     assert.equal(delivered.record.destination.type, 'kindle');
     assert.equal(delivered.record.delivery?.confirmationMethod, 'interactive');
+    assert.equal(delivered.record.delivery?.preparedExportId, preview.localExportId);
+    assert.equal(delivered.record.artifact.contentHash, preview.contentHash);
+    assert.equal(delivered.artifactPath, preview.artifactPath);
+    assert.deepEqual(await readdir(path.dirname(delivered.manifestPath)), ['manifest.json']);
     const manifest = await readFile(delivered.manifestPath, 'utf8');
     assert.doesNotMatch(manifest, /@kindle\.com|@example\.test|test-only-password/);
+
+    await assert.rejects(
+      () => kindle.previewPrepared(capture.archiveArticle.id, 'pdf', preview.localExportId),
+      /is not a pdf artifact/u,
+    );
+    await assert.rejects(
+      () => kindle.previewPrepared(capture.archiveArticle.id, 'epub', 'exp_zzzzzzzzzzzzzzzz'),
+      /manifest is missing/u,
+    );
 
     let recipientReads = 0;
     let smtpReads = 0;
@@ -146,31 +178,36 @@ test('Kindle dry-run, confirmed delivery, and failure retention use a fake SMTP 
     assert.equal(storedTransport.sent[0].from, senderAddress);
 
     const pdfBytes = Buffer.from('%PDF-1.7\nfixture\n%%EOF\n');
-    const pdfPath = path.join(libraryDir, 'fixture.pdf');
-    await writeFile(pdfPath, pdfBytes);
     const pdfKindle = new KindleService({
       library,
       exports: {
         async prepare(articleId) {
-          return {
-            record: {
-              schemaVersion: 1,
-              id: 'exp_mmmmmmmmmmmmmmmm',
-              articleId,
-              format: 'pdf',
-              destination: { type: 'local' },
-              status: 'prepared',
-              artifact: {
-                path: 'exports/art_jjjjjjjjjjjjjjj1/exp_mmmmmmmmmmmmmmmm/article.pdf',
-                mediaType: 'application/pdf',
-                contentHash: versionedSha256(pdfBytes),
-                byteLength: pdfBytes.byteLength,
-              },
-              createdAt: '2026-08-22T11:00:00Z',
+          const exportId = 'exp_mmmmmmmmmmmmmmmm';
+          const relativeDirectory = path.posix.join('exports', articleId, exportId);
+          const artifactRelativePath = path.posix.join(relativeDirectory, 'article.pdf');
+          const artifactPath = path.join(libraryDir, ...artifactRelativePath.split('/'));
+          const manifestPath = path.join(libraryDir, ...relativeDirectory.split('/'), 'manifest.json');
+          const record = {
+            schemaVersion: 1 as const,
+            id: exportId,
+            articleId,
+            format: 'pdf' as const,
+            destination: { type: 'local' as const },
+            status: 'prepared' as const,
+            artifact: {
+              path: artifactRelativePath,
+              mediaType: 'application/pdf',
+              contentHash: versionedSha256(pdfBytes),
+              byteLength: pdfBytes.byteLength,
             },
-            artifactPath: pdfPath,
-            manifestPath: `${pdfPath}.json`,
+            createdAt: '2026-08-22T11:00:00Z',
           };
+          await mkdir(path.dirname(artifactPath), { recursive: true });
+          await Promise.all([
+            writeFile(artifactPath, pdfBytes),
+            writeFile(manifestPath, `${JSON.stringify(record, null, 2)}\n`),
+          ]);
+          return { record, artifactPath, manifestPath };
         },
       },
       epub,
@@ -207,6 +244,16 @@ test('Kindle dry-run, confirmed delivery, and failure retention use a fake SMTP 
       },
     );
     await access(preview.artifactPath);
+    await writeFile(preview.artifactPath, Buffer.from('tampered EPUB'));
+    await assert.rejects(
+      () => kindle.previewPrepared(capture.archiveArticle.id, 'epub', preview.localExportId),
+      /failed artifact integrity verification/u,
+    );
+    await rm(preview.artifactPath);
+    await assert.rejects(
+      () => kindle.previewPrepared(capture.archiveArticle.id, 'epub', preview.localExportId),
+      /artifact is missing/u,
+    );
   } finally {
     await rm(libraryDir, { recursive: true, force: true });
   }

@@ -137,7 +137,7 @@ Destinations receive a prepared export; they do not generate article prose.
 
 - Local destination retains the artifact in the library.
 - Obsidian renders destination frontmatter, copies/downloads assets, rewrites relative links, and writes only conflict-approved targets in a configured vault.
-- Kindle dry-runs retain a local EPUB/PDF; SMTP delivery sends that exact artifact only after explicit interactive confirmation.
+- Kindle dry-runs retain an immutable local EPUB/PDF and return its export ID and hash; a later SMTP delivery verifies and sends those exact bytes only after explicit interactive confirmation, then records evidence by reference without copying the artifact.
 
 Every external side effect returns delivery evidence suitable for a non-secret export manifest.
 
@@ -194,10 +194,11 @@ The active Pi model is the generator. The extension does not silently invoke a s
 ```text
 validated Article
   → prepared local Export
-  → destination-specific preview
+  → destination-specific preview with prepared export ID/hash
+  → optional later reload and integrity verification
   → explicit confirmation when required
-  → destination adapter
-  → delivery status/evidence
+  → destination adapter using the verified prepared bytes
+  → delivery status/evidence referencing the prepared export
 ```
 
 A failed delivery never deletes the prepared local artifact.

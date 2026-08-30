@@ -104,6 +104,7 @@ export interface ExportRecord {
   assets?: StoredFile[];
   createdAt: string;
   delivery?: {
+    preparedExportId?: string;
     attemptedAt?: string;
     confirmedAt?: string;
     confirmationMethod?: 'interactive';

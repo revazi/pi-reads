@@ -84,17 +84,28 @@ A Kindle export is a dry-run unless `send: true` is explicitly requested. Its fo
 }
 ```
 
-Persisted dry-run output includes only a redacted recipient, subject, filename, size, and retained local artifact path. In interactive mode, a transient notification also shows the full recipient for verification. A dry-run does not require SMTP credentials and does not send email.
+Persisted dry-run output includes only a redacted recipient, subject, filename, size, content hash, prepared export ID, and retained local artifact path. In interactive mode, a transient notification also shows the full recipient for verification. A dry-run does not require SMTP credentials and does not send email.
 
-To request delivery, use `send: true`. Pi Reads then:
+Reuse that immutable artifact in a later delivery request instead of rendering again:
 
-1. creates and retains the local EPUB or PDF;
-2. refuses to send when no interactive UI is available;
-3. displays the full recipient, subject, filename, and size in a confirmation dialog;
-4. sends only after the user confirms;
-5. stores a delivered export record with confirmation and delivery timestamps, but without recipient/sender addresses or SMTP details.
+```json
+{
+  "articleId": "art_…",
+  "format": "epub",
+  "destination": "kindle",
+  "send": true,
+  "preparedExportId": "exp_…"
+}
+```
 
-Cancelling or failing SMTP delivery leaves the prepared local artifact available for manual upload. Delivery errors are sanitized so recipient addresses and credentials are not copied into the Pi session.
+Pi Reads verifies that the prepared manifest belongs to the requested article, is the requested format, points to the expected local artifact, and still matches its recorded byte length and SHA-256 content hash. Missing, malformed, symlinked, or modified artifacts fail closed. Pi Reads then:
+
+1. refuses to send when no interactive UI is available;
+2. displays the full recipient, subject, filename, size, prepared export ID, and content hash in a confirmation dialog;
+3. sends the exact verified prepared bytes only after the user confirms;
+4. stores a delivered export record with confirmation and delivery timestamps that references the prepared export instead of copying its artifact, without recipient/sender addresses or SMTP details.
+
+If `preparedExportId` is omitted, Pi Reads prepares and retains a new local EPUB or PDF before confirmation. Cancelling or failing SMTP delivery leaves the prepared local artifact available for reuse or manual upload. Delivery errors are sanitized so recipient addresses and credentials are not copied into the Pi session.
 
 ## Formats
 
