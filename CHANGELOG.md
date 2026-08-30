@@ -7,6 +7,7 @@ All notable changes to this project are documented here. The format follows [Kee
 ### Changed
 
 - Archive-only `/reads` workflows now capture and export directly without invoking an active model; Obsidian overwrites and Kindle sends retain their interactive confirmation gates.
+- URL capture now infers optional serif/sans-serif presentation from already captured inline or embedded CSS, defaulting safely to serif without launching Chromium or navigating twice.
 
 ## [1.1.1] - 2026-08-20
 

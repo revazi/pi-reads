@@ -104,7 +104,7 @@ Application services must be abort-aware where adapters perform network, browser
 
 ### Source adapters
 
-A source adapter turns one external input into a capture candidate. It may fetch or read bytes, but it cannot persist a canonical record directly. The ingestion service validates, hashes, and writes the source.
+A source adapter turns one external input into a capture candidate. It may fetch or read bytes, but it cannot persist a canonical record directly. The ingestion service validates, hashes, and writes the source. URL extraction performs one HTML fetch; optional serif/sans-serif presentation is inferred deterministically from inline or embedded CSS in those captured bytes and safely defaults to serif, without browser probing or a second navigation.
 
 Phase ordering:
 
