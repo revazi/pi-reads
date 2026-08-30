@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "maximums": {
     "archive-only-short": {
-      "toolCalls": 1,
+      "toolCalls": 0,
       "sourceCharactersExposedToModel": 0
     },
     "digest-long": {

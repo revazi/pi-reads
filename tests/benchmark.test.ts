@@ -39,7 +39,7 @@ test('non-browser benchmark reports workflow, model-context, storage, and option
 
     const measurements = new Map(report.measurements.map((measurement) => [measurement.name, measurement]));
     assert.equal(measurements.get('archive-only-short')?.metrics.sourceCharactersExposedToModel, 0);
-    assert.equal(measurements.get('archive-only-short')?.metrics.toolCalls, 1);
+    assert.equal(measurements.get('archive-only-short')?.metrics.toolCalls, 0);
     assert.equal(
       measurements.get('digest-long')?.metrics.sourceCharactersExposedToModel,
       report.fixtureCharacters.long,
@@ -83,7 +83,7 @@ test('performance budgets are enforced only when explicitly evaluated', () => {
       fixture: 'short',
       metrics: {
         wallTimeMs: 10,
-        toolCalls: 1,
+        toolCalls: 0,
         sourceCharactersExposedToModel: 0,
         artifactBytesWritten: 0,
         totalBytesWritten: 100,
@@ -94,7 +94,7 @@ test('performance budgets are enforced only when explicitly evaluated', () => {
   };
   const passing: BenchmarkBudgets = {
     schemaVersion: 1,
-    maximums: { 'archive-only-short': { wallTimeMs: 10, toolCalls: 1 } },
+    maximums: { 'archive-only-short': { wallTimeMs: 10, toolCalls: 0 } },
   };
   const failing: BenchmarkBudgets = {
     schemaVersion: 1,

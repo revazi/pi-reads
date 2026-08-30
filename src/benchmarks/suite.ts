@@ -270,7 +270,7 @@ export async function runBenchmarkSuite(options: BenchmarkSuiteOptions = {}): Pr
   });
 
   try {
-    await measure('archive-only-short', fixtures.short.name, 1, 0, async () => {
+    await measure('archive-only-short', fixtures.short.name, 0, 0, async () => {
       const captured = await library.capture({ kind: 'markdown', label: fixtures.short.label, markdown: fixtures.short.markdown });
       shortArticleId = captured.archiveArticle.id;
     });
