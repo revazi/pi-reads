@@ -35,9 +35,11 @@ test('non-browser benchmark reports workflow, model-context, storage, and option
     assert.equal(report.environment.browserBenchmarks, false);
     assert.equal(report.environment.packageVersion, 'test');
     assert.equal(report.environment.gitCommit, 'fixture-commit');
-    assert.equal(report.measurements.length, 8);
+    assert.equal(report.measurements.length, 9);
 
     const measurements = new Map(report.measurements.map((measurement) => [measurement.name, measurement]));
+    assert.equal(measurements.get('extension-cold-registration')?.status, 'measured');
+    assert.ok((measurements.get('extension-cold-registration')?.metrics.wallTimeMs ?? Infinity) <= 500);
     assert.equal(measurements.get('archive-only-short')?.metrics.sourceCharactersExposedToModel, 0);
     assert.equal(measurements.get('archive-only-short')?.metrics.toolCalls, 0);
     assert.equal(

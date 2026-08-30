@@ -1,6 +1,9 @@
 {
   "schemaVersion": 1,
   "maximums": {
+    "extension-cold-registration": {
+      "wallTimeMs": 500
+    },
     "archive-only-short": {
       "toolCalls": 0,
       "sourceCharactersExposedToModel": 0

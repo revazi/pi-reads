@@ -1,6 +1,9 @@
+import { execFile } from 'node:child_process';
 import { mkdtemp, readdir, readFile, rm, stat } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { promisify } from 'node:util';
 import type { KindleMail, KindleMailTransport } from '../adapters/destinations/kindle.ts';
 import { EpubService } from '../application/epub-service.ts';
 import { ExportService } from '../application/export-service.ts';
@@ -11,6 +14,7 @@ import type { RecordIdPrefix } from '../core/library.ts';
 import { createBenchmarkFixtures } from './fixtures.ts';
 
 export const BENCHMARK_NAMES = [
+  'extension-cold-registration',
   'archive-only-short',
   'digest-long',
   'synthesis-five-source',
@@ -102,6 +106,39 @@ export interface BenchmarkBudgets {
 interface ByteSnapshot {
   totalBytes: number;
   artifactBytes: number;
+}
+
+interface ColdRegistrationResult {
+  wallTimeMs: number;
+  toolCount: number;
+  commandCount: number;
+}
+
+const execFileAsync = promisify(execFile);
+
+async function measureColdExtensionRegistration(): Promise<ColdRegistrationResult> {
+  const extensionPath = fileURLToPath(new URL('../../extensions/pi-reads/index.ts', import.meta.url));
+  const script = `
+const startedAt = performance.now();
+const extension = (await import(process.argv[1])).default;
+const tools = [];
+const commands = [];
+extension({
+  registerTool(tool) { tools.push(tool.name); },
+  registerCommand(name) { commands.push(name); },
+});
+const wallTimeMs = Math.round((performance.now() - startedAt) * 1000) / 1000;
+process.stdout.write(JSON.stringify({ wallTimeMs, toolCount: tools.length, commandCount: commands.length }));
+`;
+  const { stdout } = await execFileAsync(process.execPath, ['--input-type=module', '--eval', script, extensionPath], {
+    encoding: 'utf8',
+    timeout: 10_000,
+  });
+  const result = JSON.parse(stdout) as ColdRegistrationResult;
+  if (result.toolCount !== 4 || result.commandCount !== 4) {
+    throw new Error(`Cold extension registration produced ${result.toolCount} tools and ${result.commandCount} commands`);
+  }
+  return result;
 }
 
 function deterministicIds(): (prefix: RecordIdPrefix) => string {
@@ -270,6 +307,21 @@ export async function runBenchmarkSuite(options: BenchmarkSuiteOptions = {}): Pr
   });
 
   try {
+    const coldRegistration = await measureColdExtensionRegistration();
+    measurements.push({
+      name: 'extension-cold-registration',
+      status: 'measured',
+      fixture: 'isolated Node.js process',
+      metrics: {
+        wallTimeMs: coldRegistration.wallTimeMs,
+        toolCalls: 0,
+        sourceCharactersExposedToModel: 0,
+        artifactBytesWritten: 0,
+        totalBytesWritten: 0,
+        piTokenUsage: tokenUsageFor('extension-cold-registration'),
+      },
+    });
+
     await measure('archive-only-short', fixtures.short.name, 0, 0, async () => {
       const captured = await library.capture({ kind: 'markdown', label: fixtures.short.label, markdown: fixtures.short.markdown });
       shortArticleId = captured.archiveArticle.id;

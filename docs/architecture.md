@@ -143,7 +143,7 @@ Every external side effect returns delivery evidence suitable for a non-secret e
 
 ## Pi integration boundary
 
-The Pi extension is an interface adapter over application services.
+The Pi extension is an interface adapter over application services. Extension registration is lightweight: library, renderer, EPUB, Obsidian, Kindle, SMTP, browser, syntax-highlighting, and credential-store implementations load only when their corresponding workflow first needs them. Text ingestion and metadata listing do not initialize destination or renderer adapters.
 
 It owns:
 

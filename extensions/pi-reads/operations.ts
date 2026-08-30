@@ -1,11 +1,14 @@
 import process from 'node:process';
-import { withFileMutationQueue, type ExtensionAPI, type ExtensionContext } from '@earendil-works/pi-coding-agent';
+import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
 import type { DeliveredKindleExport, KindlePreview } from '../../src/application/kindle-service.ts';
 import type { ObsidianExportPlan } from '../../src/application/obsidian-service.ts';
 import type { SourceInput } from '../../src/core/ingest/index.ts';
-import { openReadsServices } from './runtime.ts';
+import type { ReadsServices } from './runtime.ts';
 
-export type ReadsServices = Awaited<ReturnType<typeof openReadsServices>>;
+export async function withReadsMutationQueue<T>(key: string, operation: () => Promise<T>): Promise<T> {
+  const { withFileMutationQueue } = await import('@earendil-works/pi-coding-agent');
+  return withFileMutationQueue(key, operation);
+}
 
 export function sourceInput(
   kind: 'url' | 'text' | 'markdown' | 'file',
@@ -74,8 +77,9 @@ export async function deliverKindleWithConfirmation(
     `Recipient: ${preview.recipient}\nSubject: ${preview.subject}\nFile: ${preview.filename}\nSize: ${formatBytes(preview.size)}\n\nSend this attachment now?`,
   );
   if (!confirmed) throw new Error(`Kindle delivery cancelled. Local export retained at ${preview.artifactPath}`);
-  return withFileMutationQueue(services.libraryDir, () =>
-    services.kindle.deliver(preview, {
+  const kindle = await services.getKindle();
+  return withReadsMutationQueue(services.libraryDir, () =>
+    kindle.deliver(preview, {
       confirmedAt: new Date().toISOString(),
       confirmationMethod: 'interactive',
     }, signal),

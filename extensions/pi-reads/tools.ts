@@ -1,5 +1,5 @@
 import { StringEnum, Type } from '@earendil-works/pi-ai';
-import { withFileMutationQueue, type ExtensionAPI } from '@earendil-works/pi-coding-agent';
+import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
 import type { Citation } from '../../src/core/domain.ts';
 import {
   deliverKindleWithConfirmation,
@@ -7,6 +7,7 @@ import {
   openObsidianNote,
   resolveObsidianOverwrite,
   sourceInput,
+  withReadsMutationQueue as withFileMutationQueue,
 } from './operations.ts';
 import { openReadsServices } from './runtime.ts';
 
@@ -174,11 +175,15 @@ export function registerReadsTools(pi: ExtensionAPI): void {
       onUpdate?.({ content: [{ type: 'text', text: `Preparing ${destination} ${format} export…` }], details: {} });
 
       if (destination === 'local') {
-        const result = await withFileMutationQueue(services.libraryDir, () =>
-          format === 'epub'
-            ? services.epub.prepare(params.articleId, signal)
-            : services.exports.prepare(params.articleId, format, signal),
-        );
+        const result = format === 'epub'
+          ? await (async () => {
+              const epub = await services.getEpub();
+              return withFileMutationQueue(services.libraryDir, () => epub.prepare(params.articleId, signal));
+            })()
+          : await (async () => {
+              const exports = await services.getExports();
+              return withFileMutationQueue(services.libraryDir, () => exports.prepare(params.articleId, format, signal));
+            })();
         return {
           content: [
             {
@@ -207,8 +212,9 @@ export function registerReadsTools(pi: ExtensionAPI): void {
           throw new Error('Kindle delivery requires format epub or pdf');
         }
         const kindleFormat = format;
+        const kindle = await services.getKindle();
         const preview = await withFileMutationQueue(services.libraryDir, () =>
-          services.kindle.preview(params.articleId, kindleFormat, signal),
+          kindle.preview(params.articleId, kindleFormat, signal),
         );
         const previewLines = [
           `Kindle ${params.send ? 'send preview' : 'dry run'} prepared.`,
@@ -269,14 +275,16 @@ export function registerReadsTools(pi: ExtensionAPI): void {
       if (format !== 'markdown') {
         throw new Error('Obsidian exports require format markdown');
       }
-      if (!services.obsidian || !services.obsidianConfig) {
+      if (!services.obsidianConfig) {
         throw new Error('Obsidian is not configured. Run /reads-config and choose Obsidian destination.');
       }
+      const obsidian = await services.getObsidian();
+      if (!obsidian) throw new Error('Obsidian destination could not be loaded. Check the Pi Reads installation.');
 
-      const plan = await services.obsidian.plan(params.articleId, services.obsidianConfig, signal);
+      const plan = await obsidian.plan(params.articleId, services.obsidianConfig, signal);
       const overwrite = await resolveObsidianOverwrite(plan, ctx, { headlessOverwrite: params.overwrite });
       const result = await withFileMutationQueue(services.obsidianConfig.vaultPath, () =>
-        services.obsidian!.deliver(plan, overwrite),
+        obsidian.deliver(plan, overwrite),
       );
       let openWarning: string | undefined;
       if (params.open ?? services.obsidianConfig.openAfterExport) {

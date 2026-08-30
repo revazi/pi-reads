@@ -18,6 +18,7 @@ pnpm --silent benchmark --output /tmp/pi-reads-benchmark.json
 
 The baseline covers:
 
+- extension cold import and registration in an isolated Node.js process;
 - direct archive-only `/reads` capture with no model handoff or model tool calls;
 - a long-source digest workflow;
 - a five-source synthesis workflow;
@@ -60,7 +61,7 @@ Digest and synthesis prose is a deterministic fixture, not a model call, so toke
 pnpm --silent benchmark --token-usage /tmp/pi-token-usage.json
 ```
 
-The report also records Node, operating-system, CPU, CI, package, commit, and browser-mode metadata. Its storage summary reports duplicate artifact bytes by comparing immutable export hashes; this makes repeated Kindle preparation or delivery visible.
+The initial cold-registration budget is 500 ms on the benchmark environment. Registration includes importing the extension and registering its four tools and four commands, but excludes Node.js process startup. The report also records Node, operating-system, CPU, CI, package, commit, and browser-mode metadata. Its storage summary reports duplicate artifact bytes by comparing immutable export hashes; this makes repeated Kindle preparation or delivery visible.
 
 ## Optional performance gates
 
@@ -72,4 +73,4 @@ pnpm --silent benchmark --gate examples/benchmark-budgets.example.json
 
 A gate file can set maximum values for `wallTimeMs`, `toolCalls`, `sourceCharactersExposedToModel`, `artifactBytesWritten`, and `totalBytesWritten`. Avoid committing machine-specific wall-time limits unless CI hardware and variance are understood.
 
-CI runs `pnpm --silent benchmark` without `--browser`, credentials, or a performance gate. Functional test failures still fail normally; only metric budgets are opt-in.
+CI explicitly runs `pnpm --silent benchmark --gate examples/benchmark-budgets.example.json` without `--browser` or credentials. Functional test failures still fail normally; performance metrics fail only because CI explicitly supplies that gate.
