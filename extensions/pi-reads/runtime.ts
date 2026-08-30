@@ -1,44 +1,94 @@
 import { resolveConfiguration } from '../../src/core/config.ts';
-import { EpubService } from '../../src/application/epub-service.ts';
-import { ExportService } from '../../src/application/export-service.ts';
-import { KindleService } from '../../src/application/kindle-service.ts';
-import { LibraryService } from '../../src/application/library-service.ts';
-import { ObsidianService } from '../../src/application/obsidian-service.ts';
-import { SystemKindleCredentialStore } from '../../src/adapters/credentials/keyring.ts';
+import { errorMessage } from '../../src/core/errors.ts';
+import type { SystemKindleCredentialStore } from '../../src/adapters/credentials/keyring.ts';
+import type { EpubService } from '../../src/application/epub-service.ts';
+import type { ExportService } from '../../src/application/export-service.ts';
+import type { KindleService } from '../../src/application/kindle-service.ts';
+import type { LibraryService } from '../../src/application/library-service.ts';
+import type { ObsidianService } from '../../src/application/obsidian-service.ts';
 
-export async function openReadsServices(cwd: string): Promise<{
+type ResolvedConfiguration = Awaited<ReturnType<typeof resolveConfiguration>>;
+
+function capabilityError(capability: string, error: unknown): Error {
+  return new Error(`${capability} could not be loaded. Reinstall or update Pi Reads. ${errorMessage(error)}`);
+}
+
+export interface ReadsServices {
   configPath: string;
   libraryDir: string;
   library: LibraryService;
-  exports: ExportService;
-  epub: EpubService;
-  kindle: KindleService;
-  kindleCredentialStore: SystemKindleCredentialStore;
-  kindleConfig: Awaited<ReturnType<typeof resolveConfiguration>>['kindle'];
-  obsidian?: ObsidianService;
-  obsidianConfig: Awaited<ReturnType<typeof resolveConfiguration>>['obsidian'];
-}> {
+  kindleConfig: ResolvedConfiguration['kindle'];
+  obsidianConfig: ResolvedConfiguration['obsidian'];
+  getExports(): Promise<ExportService>;
+  getEpub(): Promise<EpubService>;
+  getKindle(): Promise<KindleService>;
+  getKindleCredentialStore(): Promise<SystemKindleCredentialStore>;
+  getObsidian(): Promise<ObsidianService | undefined>;
+}
+
+export async function openReadsServices(cwd: string): Promise<ReadsServices> {
   const configuration = await resolveConfiguration({ cwd });
+  const { LibraryService } = await import('../../src/application/library-service.ts');
   const library = new LibraryService({ libraryDir: configuration.libraryDir });
-  const exports = new ExportService({ library });
-  const epub = new EpubService({ library });
-  const kindleCredentialStore = new SystemKindleCredentialStore();
-  return {
-    configPath: configuration.configPath,
-    libraryDir: configuration.libraryDir,
-    library,
-    exports,
-    epub,
-    kindle: new KindleService({
+  let exportsPromise: Promise<ExportService> | undefined;
+  let epubPromise: Promise<EpubService> | undefined;
+  let kindlePromise: Promise<KindleService> | undefined;
+  let credentialStorePromise: Promise<SystemKindleCredentialStore> | undefined;
+  let obsidianPromise: Promise<ObsidianService | undefined> | undefined;
+
+  const getExports = (): Promise<ExportService> => {
+    exportsPromise ??= import('../../src/application/export-service.ts')
+      .then(({ ExportService }) => new ExportService({ library }))
+      .catch((error: unknown) => { throw capabilityError('Local export support', error); });
+    return exportsPromise;
+  };
+  const getEpub = (): Promise<EpubService> => {
+    epubPromise ??= import('../../src/application/epub-service.ts')
+      .then(({ EpubService }) => new EpubService({ library }))
+      .catch((error: unknown) => { throw capabilityError('EPUB export support', error); });
+    return epubPromise;
+  };
+  const getKindleCredentialStore = (): Promise<SystemKindleCredentialStore> => {
+    credentialStorePromise ??= import('../../src/adapters/credentials/keyring.ts')
+      .then(({ SystemKindleCredentialStore }) => new SystemKindleCredentialStore())
+      .catch((error: unknown) => { throw capabilityError('System credential-store support', error); });
+    return credentialStorePromise;
+  };
+  const getKindle = (): Promise<KindleService> => {
+    kindlePromise ??= Promise.all([
+      import('../../src/application/kindle-service.ts'),
+      getExports(),
+      getEpub(),
+      getKindleCredentialStore(),
+    ]).then(([{ KindleService }, exports, epub, credentialStore]) => new KindleService({
       library,
       exports,
       epub,
       ...(configuration.kindle ? { config: configuration.kindle } : {}),
-      credentialStore: kindleCredentialStore,
-    }),
-    kindleCredentialStore,
+      credentialStore,
+    })).catch((error: unknown) => { throw capabilityError('Kindle delivery support', error); });
+    return kindlePromise;
+  };
+  const getObsidian = (): Promise<ObsidianService | undefined> => {
+    if (!configuration.obsidian) return Promise.resolve(undefined);
+    obsidianPromise ??= Promise.all([
+      import('../../src/application/obsidian-service.ts'),
+      getExports(),
+    ]).then(([{ ObsidianService }, exports]) => new ObsidianService({ library, exports }))
+      .catch((error: unknown) => { throw capabilityError('Obsidian export support', error); });
+    return obsidianPromise;
+  };
+
+  return {
+    configPath: configuration.configPath,
+    libraryDir: configuration.libraryDir,
+    library,
     kindleConfig: configuration.kindle,
-    ...(configuration.obsidian ? { obsidian: new ObsidianService({ library, exports }) } : {}),
     obsidianConfig: configuration.obsidian,
+    getExports,
+    getEpub,
+    getKindle,
+    getKindleCredentialStore,
+    getObsidian,
   };
 }

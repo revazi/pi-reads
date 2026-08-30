@@ -1,7 +1,7 @@
 import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
-import { withFileMutationQueue, type ExtensionAPI, type ExtensionCommandContext } from '@earendil-works/pi-coding-agent';
+import type { ExtensionAPI, ExtensionCommandContext } from '@earendil-works/pi-coding-agent';
 import { CURSOR_MARKER, Key, matchesKey, truncateToWidth } from '@earendil-works/pi-tui';
 import { updateKindleConfig, updateLibraryDir, updateObsidianConfig } from '../../src/application/config-service.ts';
 import type { KindleConfig, ObsidianConfig } from '../../src/core/domain.ts';
@@ -12,6 +12,7 @@ import {
   openObsidianNote,
   resolveObsidianOverwrite,
   sourceInput,
+  withReadsMutationQueue as withFileMutationQueue,
 } from './operations.ts';
 import { openReadsServices } from './runtime.ts';
 
@@ -122,13 +123,15 @@ async function executeArchiveWorkflow(
     const format = selection.format;
 
     if (format === 'obsidian') {
-      if (!services.obsidian || !services.obsidianConfig) {
+      if (!services.obsidianConfig) {
         throw new Error('Obsidian is not configured. Run /reads-config and choose Obsidian destination.');
       }
-      const plan = await services.obsidian.plan(capture.archiveArticle.id, services.obsidianConfig, ctx.signal);
+      const obsidian = await services.getObsidian();
+      if (!obsidian) throw new Error('Obsidian destination could not be loaded. Check the Pi Reads installation.');
+      const plan = await obsidian.plan(capture.archiveArticle.id, services.obsidianConfig, ctx.signal);
       const overwrite = await resolveObsidianOverwrite(plan, ctx);
       const delivered = await withFileMutationQueue(services.obsidianConfig.vaultPath, () =>
-        services.obsidian!.deliver(plan, overwrite),
+        obsidian.deliver(plan, overwrite),
       );
       artifactPath = delivered.artifactPath;
       if (services.obsidianConfig.openAfterExport) {
@@ -137,17 +140,23 @@ async function executeArchiveWorkflow(
       }
     } else if (format === 'kindle-epub' || format === 'kindle-pdf') {
       const kindleFormat = format === 'kindle-epub' ? 'epub' : 'pdf';
+      const kindle = await services.getKindle();
       const preview = await withFileMutationQueue(services.libraryDir, () =>
-        services.kindle.preview(capture.archiveArticle.id, kindleFormat, ctx.signal),
+        kindle.preview(capture.archiveArticle.id, kindleFormat, ctx.signal),
       );
       const delivered = await deliverKindleWithConfirmation(services, preview, ctx.signal, ctx);
       artifactPath = delivered.artifactPath;
       notes.push(`Retained local export: ${delivered.localArtifactPath}`);
-    } else {
+    } else if (format === 'epub') {
+      const epub = await services.getEpub();
       const prepared = await withFileMutationQueue(services.libraryDir, () =>
-        format === 'epub'
-          ? services.epub.prepare(capture.archiveArticle.id, ctx.signal)
-          : services.exports.prepare(capture.archiveArticle.id, format, ctx.signal),
+        epub.prepare(capture.archiveArticle.id, ctx.signal),
+      );
+      artifactPath = prepared.artifactPath;
+    } else {
+      const exports = await services.getExports();
+      const prepared = await withFileMutationQueue(services.libraryDir, () =>
+        exports.prepare(capture.archiveArticle.id, format, ctx.signal),
       );
       artifactPath = prepared.artifactPath;
     }
@@ -469,7 +478,7 @@ export function registerReadsCommands(pi: ExtensionAPI): void {
         await configureKindle(
           services.configPath,
           services.kindleConfig,
-          services.kindleCredentialStore,
+          await services.getKindleCredentialStore(),
           ctx,
           host || undefined,
         );
@@ -508,7 +517,7 @@ export function registerReadsCommands(pi: ExtensionAPI): void {
         await configureKindle(
           services.configPath,
           services.kindleConfig,
-          services.kindleCredentialStore,
+          await services.getKindleCredentialStore(),
           ctx,
         );
         return;

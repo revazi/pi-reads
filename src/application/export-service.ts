@@ -1,11 +1,8 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { JSDOM } from 'jsdom';
-import { marked } from 'marked';
-import { chromium } from 'playwright';
-import { codeToHtml } from 'shiki';
 import type { ArticleRecord, Citation, ExportFormat, ExportRecord, SourceRecord } from '../core/domain.ts';
+import { errorMessage } from '../core/errors.ts';
 import {
   createImmutableRecordDirectory,
   createRecordId,
@@ -32,6 +29,26 @@ export interface PreparedExport {
 
 interface ArticleSources {
   records: Map<string, SourceRecord>;
+}
+
+interface HtmlRendererDependencies {
+  JSDOM: typeof import('jsdom').JSDOM;
+  marked: typeof import('marked').marked;
+  codeToHtml: typeof import('shiki').codeToHtml;
+}
+
+let htmlRendererDependencies: Promise<HtmlRendererDependencies> | undefined;
+
+function loadHtmlRendererDependencies(): Promise<HtmlRendererDependencies> {
+  htmlRendererDependencies ??= Promise.all([
+    import('jsdom'),
+    import('marked'),
+    import('shiki'),
+  ]).then(([{ JSDOM }, { marked }, { codeToHtml }]) => ({ JSDOM, marked, codeToHtml }))
+    .catch((error: unknown) => {
+      throw new Error(`HTML export dependencies could not be loaded. Reinstall or update Pi Reads. ${errorMessage(error)}`);
+    });
+  return htmlRendererDependencies;
 }
 
 function escapeHtml(value: string): string {
@@ -113,7 +130,8 @@ function replaceCitationMarkers(body: string, citations: readonly Citation[]): s
   }, body);
 }
 
-async function highlightCodeBlocks(html: string): Promise<string> {
+async function highlightCodeBlocks(html: string, dependencies: HtmlRendererDependencies): Promise<string> {
+  const { JSDOM, codeToHtml } = dependencies;
   const dom = new JSDOM(`<!doctype html><main id="content">${html}</main>`);
   const { document } = dom.window;
   for (const pre of [...document.querySelectorAll('pre')]) {
@@ -199,7 +217,8 @@ export class ExportService {
     const { article, content } = stored;
     const sources = await this.loadSources(article);
     const bodyWithMarkers = replaceCitationMarkers(content, article.citations);
-    const bodyHtml = await highlightCodeBlocks(marked.parse(bodyWithMarkers, { async: false }));
+    const renderer = await loadHtmlRendererDependencies();
+    const bodyHtml = await highlightCodeBlocks(renderer.marked.parse(bodyWithMarkers, { async: false }), renderer);
     const css = await readFile(this.printCssPath, 'utf8');
     const authors = article.authors?.join(', ') ?? '';
     const sourceLinks = article.sourceIds
@@ -238,7 +257,7 @@ ${sourceLinks ? `<p class="article-source">Sources: ${sourceLinks}</p>` : ''}
 `;
 
     if (article.mode === 'archive') {
-      const dom = new JSDOM(html);
+      const dom = new renderer.JSDOM(html);
       const articleBody = dom.window.document.querySelector('.article-body');
       if (!articleBody) {
         throw new Error('Rendered archive has no article body');
@@ -269,6 +288,9 @@ ${sourceLinks ? `<p class="article-source">Sources: ${sourceLinks}</p>` : ''}
       case 'pdf': {
         const html = await this.renderHtml(articleId);
         signal?.throwIfAborted();
+        const { chromium } = await import('playwright').catch((error: unknown) => {
+          throw new Error(`PDF export support could not be loaded. Reinstall or update Pi Reads. ${errorMessage(error)}`);
+        });
         const browser = await chromium.launch().catch((error: unknown) => {
           throw new Error(`Chromium is required for PDF export. Run /reads-install-browser or install Playwright Chromium. ${String(error)}`);
         });
