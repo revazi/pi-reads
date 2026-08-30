@@ -10,6 +10,10 @@ All notable changes to this project are documented here. The format follows [Kee
 - URL capture now infers optional serif/sans-serif presentation from already captured inline or embedded CSS, defaulting safely to serif without launching Chromium or navigating twice.
 - Pi Reads now lazy-loads library, renderer, EPUB, Obsidian, Kindle, SMTP, browser, syntax-highlighting, and credential-store modules only when the selected workflow needs them.
 
+### Security
+
+- Article and image downloads now share a public-network URL policy that rejects credentials and private/non-routable IPv4 and IPv6 targets; article redirects are validated individually and HTML fetches enforce redirect, timeout, and 10 MiB response limits.
+
 ## [1.1.1] - 2026-08-20
 
 ### Changed

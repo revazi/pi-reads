@@ -30,6 +30,7 @@ test('assertHttpUrl rejects malformed and unsupported URL input', () => {
   assert.equal(assertHttpUrl(fixtureUrl).protocol, 'https:');
   assert.throws(() => assertHttpUrl('not a URL'), /Invalid article URL/);
   assert.throws(() => assertHttpUrl('file:///tmp/article.html'), /Unsupported article URL protocol/);
+  assert.throws(() => assertHttpUrl('https://user:secret@example.test/article'), /must not contain credentials/);
 });
 
 test('fixture extraction preserves deterministic metadata, cleanup, and Markdown output', () => {

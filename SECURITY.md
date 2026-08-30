@@ -22,6 +22,8 @@ Pi Reads is designed so that:
 - copied article bodies, raw HTML, PDFs, EPUBs, and local credentials are not committed;
 - SMTP credentials and full Kindle/sender addresses remain protected operating-system credential values or explicit environment overrides;
 - Kindle email requires an interactive confirmation;
-- archived source prose is immutable and kept separate from generated prose.
+- archived source prose is immutable and kept separate from generated prose;
+- remote article and image requests reject embedded credentials, private/non-routable IPv4 and IPv6 destinations, and unsafe redirects before each request;
+- article HTML requests enforce a 20-second timeout, at most five redirects, and a 10 MiB buffered-response limit.
 
 See [the product contract](docs/product-contract.md) and [EPUB and Kindle delivery](docs/epub-and-kindle.md) for the complete trust boundary.

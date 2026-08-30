@@ -64,6 +64,9 @@ export function assertHttpUrl(value: string): URL {
   if (!['http:', 'https:'].includes(url.protocol)) {
     throw new Error(`Unsupported article URL protocol: ${url.protocol}`);
   }
+  if (url.username || url.password) {
+    throw new Error('Article URL must not contain credentials');
+  }
 
   return url;
 }
