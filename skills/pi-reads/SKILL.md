@@ -53,9 +53,9 @@ For Obsidian, call `reads_export` with `format: "markdown"` and `destination: "o
 
 If the tool lists conflicting vault files, show those paths to the user and obtain explicit approval before calling it again with `overwrite: true`. Never infer overwrite approval. Set `open: true` only when the user wants the delivered note opened in Obsidian.
 
-For Kindle dry-run, call `reads_export` with destination `kindle`, format `epub` or `pdf`, and omit `send`. Report only the redacted recipient, file, size, subject, and retained artifact path.
+For a Kindle dry run, call `reads_export` with destination `kindle`, format `epub` or `pdf`, and omit `send`. Report only the redacted recipient, file, size, subject, prepared export ID, content hash, and retained artifact path. Preserve the returned `preparedExportId` for a later send.
 
-Set `send: true` only when the user explicitly asks for delivery. The tool itself must display the full recipient and obtain interactive confirmation; headless delivery is forbidden. `/reads-config` may store safe Kindle preferences in JSON and actual Kindle/sender addresses, SMTP usernames, and passwords only in the operating-system credential store. Never place those values in tool arguments, prose, manifests, or repository files. Environment overrides are reserved for CI/headless use. If delivery fails or is cancelled, report the retained local artifact path for manual upload.
+Set `send: true` only when the user explicitly asks for delivery. When a prior dry run exists, pass its `preparedExportId` with the same article ID and format so Pi Reads verifies and sends the exact prepared bytes without rendering again. Never substitute another export ID after the user reviewed a dry run. The tool itself must display the full recipient and obtain interactive confirmation; headless delivery is forbidden. `/reads-config` may store safe Kindle preferences in JSON and actual Kindle/sender addresses, SMTP usernames, and passwords only in the operating-system credential store. Never place those values in tool arguments, prose, manifests, or repository files. Environment overrides are reserved for CI/headless use. If delivery fails or is cancelled, report the retained local artifact path and prepared export ID for reuse or manual upload.
 
 ## Library
 

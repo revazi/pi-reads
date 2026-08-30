@@ -71,7 +71,7 @@ See [Obsidian integration](docs/obsidian.md).
 
 Run `/reads-config`, choose **Kindle delivery**, then choose **System credential store — configure once**. The wizard saves your Kindle and SMTP credentials in macOS Keychain, Windows Credential Manager, or Linux Secret Service. The password is masked and credentials are not written to `pi-reads.json`.
 
-A Kindle export starts as a dry run, showing the recipient and prepared EPUB or PDF without sending it. Ask Pi to send the article when ready; Pi displays the full recipient and requires confirmation before email delivery.
+A Kindle export starts as a dry run, showing the recipient and retaining an immutable EPUB or PDF without sending it. Ask Pi to send that prepared export when ready; Pi verifies and reuses the exact previewed bytes, displays the full recipient, and requires confirmation before email delivery.
 
 For iCloud Mail settings and CI environment overrides, see [EPUB and Kindle delivery](docs/epub-and-kindle.md).
 

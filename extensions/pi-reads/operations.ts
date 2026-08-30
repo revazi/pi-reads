@@ -74,7 +74,7 @@ export async function deliverKindleWithConfirmation(
   }
   const confirmed = await ctx.ui.confirm(
     'Send to Kindle?',
-    `Recipient: ${preview.recipient}\nSubject: ${preview.subject}\nFile: ${preview.filename}\nSize: ${formatBytes(preview.size)}\n\nSend this attachment now?`,
+    `Recipient: ${preview.recipient}\nSubject: ${preview.subject}\nFile: ${preview.filename}\nSize: ${formatBytes(preview.size)}\nPrepared export: ${preview.localExportId}\nContent hash: ${preview.contentHash}\n\nSend this exact attachment now?`,
   );
   if (!confirmed) throw new Error(`Kindle delivery cancelled. Local export retained at ${preview.artifactPath}`);
   const kindle = await services.getKindle();

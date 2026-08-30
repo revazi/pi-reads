@@ -152,10 +152,12 @@ export function registerReadsTools(pi: ExtensionAPI): void {
     name: 'reads_export',
     label: 'Reads Export',
     description:
-      'Export a stored article locally as Markdown, standalone light-print HTML, PDF, or validated EPUB; deliver Markdown to Obsidian; or dry-run/send EPUB or PDF to Kindle. Format is required except for Kindle, which uses its configured default. Kindle sending always requires an interactive confirmation. Archive exports enforce text fidelity.',
+      'Export a stored article locally as Markdown, standalone light-print HTML, PDF, or validated EPUB; deliver Markdown to Obsidian; or dry-run/send EPUB or PDF to Kindle. Kindle dry runs return a prepared export ID that a later confirmed send can reuse without rendering again. Format is required except for Kindle, which uses its configured default. Kindle sending always requires an interactive confirmation. Archive exports enforce text fidelity.',
     promptSnippet: 'Export stored reading articles locally, to Obsidian, or to Kindle with confirmation',
     promptGuidelines: [
       'For reads_export Obsidian conflicts, never set overwrite true unless the user explicitly approved replacing the listed vault files.',
+      'Preserve the preparedExportId returned by a Kindle dry run and pass it to a later send for the same article and format.',
+      'Never substitute another prepared export after the user reviewed a Kindle dry run.',
     ],
     parameters: Type.Object({
       articleId: Type.String(),
@@ -164,6 +166,7 @@ export function registerReadsTools(pi: ExtensionAPI): void {
       overwrite: Type.Optional(Type.Boolean({ description: 'Obsidian only; requires explicit user approval for conflicting files' })),
       open: Type.Optional(Type.Boolean({ description: 'Obsidian only; open the delivered note after export' })),
       send: Type.Optional(Type.Boolean({ description: 'Kindle only; false/omitted is dry-run, true requests an interactive send confirmation' })),
+      preparedExportId: Type.Optional(Type.String({ description: 'Kindle only; reuse the immutable exp_ ID returned by an earlier dry run' })),
     }),
     async execute(_toolCallId, params, signal, onUpdate, ctx) {
       const services = await openReadsServices(ctx.cwd);
@@ -171,6 +174,9 @@ export function registerReadsTools(pi: ExtensionAPI): void {
       const format = params.format ?? (destination === 'kindle' ? services.kindleConfig?.defaultFormat ?? 'epub' : undefined);
       if (!format) {
         throw new Error('format is required for local and Obsidian exports');
+      }
+      if (params.preparedExportId && destination !== 'kindle') {
+        throw new Error('preparedExportId is only supported for Kindle exports');
       }
       onUpdate?.({ content: [{ type: 'text', text: `Preparing ${destination} ${format} export…` }], details: {} });
 
@@ -214,7 +220,9 @@ export function registerReadsTools(pi: ExtensionAPI): void {
         const kindleFormat = format;
         const kindle = await services.getKindle();
         const preview = await withFileMutationQueue(services.libraryDir, () =>
-          kindle.preview(params.articleId, kindleFormat, signal),
+          params.preparedExportId
+            ? kindle.previewPrepared(params.articleId, kindleFormat, params.preparedExportId, signal)
+            : kindle.preview(params.articleId, kindleFormat, signal),
         );
         const previewLines = [
           `Kindle ${params.send ? 'send preview' : 'dry run'} prepared.`,
@@ -222,11 +230,13 @@ export function registerReadsTools(pi: ExtensionAPI): void {
           `Subject: ${preview.subject}`,
           `File: ${preview.artifactPath}`,
           `Size: ${formatBytes(preview.size)}`,
+          `Prepared export ID: ${preview.localExportId}`,
+          `Content hash: ${preview.contentHash}`,
         ];
         if (!params.send) {
           if (ctx.hasUI) {
             ctx.ui.notify(
-              `Kindle dry run\nRecipient: ${preview.recipient}\nSubject: ${preview.subject}\nFile: ${preview.filename}\nSize: ${formatBytes(preview.size)}`,
+              `Kindle dry run\nRecipient: ${preview.recipient}\nSubject: ${preview.subject}\nFile: ${preview.filename}\nSize: ${formatBytes(preview.size)}\nPrepared export: ${preview.localExportId}\nContent hash: ${preview.contentHash}`,
               'info',
             );
           }
@@ -242,6 +252,9 @@ export function registerReadsTools(pi: ExtensionAPI): void {
               subject: preview.subject,
               filename: preview.filename,
               size: preview.size,
+              exportId: preview.localExportId,
+              preparedExportId: preview.localExportId,
+              contentHash: preview.contentHash,
               artifactPath: preview.artifactPath,
               manifestPath: preview.localManifestPath,
             },
@@ -268,6 +281,8 @@ export function registerReadsTools(pi: ExtensionAPI): void {
             artifactPath: result.artifactPath,
             manifestPath: result.manifestPath,
             localArtifactPath: result.localArtifactPath,
+            preparedExportId: result.record.delivery?.preparedExportId,
+            contentHash: result.record.artifact.contentHash,
           },
         };
       }

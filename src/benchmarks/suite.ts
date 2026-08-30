@@ -184,16 +184,24 @@ async function byteSnapshot(root: string): Promise<ByteSnapshot> {
 
 async function storageSummary(root: string): Promise<BenchmarkStorageSummary> {
   const snapshot = await byteSnapshot(root);
-  const artifacts: { contentHash: string; byteLength: number }[] = [];
+  const artifactsByPath = new Map<string, { contentHash: string; byteLength: number }>();
   for (const filePath of await filesUnder(path.join(root, 'exports'))) {
     if (!filePath.endsWith(`${path.sep}manifest.json`)) continue;
     const value = JSON.parse(await readFile(filePath, 'utf8')) as {
-      artifact?: { contentHash?: unknown; byteLength?: unknown };
+      artifact?: { path?: unknown; contentHash?: unknown; byteLength?: unknown };
     };
-    if (typeof value.artifact?.contentHash === 'string' && typeof value.artifact.byteLength === 'number') {
-      artifacts.push({ contentHash: value.artifact.contentHash, byteLength: value.artifact.byteLength });
+    if (
+      typeof value.artifact?.path === 'string' &&
+      typeof value.artifact.contentHash === 'string' &&
+      typeof value.artifact.byteLength === 'number'
+    ) {
+      artifactsByPath.set(value.artifact.path, {
+        contentHash: value.artifact.contentHash,
+        byteLength: value.artifact.byteLength,
+      });
     }
   }
+  const artifacts = [...artifactsByPath.values()];
   const unique = new Map<string, number>();
   for (const artifact of artifacts) unique.set(`${artifact.contentHash}:${artifact.byteLength}`, artifact.byteLength);
   const uniqueBytes = [...unique.values()].reduce((sum, bytes) => sum + bytes, 0);

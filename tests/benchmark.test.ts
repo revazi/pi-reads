@@ -55,8 +55,9 @@ test('non-browser benchmark reports workflow, model-context, storage, and option
     assert.match(measurements.get('pdf-export')?.skipReason ?? '', /opt-in/u);
     assert.equal(measurements.get('kindle-preview')?.status, 'measured');
     assert.equal(measurements.get('kindle-send')?.status, 'measured');
-    assert.ok(report.storage.artifactCount >= 3);
-    assert.ok(report.storage.duplicateArtifactBytes > 0);
+    assert.equal(report.storage.artifactCount, 2);
+    assert.equal(report.storage.uniqueArtifactCount, 2);
+    assert.equal(report.storage.duplicateArtifactBytes, 0);
   } finally {
     await rm(libraryDir, { recursive: true, force: true });
   }

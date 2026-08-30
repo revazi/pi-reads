@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -142,15 +142,29 @@ test('Pi extension registers and executes capture, generation, export, and libra
     assert.equal(kindleDryRun.details?.dryRun, true);
     assert.equal(kindleDryRun.details?.format, 'epub');
     assert.equal(kindleDryRun.details?.recipient, 'f********@kindle.com');
+    const preparedExportId = String(kindleDryRun.details?.preparedExportId);
+    assert.match(preparedExportId, /^exp_/u);
+    assert.match(String(kindleDryRun.details?.contentHash), /^sha256:/u);
+    const exportsBeforeSend = (await readdir(path.join(libraryDir, 'exports', generatedArticleId))).sort();
     await assert.rejects(
       () => tools.get('reads_export')!.execute(
         'kindle-headless-send-call',
-        { articleId: generatedArticleId, format: 'epub', destination: 'kindle', send: true },
+        {
+          articleId: generatedArticleId,
+          format: 'epub',
+          destination: 'kindle',
+          send: true,
+          preparedExportId,
+        },
         signal,
         undefined,
         context,
       ),
       /requires interactive confirmation/,
+    );
+    assert.deepEqual(
+      (await readdir(path.join(libraryDir, 'exports', generatedArticleId))).sort(),
+      exportsBeforeSend,
     );
 
     const obsidianExport = await tools.get('reads_export')!.execute(

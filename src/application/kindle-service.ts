@@ -1,6 +1,6 @@
-import { readFile } from 'node:fs/promises';
+import { lstat, readFile } from 'node:fs/promises';
 import path from 'node:path';
-import type { ExportRecord } from '../core/domain.ts';
+import type { ExportRecord, Sha256Digest } from '../core/domain.ts';
 import type { ResolvedKindleConfig } from '../core/config.ts';
 import {
   createImmutableRecordDirectory,
@@ -66,6 +66,7 @@ export interface KindlePreview {
   contentType: string;
   bytes: Uint8Array;
   size: number;
+  contentHash: Sha256Digest;
   localExportId: string;
   artifactPath: string;
   localManifestPath: string;
@@ -168,6 +169,55 @@ function isEpubExport(value: PreparedExport | PreparedEpubExport): value is Prep
   return value.record.format === 'epub';
 }
 
+interface VerifiedPreparedKindleExport {
+  record: ExportRecord;
+  manifestPath: string;
+  artifactPath: string;
+  bytes: Uint8Array;
+}
+
+function assertPreparedExportId(value: string): void {
+  if (!/^exp_[a-z0-9]{16,64}$/u.test(value)) {
+    throw new Error(`Invalid prepared export ID: ${value}`);
+  }
+}
+
+function parsePreparedExportRecord(value: unknown, preparedExportId: string): ExportRecord {
+  if (!value || typeof value !== 'object') throw new Error(`Prepared export ${preparedExportId} has an invalid manifest`);
+  const record = value as Partial<ExportRecord>;
+  if (
+    record.schemaVersion !== 1 ||
+    typeof record.id !== 'string' ||
+    typeof record.articleId !== 'string' ||
+    typeof record.format !== 'string' ||
+    !record.destination ||
+    typeof record.destination !== 'object' ||
+    record.destination.type !== 'local' ||
+    record.status !== 'prepared' ||
+    !record.artifact ||
+    typeof record.artifact.path !== 'string' ||
+    typeof record.artifact.mediaType !== 'string' ||
+    typeof record.artifact.contentHash !== 'string' ||
+    typeof record.artifact.byteLength !== 'number'
+  ) {
+    throw new Error(`Prepared export ${preparedExportId} has an invalid manifest`);
+  }
+  return record as ExportRecord;
+}
+
+async function readRegularFile(filePath: string, label: string): Promise<Buffer> {
+  let metadata;
+  try {
+    metadata = await lstat(filePath);
+  } catch {
+    throw new Error(`${label} is missing`);
+  }
+  if (!metadata.isFile() || metadata.isSymbolicLink()) {
+    throw new Error(`${label} must be a regular file`);
+  }
+  return readFile(filePath);
+}
+
 export class KindleService {
   private readonly library: LibraryService;
   private readonly exports: KindleLocalExportPort;
@@ -216,20 +266,60 @@ export class KindleService {
     return credentials;
   }
 
-  async preview(articleId: string, format: KindleFormat, signal?: AbortSignal): Promise<KindlePreview> {
+  private async loadPrepared(
+    articleId: string,
+    format: KindleFormat,
+    preparedExportId: string,
+    signal?: AbortSignal,
+  ): Promise<VerifiedPreparedKindleExport> {
+    assertPreparedExportId(preparedExportId);
     signal?.throwIfAborted();
+    const directory = exportDirectory(articleId, preparedExportId);
+    const manifestPath = resolveLibraryPath(this.library.libraryDir, path.posix.join(directory, 'manifest.json'));
+    const manifestBytes = await readRegularFile(manifestPath, `Prepared export ${preparedExportId} manifest`);
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(manifestBytes.toString('utf8'));
+    } catch {
+      throw new Error(`Prepared export ${preparedExportId} has an invalid manifest`);
+    }
+    const record = parsePreparedExportRecord(parsed, preparedExportId);
+    const expectedMediaType = format === 'epub' ? 'application/epub+zip' : 'application/pdf';
+    const expectedFilename = format === 'epub' ? 'article.epub' : 'article.pdf';
+    const expectedArtifactPath = path.posix.join(directory, expectedFilename);
+    if (record.id !== preparedExportId || record.articleId !== articleId) {
+      throw new Error(`Prepared export ${preparedExportId} does not belong to article ${articleId}`);
+    }
+    if (record.format !== format || record.artifact.mediaType !== expectedMediaType) {
+      throw new Error(`Prepared export ${preparedExportId} is not a ${format} artifact`);
+    }
+    if (record.artifact.path !== expectedArtifactPath) {
+      throw new Error(`Prepared export ${preparedExportId} references an unexpected artifact path`);
+    }
+    const artifactPath = resolveLibraryPath(this.library.libraryDir, record.artifact.path);
+    const bytes = new Uint8Array(await readRegularFile(artifactPath, `Prepared export ${preparedExportId} artifact`));
+    signal?.throwIfAborted();
+    const contentHash = versionedSha256(bytes);
+    if (
+      record.artifact.contentHash !== contentHash ||
+      !Number.isSafeInteger(record.artifact.byteLength) ||
+      record.artifact.byteLength !== bytes.byteLength
+    ) {
+      throw new Error(`Prepared export ${preparedExportId} failed artifact integrity verification`);
+    }
+    return { record, manifestPath, artifactPath, bytes };
+  }
+
+  private async previewVerified(
+    articleId: string,
+    format: KindleFormat,
+    prepared: VerifiedPreparedKindleExport,
+    signal?: AbortSignal,
+  ): Promise<KindlePreview> {
     const article = await this.library.loadArticle(articleId);
-    const prepared: PreparedExport | PreparedEpubExport = format === 'epub'
-      ? await this.epub.prepare(articleId, signal)
-      : await this.exports.prepare(articleId, 'pdf', signal);
-    const bytes = new Uint8Array(await readFile(prepared.artifactPath));
     const recipientEnv = this.config?.recipientEnv ?? 'PI_READS_KINDLE_ADDRESS';
     const storedRecipient = await this.storedRecipient(!this.env[recipientEnv]?.trim(), signal);
     const recipient = kindleRecipient(this.env, this.config, storedRecipient);
-    const contentType = format === 'epub' ? 'application/epub+zip' : 'application/pdf';
-    if (isEpubExport(prepared) && prepared.validation.spineItems === 0) {
-      throw new Error('EPUB has no readable spine content');
-    }
     return {
       articleId,
       format,
@@ -240,13 +330,36 @@ export class KindleService {
         : {}),
       subject: safeSubject(article.article.title),
       filename: safeFilename(article.article.slug, format),
-      contentType,
-      bytes,
-      size: bytes.byteLength,
+      contentType: prepared.record.artifact.mediaType,
+      bytes: prepared.bytes,
+      size: prepared.bytes.byteLength,
+      contentHash: prepared.record.artifact.contentHash,
       localExportId: prepared.record.id,
       artifactPath: prepared.artifactPath,
       localManifestPath: prepared.manifestPath,
     };
+  }
+
+  async preview(articleId: string, format: KindleFormat, signal?: AbortSignal): Promise<KindlePreview> {
+    signal?.throwIfAborted();
+    const prepared: PreparedExport | PreparedEpubExport = format === 'epub'
+      ? await this.epub.prepare(articleId, signal)
+      : await this.exports.prepare(articleId, 'pdf', signal);
+    if (isEpubExport(prepared) && prepared.validation.spineItems === 0) {
+      throw new Error('EPUB has no readable spine content');
+    }
+    const verified = await this.loadPrepared(articleId, format, prepared.record.id, signal);
+    return this.previewVerified(articleId, format, verified, signal);
+  }
+
+  async previewPrepared(
+    articleId: string,
+    format: KindleFormat,
+    preparedExportId: string,
+    signal?: AbortSignal,
+  ): Promise<KindlePreview> {
+    const prepared = await this.loadPrepared(articleId, format, preparedExportId, signal);
+    return this.previewVerified(articleId, format, prepared, signal);
   }
 
   async deliver(
@@ -258,6 +371,17 @@ export class KindleService {
       throw new Error('Kindle delivery requires interactive confirmation');
     }
     signal?.throwIfAborted();
+    const prepared = await this.loadPrepared(preview.articleId, preview.format, preview.localExportId, signal);
+    if (
+      prepared.record.artifact.contentHash !== preview.contentHash ||
+      prepared.record.artifact.mediaType !== preview.contentType ||
+      prepared.artifactPath !== preview.artifactPath ||
+      prepared.manifestPath !== preview.localManifestPath ||
+      prepared.bytes.byteLength !== preview.size ||
+      versionedSha256(preview.bytes) !== preview.contentHash
+    ) {
+      throw new Error(`Prepared export ${preview.localExportId} no longer matches the confirmed preview`);
+    }
     const userEnv = this.config?.smtp.userEnv ?? 'PI_READS_SMTP_USER';
     const passwordEnv = this.config?.smtp.passwordEnv ?? 'PI_READS_SMTP_PASSWORD';
     const fromEnv = this.config?.smtp.fromEnv ?? 'PI_READS_SMTP_FROM';
@@ -273,8 +397,8 @@ export class KindleService {
         to: preview.recipient,
         subject: preview.subject,
         filename: preview.filename,
-        content: preview.bytes,
-        contentType: preview.contentType,
+        content: prepared.bytes,
+        contentType: prepared.record.artifact.mediaType,
       }, signal);
     } catch {
       throw new KindleDeliveryError('Kindle delivery failed.', preview.artifactPath);
@@ -283,7 +407,6 @@ export class KindleService {
     const deliveredAt = this.now().toISOString();
     const exportId = this.createId('exp');
     const directory = exportDirectory(preview.articleId, exportId);
-    const artifactRelativePath = path.posix.join(directory, preview.filename);
     const record: ExportRecord = {
       schemaVersion: 1,
       id: exportId,
@@ -294,14 +417,10 @@ export class KindleService {
         ...(preview.deviceLabel ? { deviceLabel: preview.deviceLabel } : {}),
       },
       status: 'delivered',
-      artifact: {
-        path: artifactRelativePath,
-        mediaType: preview.contentType,
-        contentHash: versionedSha256(preview.bytes),
-        byteLength: preview.size,
-      },
+      artifact: { ...prepared.record.artifact },
       createdAt: deliveredAt,
       delivery: {
+        preparedExportId: preview.localExportId,
         attemptedAt: confirmation.confirmedAt,
         confirmedAt: confirmation.confirmedAt,
         confirmationMethod: 'interactive',
@@ -312,10 +431,7 @@ export class KindleService {
       await createImmutableRecordDirectory(
         this.library.libraryDir,
         directory,
-        [
-          { path: preview.filename, contents: preview.bytes },
-          { path: 'manifest.json', contents: `${JSON.stringify(record, null, 2)}\n` },
-        ],
+        [{ path: 'manifest.json', contents: `${JSON.stringify(record, null, 2)}\n` }],
       );
     } catch {
       throw new KindleDeliveryError('Kindle email may have been sent, but delivery evidence could not be stored.', preview.artifactPath);
@@ -323,7 +439,7 @@ export class KindleService {
     return {
       record,
       manifestPath: resolveLibraryPath(this.library.libraryDir, path.posix.join(directory, 'manifest.json')),
-      artifactPath: resolveLibraryPath(this.library.libraryDir, artifactRelativePath),
+      artifactPath: prepared.artifactPath,
       redactedRecipient: preview.redactedRecipient,
       localArtifactPath: preview.artifactPath,
     };

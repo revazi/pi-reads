@@ -9,6 +9,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - Archive-only `/reads` workflows now capture and export directly without invoking an active model; Obsidian overwrites and Kindle sends retain their interactive confirmation gates.
 - URL capture now infers optional serif/sans-serif presentation from already captured inline or embedded CSS, defaulting safely to serif without launching Chromium or navigating twice.
 - Pi Reads now lazy-loads library, renderer, EPUB, Obsidian, Kindle, SMTP, browser, syntax-highlighting, and credential-store modules only when the selected workflow needs them.
+- Kindle dry runs now return an immutable prepared export ID and content hash; later confirmed sends can verify and reuse those exact bytes, while delivery manifests reference the prepared artifact instead of storing a duplicate.
 
 ### Security
 

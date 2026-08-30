@@ -61,7 +61,7 @@ Digest and synthesis prose is a deterministic fixture, not a model call, so toke
 pnpm --silent benchmark --token-usage /tmp/pi-token-usage.json
 ```
 
-The initial cold-registration budget is 500 ms on the benchmark environment. Registration includes importing the extension and registering its four tools and four commands, but excludes Node.js process startup. The report also records Node, operating-system, CPU, CI, package, commit, and browser-mode metadata. Its storage summary reports duplicate artifact bytes by comparing immutable export hashes; this makes repeated Kindle preparation or delivery visible.
+The initial cold-registration budget is 500 ms on the benchmark environment. Registration includes importing the extension and registering its four tools and four commands, but excludes Node.js process startup. The report also records Node, operating-system, CPU, CI, package, commit, and browser-mode metadata. Its storage summary counts physical artifact paths and reports duplicate bytes by comparing their immutable hashes; delivery manifests that reference an existing prepared artifact do not count as another stored copy, while repeated rendering remains visible.
 
 ## Optional performance gates
 
