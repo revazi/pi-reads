@@ -83,7 +83,6 @@ test('application services capture, generate, list, and export immutable article
       {
         url: {
           fetchHtml: async () => fixtureHtml,
-          detectFontStyle: async () => 'serif',
         },
       },
     );

@@ -1,9 +1,7 @@
 import { JSDOM } from 'jsdom';
-import { chromium, type Browser } from 'playwright';
-import { errorMessage } from '../errors.ts';
 import { normalizeText } from '../text.ts';
 
-interface FontFamilySample {
+export interface FontFamilySample {
   fontFamily: string;
   textLength: number;
 }
@@ -12,7 +10,6 @@ export type SourceFontStyle = 'serif' | 'sans-serif';
 
 function articleParagraphSamples(contentHtml: string): string[] {
   const dom = new JSDOM(`<!doctype html><main>${contentHtml}</main>`);
-
   return [...dom.window.document.querySelectorAll('p')]
     .map((paragraph) => normalizeText(paragraph.textContent ?? ''))
     .filter((text) => text.length >= 80)
@@ -52,76 +49,55 @@ export function classifyFontFamily(fontFamily: string): SourceFontStyle | null {
 
 export function chooseSourceFontStyle(samples: FontFamilySample[]): SourceFontStyle {
   const weights: Record<SourceFontStyle, number> = { serif: 0, 'sans-serif': 0 };
-
   for (const sample of samples) {
     const style = classifyFontFamily(sample.fontFamily);
-    if (style) {
-      weights[style] += Math.min(sample.textLength, 1_000);
-    }
+    if (style) weights[style] += Math.min(sample.textLength, 1_000);
   }
-
   return weights['sans-serif'] > weights.serif ? 'sans-serif' : 'serif';
 }
 
-async function collectFontFamilySamples(
-  browser: Browser,
-  url: string,
-  articleSamples: string[],
-): Promise<FontFamilySample[]> {
-  const page = await browser.newPage();
-
+/**
+ * Infer presentation from the already captured document. JSDOM applies inline
+ * and embedded styles without loading linked stylesheets or navigating again.
+ * Unknown, external-only, or malformed styling safely defaults to serif.
+ */
+export function inferSourceFontStyle(contentHtml: string, capturedHtml = contentHtml): SourceFontStyle {
   try {
-    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30_000 });
-    await page.waitForLoadState('networkidle', { timeout: 5_000 }).catch(() => undefined);
-
-    return await page.evaluate((expectedParagraphs) => {
-      const normalize = (value: string) => value.replace(/\s+/g, ' ').trim();
-      const expectedPrefixes = expectedParagraphs.map((text) => text.slice(0, 160));
-      const visibleParagraphs = [...document.querySelectorAll('p')].filter((paragraph) => {
-        const style = getComputedStyle(paragraph);
-        const text = normalize(paragraph.textContent ?? '');
-        return text.length >= 40 && style.display !== 'none' && style.visibility !== 'hidden';
-      });
-
-      let candidates = visibleParagraphs.filter((paragraph) => {
-        const text = normalize(paragraph.textContent ?? '');
-        return expectedPrefixes.some((prefix) => text.includes(prefix));
-      });
-
-      if (candidates.length === 0) {
-        const selectors = ['article p', '[role="article"] p', 'main p', '[role="main"] p', 'body p'];
-        for (const selector of selectors) {
-          candidates = visibleParagraphs.filter((paragraph) => paragraph.matches(selector));
-          if (candidates.length > 0) {
-            break;
-          }
-        }
-      }
-
-      return candidates
-        .map((paragraph) => ({
-          fontFamily: getComputedStyle(paragraph).fontFamily,
-          textLength: normalize(paragraph.textContent ?? '').length,
-        }))
-        .sort((left, right) => right.textLength - left.textLength)
-        .slice(0, 20);
-    }, articleSamples);
-  } finally {
-    await page.close();
+    const expectedPrefixes = articleParagraphSamples(contentHtml).map((text) => text.slice(0, 160));
+    const dom = new JSDOM(capturedHtml);
+    const { document } = dom.window;
+    const paragraphs = [...document.querySelectorAll('p')].filter((paragraph) => {
+      const text = normalizeText(paragraph.textContent ?? '');
+      return text.length >= 40;
+    });
+    let candidates = paragraphs.filter((paragraph) => {
+      const text = normalizeText(paragraph.textContent ?? '');
+      return expectedPrefixes.some((prefix) => text.includes(prefix));
+    });
+    if (candidates.length === 0) {
+      candidates = paragraphs.filter((paragraph) =>
+        paragraph.matches('article p, [role="article"] p, main p, [role="main"] p, body p'),
+      );
+    }
+    const samples = candidates
+      .map((paragraph) => ({
+        fontFamily: dom.window.getComputedStyle(paragraph).fontFamily,
+        textLength: normalizeText(paragraph.textContent ?? '').length,
+      }))
+      .filter((sample) => sample.fontFamily.trim())
+      .sort((left, right) => right.textLength - left.textLength)
+      .slice(0, 20);
+    return chooseSourceFontStyle(samples);
+  } catch {
+    return 'serif';
   }
 }
 
-export async function detectSourceFontStyle(url: string, contentHtml: string): Promise<SourceFontStyle> {
-  let browser: Browser | undefined;
-
-  try {
-    browser = await chromium.launch();
-    const samples = await collectFontFamilySamples(browser, url, articleParagraphSamples(contentHtml));
-    return chooseSourceFontStyle(samples);
-  } catch (error: unknown) {
-    console.warn(`Could not detect source font style; using serif: ${errorMessage(error)}`);
-    return 'serif';
-  } finally {
-    await browser?.close();
-  }
+/** @deprecated Use inferSourceFontStyle; this compatibility wrapper performs no browser work. */
+export async function detectSourceFontStyle(
+  _url: string,
+  contentHtml: string,
+  capturedHtml = contentHtml,
+): Promise<SourceFontStyle> {
+  return inferSourceFontStyle(contentHtml, capturedHtml);
 }

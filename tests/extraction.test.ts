@@ -1,7 +1,12 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
-import { classifyFontFamily, chooseSourceFontStyle } from '../src/core/extraction/fonts.ts';
+import {
+  classifyFontFamily,
+  chooseSourceFontStyle,
+  detectSourceFontStyle,
+  inferSourceFontStyle,
+} from '../src/core/extraction/fonts.ts';
 import { extractWebArticle } from '../src/core/extraction/readability.ts';
 import { assertHttpUrl, cleanUrl } from '../src/core/extraction/urls.ts';
 import { ingestSource } from '../src/core/ingest/index.ts';
@@ -47,36 +52,39 @@ test('fixture extraction preserves deterministic metadata, cleanup, and Markdown
   assert.equal(markdown, expectedMarkdown);
 });
 
-test('URL ingestion is importable and supports deterministic dependency injection', async () => {
+test('URL ingestion uses one fetch and deterministic captured-CSS font inference', async () => {
   const calls: string[] = [];
+  const styledHtml = fixtureHtml.replace('</head>', '<style>article { font-family: Inter, sans-serif; }</style></head>');
   const article = await ingestUrl(fixtureUrl, {
     fetchHtml: async (url) => {
       calls.push(`fetch:${url}`);
-      return fixtureHtml;
-    },
-    detectFontStyle: async (url, contentHtml) => {
-      calls.push(`font:${url}`);
-      assert.match(contentHtml, /deliberately long opening paragraph/);
-      return 'sans-serif';
+      return styledHtml;
     },
   });
 
-  assert.deepEqual(calls, [`fetch:${fixtureUrl}`, `font:${fixtureUrl}`]);
+  assert.deepEqual(calls, [`fetch:${fixtureUrl}`]);
   assert.equal(article.sourceFontStyle, 'sans-serif');
 
   const source = await ingestSource(
     { kind: 'url', url: fixtureUrl },
-    {
-      url: {
-        fetchHtml: async () => fixtureHtml,
-        detectFontStyle: async () => 'serif',
-      },
-    },
+    { url: { fetchHtml: async () => fixtureHtml } },
   );
   assert.equal(source.kind, 'url');
   assert.equal(source.canonicalUrl, 'https://example.test/writing/core-library?keep=yes');
   assert.match(source.contentHash, /^sha256:[0-9a-f]{64}$/);
   assert.match(source.textHash, /^sha256:[0-9a-f]{64}$/);
+});
+
+test('legacy font detection wrapper performs deterministic local inference', async () => {
+  const paragraph = 'This deliberately long paragraph supplies enough deterministic text to be selected as an article font sample for inference.';
+  assert.equal(
+    await detectSourceFontStyle(
+      fixtureUrl,
+      `<article><p>${paragraph}</p></article>`,
+      `<style>article { font-family: Inter, sans-serif; }</style><article><p>${paragraph}</p></article>`,
+    ),
+    'sans-serif',
+  );
 });
 
 test('URL ingestion honors cancellation before side effects', async () => {
@@ -100,7 +108,17 @@ test('URL ingestion honors cancellation before side effects', async () => {
   assert.equal(fetched, false);
 });
 
-test('font classification retains weighted serif/sans-serif behavior', () => {
+test('font inference uses captured styles and safely defaults to serif', () => {
+  const extracted = extractWebArticle(fixtureUrl, fixtureHtml);
+  assert.equal(inferSourceFontStyle(extracted.readableContentHtml, fixtureHtml), 'serif');
+  assert.equal(
+    inferSourceFontStyle(
+      '<article><p>This deliberately long paragraph supplies enough deterministic text to be selected as an article font sample for inference.</p></article>',
+      '<style>article { font-family: Inter, sans-serif; }</style><article><p>This deliberately long paragraph supplies enough deterministic text to be selected as an article font sample for inference.</p></article>',
+    ),
+    'sans-serif',
+  );
+  assert.equal(inferSourceFontStyle('<p>Too short.</p>', '<style>not valid {</style><p>Too short.</p>'), 'serif');
   assert.equal(classifyFontFamily('Inter, system-ui, sans-serif'), 'sans-serif');
   assert.equal(classifyFontFamily('Georgia, serif'), 'serif');
   assert.equal(classifyFontFamily('Custom Display'), null);

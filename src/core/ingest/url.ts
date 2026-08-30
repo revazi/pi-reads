@@ -1,4 +1,4 @@
-import { detectSourceFontStyle, type SourceFontStyle } from '../extraction/fonts.ts';
+import { inferSourceFontStyle, type SourceFontStyle } from '../extraction/fonts.ts';
 import { extractWebArticle, type ExtractedWebArticle } from '../extraction/readability.ts';
 import { assertHttpUrl } from '../extraction/urls.ts';
 
@@ -8,7 +8,6 @@ export interface IngestedUrlArticle extends ExtractedWebArticle {
 
 export interface UrlIngestionDependencies {
   fetchHtml?: (url: string, signal?: AbortSignal) => Promise<string>;
-  detectFontStyle?: (url: string, contentHtml: string) => Promise<SourceFontStyle>;
 }
 
 export async function fetchArticleHtml(url: string, signal?: AbortSignal): Promise<string> {
@@ -41,11 +40,10 @@ export async function ingestUrl(
   assertHttpUrl(inputUrl);
   signal?.throwIfAborted();
   const fetchHtml = dependencies.fetchHtml ?? fetchArticleHtml;
-  const detectFontStyle = dependencies.detectFontStyle ?? detectSourceFontStyle;
   const rawHtml = await fetchHtml(inputUrl, signal);
   signal?.throwIfAborted();
   const article = extractWebArticle(inputUrl, rawHtml);
-  const sourceFontStyle = await detectFontStyle(inputUrl, article.readableContentHtml);
+  const sourceFontStyle = inferSourceFontStyle(article.readableContentHtml, rawHtml);
   signal?.throwIfAborted();
 
   return { ...article, sourceFontStyle };
