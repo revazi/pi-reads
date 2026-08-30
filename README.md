@@ -111,12 +111,14 @@ Removing the package does not delete the external reading library.
 pnpm install --frozen-lockfile
 pnpm article:install-browser
 pnpm release:check
+pnpm benchmark
 ```
 
-The original deterministic `article:*` print workflow remains supported. Contributor guidance is in [CONTRIBUTING.md](CONTRIBUTING.md), and release instructions are in [docs/releasing.md](docs/releasing.md).
+The original deterministic `article:*` print workflow remains supported. Contributor guidance is in [CONTRIBUTING.md](CONTRIBUTING.md), benchmark usage is in [docs/benchmarks.md](docs/benchmarks.md), and release instructions are in [docs/releasing.md](docs/releasing.md).
 
 ## Documentation
 
+- [Performance and token-efficiency benchmarks](docs/benchmarks.md)
 - [EPUB and Kindle delivery](docs/epub-and-kindle.md)
 - [Obsidian integration](docs/obsidian.md)
 - [Product and storage contract](docs/product-contract.md)

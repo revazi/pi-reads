@@ -11,5 +11,5 @@
     "target": "ES2024",
     "types": ["node"]
   },
-  "include": ["extensions/**/*.ts", "scripts/**/*.ts", "skills/**/*.ts", "src/application/**/*.ts", "src/core/**/*.ts", "tests/**/*.ts", "types/**/*.d.ts"]
+  "include": ["extensions/**/*.ts", "scripts/**/*.ts", "skills/**/*.ts", "src/application/**/*.ts", "src/benchmarks/**/*.ts", "src/core/**/*.ts", "tests/**/*.ts", "types/**/*.d.ts"]
 }

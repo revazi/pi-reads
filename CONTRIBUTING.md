@@ -10,9 +10,10 @@ Use Node.js 24+ and pnpm:
 pnpm install --frozen-lockfile
 pnpm article:install-browser
 pnpm release:check
+pnpm benchmark
 ```
 
-Keep CLI scripts thin, reusable behavior importable, and TypeScript strict. Tests should use local deterministic fixtures rather than live network requests.
+Keep CLI scripts thin, reusable behavior importable, and TypeScript strict. Tests should use local deterministic fixtures rather than live network requests. See [docs/benchmarks.md](docs/benchmarks.md) before changing performance or model-context behavior; metric gates must remain explicitly opt-in.
 
 ## Product boundaries
 

@@ -42,6 +42,8 @@ jobs:
         run: pnpm article:check
       - name: Run unit, extraction fixture, EPUB, and print tests
         run: pnpm test
+      - name: Run deterministic non-browser benchmarks
+        run: pnpm --silent benchmark > /tmp/pi-reads-benchmark.json
       - name: Build Astro output
         run: pnpm build
       - name: Audit release package contents
