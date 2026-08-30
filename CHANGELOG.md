@@ -4,6 +4,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Changed
+
+- Archive-only `/reads` workflows now capture and export directly without invoking an active model; Obsidian overwrites and Kindle sends retain their interactive confirmation gates.
+
 ## [1.1.1] - 2026-08-20
 
 ### Changed

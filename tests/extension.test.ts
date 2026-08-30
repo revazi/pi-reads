@@ -206,12 +206,7 @@ test('Pi extension registers and executes capture, generation, export, and libra
     );
     assert.match(listed.content[0]?.text ?? '', /Extension digest/);
 
-    await commands.get('reads')!.handler('https://example.test/article', context);
-    assert.equal(sentMessages.length, 1);
-    assert.match(sentMessages[0], /reads_ingest/);
-    assert.match(sentMessages[0], /reads_export/);
-
-    const readsSelections = ['archive — faithful source capture; no AI rewriting', 'obsidian'];
+    const readsSelections = ['digest — shorter cited AI summary of the source', 'obsidian'];
     const displayedModeChoices: string[] = [];
     await commands.get('reads')!.handler('https://example.test/obsidian', {
       ...context,
@@ -229,15 +224,17 @@ test('Pi extension registers and executes capture, generation, export, and libra
       'digest — shorter cited AI summary of the source',
       'synthesis — new cited AI article combining or reframing source ideas',
     ]);
-    assert.match(sentMessages[1], /destination "obsidian"/);
-    const kindleSelections = ['archive', 'kindle-epub'];
+    assert.equal(sentMessages.length, 1);
+    assert.match(sentMessages[0], /reads_ingest/);
+    assert.match(sentMessages[0], /destination "obsidian"/);
+    const kindleSelections = ['synthesis', 'kindle-epub'];
     await commands.get('reads')!.handler('https://example.test/kindle', {
       ...context,
       hasUI: true,
       ui: { ...context.ui, async select() { return kindleSelections.shift(); } },
     });
-    assert.match(sentMessages[2], /destination "kindle"/);
-    assert.match(sentMessages[2], /interactive confirmation/);
+    assert.match(sentMessages[1], /destination "kindle"/);
+    assert.match(sentMessages[1], /interactive confirmation/);
 
     const configSelections = ['Obsidian destination', 'no'];
     const configInputs = [vaultPath, 'Fixture Vault', 'Reading Inbox', 'Attachments/pi-reads', '{{title}} - {{mode}}', 'pi-reads, test'];
@@ -309,6 +306,131 @@ test('Pi extension registers and executes capture, generation, export, and libra
     } else {
       process.env.PI_READS_KINDLE_ADDRESS = previousKindleAddress;
     }
+    await rm(libraryDir, { recursive: true, force: true });
+  }
+});
+
+test('archive-only /reads executes directly without a model and preserves destination confirmations', { timeout: 30_000 }, async () => {
+  const libraryDir = await mkdtemp(path.join(os.tmpdir(), 'pi-reads-direct-command-'));
+  const previousLibraryDir = process.env.PI_READS_LIBRARY_DIR;
+  const previousConfigPath = process.env.PI_READS_CONFIG;
+  const previousKindleAddress = process.env.PI_READS_KINDLE_ADDRESS;
+  process.env.PI_READS_LIBRARY_DIR = libraryDir;
+  process.env.PI_READS_CONFIG = path.join(libraryDir, 'config', 'pi-reads.json');
+  process.env.PI_READS_KINDLE_ADDRESS = ['direct-reader', 'kindle.com'].join('@');
+
+  const commands = new Map<string, RegisteredCommand>();
+  const sentMessages: string[] = [];
+  const notifications: string[] = [];
+  const pi = {
+    registerTool() {},
+    registerCommand(name: string, command: RegisteredCommand) {
+      commands.set(name, command);
+    },
+    sendUserMessage(message: string) {
+      sentMessages.push(message);
+    },
+    async exec() {
+      return { stdout: '', stderr: '', code: 0, killed: false };
+    },
+  } as unknown as ExtensionAPI;
+  const baseContext = {
+    cwd: process.cwd(),
+    hasUI: false,
+    mode: 'print',
+    ui: {
+      notify(message: string) { notifications.push(message); },
+      setStatus() {},
+      async select() { return undefined; },
+      async input() { return undefined; },
+      async editor() { return undefined; },
+      async confirm() { return false; },
+    },
+  };
+
+  try {
+    piReadsExtension(pi);
+    const sourcePath = path.join(libraryDir, 'direct-source.md');
+    const vaultPath = path.join(libraryDir, 'direct-vault');
+    await writeFile(sourcePath, '# Direct source\n\nFaithful direct-command prose.');
+    await mkdir(vaultPath);
+    await commands.get('reads-config')!.handler(`obsidian ${vaultPath}`, baseContext);
+    notifications.length = 0;
+
+    await commands.get('reads')!.handler(sourcePath, baseContext);
+    assert.equal(sentMessages.length, 0);
+    const localReport = notifications.at(-1) ?? '';
+    assert.match(localReport, /^Captured source src_/m);
+    assert.match(localReport, /^Created faithful archive art_/m);
+    const localArtifact = /^Artifact: (.+)$/m.exec(localReport)?.[1];
+    assert.ok(localArtifact);
+    assert.match(await readFile(localArtifact, 'utf8'), /Faithful direct-command prose/);
+
+    const obsidianSelections = ['archive', 'obsidian'];
+    await commands.get('reads')!.handler(sourcePath, {
+      ...baseContext,
+      hasUI: true,
+      mode: 'tui',
+      ui: { ...baseContext.ui, async select() { return obsidianSelections.shift(); } },
+    });
+    assert.equal(sentMessages.length, 0);
+    const obsidianReport = notifications.at(-1) ?? '';
+    const notePath = /^Artifact: (.+)$/m.exec(obsidianReport)?.[1];
+    assert.ok(notePath);
+    assert.match(await readFile(notePath, 'utf8'), /Faithful direct-command prose/);
+    await writeFile(notePath, 'Manual Obsidian edit.');
+
+    let confirmCalls = 0;
+    const conflictingSelections = ['archive', 'obsidian'];
+    await assert.rejects(
+      () => commands.get('reads')!.handler(sourcePath, {
+        ...baseContext,
+        hasUI: true,
+        mode: 'tui',
+        ui: {
+          ...baseContext.ui,
+          async select() { return conflictingSelections.shift(); },
+          async confirm() { confirmCalls += 1; return false; },
+        },
+      }),
+      /Obsidian export cancelled; no vault files were changed/,
+    );
+    assert.equal(confirmCalls, 1);
+    assert.equal(await readFile(notePath, 'utf8'), 'Manual Obsidian edit.');
+
+    const kindleSelections = ['archive', 'kindle-epub'];
+    await assert.rejects(
+      () => commands.get('reads')!.handler(sourcePath, {
+        ...baseContext,
+        hasUI: true,
+        mode: 'tui',
+        ui: {
+          ...baseContext.ui,
+          async select() { return kindleSelections.shift(); },
+          async confirm() { confirmCalls += 1; return false; },
+        },
+      }),
+      /Kindle delivery cancelled\. Local export retained at/,
+    );
+    assert.equal(confirmCalls, 2);
+    assert.equal(sentMessages.length, 0);
+
+    const digestSelections = ['digest', 'markdown'];
+    await commands.get('reads')!.handler(sourcePath, {
+      ...baseContext,
+      hasUI: true,
+      mode: 'tui',
+      ui: { ...baseContext.ui, async select() { return digestSelections.shift(); } },
+    });
+    assert.equal(sentMessages.length, 1);
+    assert.match(sentMessages[0], /write a cited digest/);
+  } finally {
+    if (previousLibraryDir === undefined) delete process.env.PI_READS_LIBRARY_DIR;
+    else process.env.PI_READS_LIBRARY_DIR = previousLibraryDir;
+    if (previousConfigPath === undefined) delete process.env.PI_READS_CONFIG;
+    else process.env.PI_READS_CONFIG = previousConfigPath;
+    if (previousKindleAddress === undefined) delete process.env.PI_READS_KINDLE_ADDRESS;
+    else process.env.PI_READS_KINDLE_ADDRESS = previousKindleAddress;
     await rm(libraryDir, { recursive: true, force: true });
   }
 });

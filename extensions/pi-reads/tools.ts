@@ -1,8 +1,13 @@
-import process from 'node:process';
 import { StringEnum, Type } from '@earendil-works/pi-ai';
 import { withFileMutationQueue, type ExtensionAPI } from '@earendil-works/pi-coding-agent';
 import type { Citation } from '../../src/core/domain.ts';
-import type { SourceInput } from '../../src/core/ingest/index.ts';
+import {
+  deliverKindleWithConfirmation,
+  formatBytes,
+  openObsidianNote,
+  resolveObsidianOverwrite,
+  sourceInput,
+} from './operations.ts';
 import { openReadsServices } from './runtime.ts';
 
 const SourceKind = StringEnum(['url', 'text', 'markdown', 'file'] as const);
@@ -24,36 +29,6 @@ const CitationSchema = Type.Object({
   quote: Type.Optional(Type.String()),
   note: Type.Optional(Type.String()),
 });
-
-function sourceInput(kind: 'url' | 'text' | 'markdown' | 'file', value: string, label: string | undefined, cwd: string): SourceInput {
-  switch (kind) {
-    case 'url':
-      return { kind, url: value };
-    case 'text':
-      return { kind, text: value, ...(label ? { label } : {}) };
-    case 'markdown':
-      return { kind, markdown: value, ...(label ? { label } : {}) };
-    case 'file':
-      return { kind, path: value.replace(/^@/, ''), cwd };
-  }
-}
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KiB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MiB`;
-}
-
-async function openObsidianNote(
-  pi: ExtensionAPI,
-  uri: string,
-  signal: AbortSignal | undefined,
-): Promise<string | undefined> {
-  const command = process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'rundll32' : 'xdg-open';
-  const args = process.platform === 'win32' ? ['url.dll,FileProtocolHandler', uri] : [uri];
-  const result = await pi.exec(command, args, { signal, timeout: 15_000 });
-  return result.code === 0 ? undefined : (result.stderr || `exit code ${result.code}`);
-}
 
 export function registerReadsTools(pi: ExtensionAPI): void {
   pi.registerTool({
@@ -266,22 +241,7 @@ export function registerReadsTools(pi: ExtensionAPI): void {
             },
           };
         }
-        if (!ctx.hasUI) {
-          throw new Error(`Kindle send requires interactive confirmation. Local export retained at ${preview.artifactPath}`);
-        }
-        const confirmed = await ctx.ui.confirm(
-          'Send to Kindle?',
-          `Recipient: ${preview.recipient}\nSubject: ${preview.subject}\nFile: ${preview.filename}\nSize: ${formatBytes(preview.size)}\n\nSend this attachment now?`,
-        );
-        if (!confirmed) {
-          throw new Error(`Kindle delivery cancelled. Local export retained at ${preview.artifactPath}`);
-        }
-        const result = await withFileMutationQueue(services.libraryDir, () =>
-          services.kindle.deliver(preview, {
-            confirmedAt: new Date().toISOString(),
-            confirmationMethod: 'interactive',
-          }, signal),
-        );
+        const result = await deliverKindleWithConfirmation(services, preview, signal, ctx);
         return {
           content: [{
             type: 'text',
@@ -314,28 +274,9 @@ export function registerReadsTools(pi: ExtensionAPI): void {
       }
 
       const plan = await services.obsidian.plan(params.articleId, services.obsidianConfig, signal);
-      let overwrite = false;
-      let confirmedAt: string | undefined;
-      if (plan.inspection.conflicts.length > 0) {
-        if (ctx.hasUI) {
-          const confirmed = await ctx.ui.confirm(
-            'Overwrite Obsidian files?',
-            `The following files differ:\n${plan.inspection.conflicts.join('\n')}\n\nReplace only these Pi Reads targets?`,
-          );
-          if (!confirmed) {
-            throw new Error('Obsidian export cancelled; no vault files were changed');
-          }
-          overwrite = true;
-          confirmedAt = new Date().toISOString();
-        } else if (params.overwrite) {
-          overwrite = true;
-        } else {
-          throw new Error(`Obsidian export conflicts with ${plan.inspection.conflicts.join(', ')}; rerun with overwrite true only after explicit approval`);
-        }
-      }
-
+      const overwrite = await resolveObsidianOverwrite(plan, ctx, { headlessOverwrite: params.overwrite });
       const result = await withFileMutationQueue(services.obsidianConfig.vaultPath, () =>
-        services.obsidian!.deliver(plan, { overwrite, ...(confirmedAt ? { confirmedAt } : {}) }),
+        services.obsidian!.deliver(plan, overwrite),
       );
       let openWarning: string | undefined;
       if (params.open ?? services.obsidianConfig.openAfterExport) {

@@ -18,7 +18,7 @@ pnpm --silent benchmark --output /tmp/pi-reads-benchmark.json
 
 The baseline covers:
 
-- archive-only capture with no source text exposed to a model;
+- direct archive-only `/reads` capture with no model handoff or model tool calls;
 - a long-source digest workflow;
 - a five-source synthesis workflow;
 - library listing;
