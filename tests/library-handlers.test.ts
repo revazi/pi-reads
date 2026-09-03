@@ -85,6 +85,8 @@ test('outline and locator reads include source identity, stable locators, and un
     ]);
     assert.equal(read.details.sourceId, capture.source.id);
     assert.deepEqual(read.details.locators, [paragraph]);
+    assert.match(readText, /citation_id: cite_[0-9a-f]{12}/u);
+    assert.deepEqual((read.details.citation as { sourceId: string; locator: { fragment: string } }).locator, { fragment: paragraph });
   } finally {
     await rm(libraryDir, { recursive: true, force: true });
   }
@@ -105,6 +107,18 @@ test('source lexical search returns exact excerpts while preserving metadata sea
     assert.ok(sourceMarkdown.includes(excerpts[0]));
     assert.match(excerpts[0], /\[literal\]\./u);
     assert.match(String((sourceSearch.details.locators as string[])[0]), /^p_/u);
+    assert.match(sourceSearch.content[0].text, /citation_id: cite_[0-9a-f]{12}/u);
+    const suggestedCitation = (sourceSearch.details.citations as Array<{ id: string; locator: { fragment: string } }>)[0];
+    assert.match(suggestedCitation.id, /^cite_[0-9a-f]{12}$/u);
+    assert.equal(suggestedCitation.locator.fragment, (sourceSearch.details.locators as string[])[0]);
+    const repeatedSourceSearch = await executeReadsLibrary({
+      action: 'search',
+      id: capture.source.id,
+      query: '[literal].',
+      limit: 5,
+      maxBytes: 1_024,
+    }, services);
+    assert.deepEqual(repeatedSourceSearch.details.citations, sourceSearch.details.citations);
 
     const metadataSearch = await executeReadsLibrary({
       action: 'search',

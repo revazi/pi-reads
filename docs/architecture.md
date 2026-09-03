@@ -160,7 +160,7 @@ It owns:
 
 It must not own extraction, storage, rendering, or destination business logic. The `reads_export` adapter dispatches to independently tested local, Obsidian, and Kindle handlers behind one result contract; confirmation and overwrite decisions remain centralized safety operations. Destination configuration keeps TUI answer collection separate from pure normalization/validation and atomic persistence. Headless Pi modes must be able to use tools without TUI-only APIs; interactive commands must guard UI calls with the documented Pi context capabilities.
 
-The distributable skill explains when and how the agent should use these tools. It does not duplicate implementation in skill-local scripts.
+Model-visible success text contains only the identifiers, warnings, cursors, and artifact paths needed for the next operation; verbose manifests and paths stay in structured result details. Source reads/searches suggest deterministic compact citation IDs and stable fragment locators. The distributable skill remains the detailed workflow authority while persistent tool snippets retain one concise statement of each mandatory safety rule.
 
 ## Main workflows
 

@@ -113,7 +113,7 @@ The existing presentation behavior maps into `article.presentation`:
 
 Generated Markdown references citation IDs using standard Markdown footnotes, for example `[^cite_example]`. Each referenced ID must have exactly one matching `Citation` in the article manifest.
 
-Every citation must reference one of the article's `sourceIds`. A citation should include the most precise available locator and may include a short supporting quote. Exporters resolve source metadata from the source manifest and render destination-appropriate footnotes or endnotes.
+Every citation must reference one of the article's `sourceIds`. A citation should include the most precise available locator and may include a short supporting quote. Bounded source reads and searches suggest compact deterministic citation IDs plus stable locator fragments; generated articles may use those suggestions instead of inventing verbose identifiers. Exporters resolve source metadata from the source manifest and render destination-appropriate footnotes or endnotes.
 
 Generated articles choose one source-coverage policy. `complete` requires coverage evidence for every heading and paragraph locator in every source index and is required for `digest`. `targeted` records only selected sections, is limited to `synthesis`, and persists a warning that the result is not comprehensive. Coverage evidence is bound to each source content hash and index locator-set hash. Unknown, duplicate, stale, or incomplete evidence fails before article persistence. Targeted manifests retain missing-section counts and at most 20 stable missing locators plus a truncation flag. Coverage policy and warnings remain visible in generated exports; citations continue to point to original captured sources.
 

@@ -71,11 +71,7 @@ export async function executeLocalExport(
   return {
     content: [{
       type: 'text',
-      text: [
-        `Prepared ${result.record.format} export ${result.record.id}.`,
-        `Artifact: ${result.artifactPath}`,
-        `Manifest: ${result.manifestPath}`,
-      ].join('\n'),
+      text: `Prepared ${result.record.id} (${result.record.format}): ${result.artifactPath}`,
     }],
     details: {
       libraryDir: context.services.libraryDir,
@@ -143,11 +139,7 @@ export async function executeKindleExport(
   return {
     content: [{
       type: 'text',
-      text: [
-        `Sent ${result.record.format} to ${result.redactedRecipient}.`,
-        `Delivery manifest: ${result.manifestPath}`,
-        `Retained local export: ${result.localArtifactPath}`,
-      ].join('\n'),
+      text: `Sent ${result.record.format} to ${result.redactedRecipient}. Retained: ${result.localArtifactPath}`,
     }],
     details: {
       libraryDir: context.services.libraryDir,
@@ -188,11 +180,8 @@ export async function executeObsidianExport(
     content: [{
       type: 'text',
       text: [
-        `Delivered Obsidian export ${result.record.id}.`,
-        `Note: ${result.notePath}`,
-        `Assets: ${result.assetPaths.length}`,
-        `Manifest: ${result.manifestPath}`,
-        ...(openWarning ? [`Obsidian open warning: ${openWarning}`] : []),
+        `Delivered ${result.record.id} to Obsidian: ${result.notePath}`,
+        ...(openWarning ? [`Open warning: ${openWarning}`] : []),
       ].join('\n'),
     }],
     details: {

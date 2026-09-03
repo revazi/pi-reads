@@ -65,6 +65,23 @@ The initial cold-registration budget is 500 ms on the benchmark environment. Reg
 
 The deterministic test suite also creates 10,000 immutable article manifests, rebuilds `indexes/library.json`, and gates both indexed listing and metadata search at 500 ms each. Rebuilding is intentionally outside that latency budget because it is a recovery/migration path; normal listing, search, and slug allocation read the single derived index and constant-time catalog stamps instead of scanning manifests.
 
+## Context-overhead baseline
+
+Issue #16 measured the extension at baseline commit `4b7004b` and after the compact-contract changes using the same deterministic Markdown fixture. Estimates use `ceil(Unicode code points / 4)`; they are provider-neutral comparisons, not billed-token claims. Tool contracts serialize each tool's name, description, TypeBox parameters, prompt snippet, and prompt guidelines. Result measurements count model-visible text only; full paths and manifests remain available in structured `details`.
+
+| Surface | Before | After | Change |
+|---|---:|---:|---:|
+| Four tool contracts | 1,697 | 1,021 | -39.8% |
+| Persistent tool snippets/guidelines | 390 | 170 | -56.4% |
+| Pi Reads skill | 1,565 | 924 | -41.0% |
+| Generated `/reads` digest prompt | 194 | 109 | -43.8% |
+| Successful `reads_ingest` text | 166 | 35 | -78.9% |
+| Successful `reads_save_article` text | 96 | 16 | -83.3% |
+| Successful local `reads_export` text | 105 | 56 | -46.7% |
+| Bounded source outline | 235 | 235 | unchanged |
+
+The outline intentionally remains unchanged because source identity/hash, stable locators, continuation state, byte accounting, and untrusted-data boundaries are operational or safety-critical. Contract tests cap schema, guidance, skill, workflow-prompt, and common-result sizes while asserting that archive immutability, source-as-data handling, citation grounding, Obsidian overwrite approval, Kindle send confirmation, and exact prepared-artifact reuse remain explicit.
+
 ## Optional performance gates
 
 Benchmarks report measurements without failing on performance by default. A budget can fail the command only when `--gate` is explicitly supplied:
