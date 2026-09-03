@@ -11,6 +11,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - Pi Reads now lazy-loads library, renderer, EPUB, Obsidian, Kindle, SMTP, browser, syntax-highlighting, and credential-store modules only when the selected workflow needs them.
 - Kindle dry runs now return an immutable prepared export ID and content hash; later confirmed sends can verify and reuse those exact bytes, while delivery manifests reference the prepared artifact instead of storing a duplicate.
 - Library listing, metadata search, and slug allocation now use an atomic derived index that detects interrupted or stale updates and can rebuild solely from immutable source/article manifests.
+- Pi export routing now delegates to focused local, Obsidian, and Kindle handlers, while destination configuration uses focused validators and separate TUI collection, normalization, and persistence steps.
 
 ### Security
 

@@ -1,14 +1,8 @@
 import { StringEnum, Type } from '@earendil-works/pi-ai';
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
 import type { Citation } from '../../src/core/domain.ts';
-import {
-  deliverKindleWithConfirmation,
-  formatBytes,
-  openObsidianNote,
-  resolveObsidianOverwrite,
-  sourceInput,
-  withReadsMutationQueue as withFileMutationQueue,
-} from './operations.ts';
+import { executeReadsExport, resolveReadsExportRequest } from './export-handlers.ts';
+import { sourceInput, withReadsMutationQueue as withFileMutationQueue } from './operations.ts';
 import { openReadsServices } from './runtime.ts';
 
 const SourceKind = StringEnum(['url', 'text', 'markdown', 'file'] as const);
@@ -170,170 +164,12 @@ export function registerReadsTools(pi: ExtensionAPI): void {
     }),
     async execute(_toolCallId, params, signal, onUpdate, ctx) {
       const services = await openReadsServices(ctx.cwd);
-      const destination = params.destination ?? 'local';
-      const format = params.format ?? (destination === 'kindle' ? services.kindleConfig?.defaultFormat ?? 'epub' : undefined);
-      if (!format) {
-        throw new Error('format is required for local and Obsidian exports');
-      }
-      if (params.preparedExportId && destination !== 'kindle') {
-        throw new Error('preparedExportId is only supported for Kindle exports');
-      }
-      onUpdate?.({ content: [{ type: 'text', text: `Preparing ${destination} ${format} export…` }], details: {} });
-
-      if (destination === 'local') {
-        const result = format === 'epub'
-          ? await (async () => {
-              const epub = await services.getEpub();
-              return withFileMutationQueue(services.libraryDir, () => epub.prepare(params.articleId, signal));
-            })()
-          : await (async () => {
-              const exports = await services.getExports();
-              return withFileMutationQueue(services.libraryDir, () => exports.prepare(params.articleId, format, signal));
-            })();
-        return {
-          content: [
-            {
-              type: 'text',
-              text: [
-                `Prepared ${result.record.format} export ${result.record.id}.`,
-                `Artifact: ${result.artifactPath}`,
-                `Manifest: ${result.manifestPath}`,
-              ].join('\n'),
-            },
-          ],
-          details: {
-            libraryDir: services.libraryDir,
-            destination,
-            exportId: result.record.id,
-            articleId: result.record.articleId,
-            format: result.record.format,
-            artifactPath: result.artifactPath,
-            manifestPath: result.manifestPath,
-          },
-        };
-      }
-
-      if (destination === 'kindle') {
-        if (format !== 'epub' && format !== 'pdf') {
-          throw new Error('Kindle delivery requires format epub or pdf');
-        }
-        const kindleFormat = format;
-        const kindle = await services.getKindle();
-        const preview = await withFileMutationQueue(services.libraryDir, () =>
-          params.preparedExportId
-            ? kindle.previewPrepared(params.articleId, kindleFormat, params.preparedExportId, signal)
-            : kindle.preview(params.articleId, kindleFormat, signal),
-        );
-        const previewLines = [
-          `Kindle ${params.send ? 'send preview' : 'dry run'} prepared.`,
-          `Recipient: ${preview.redactedRecipient}`,
-          `Subject: ${preview.subject}`,
-          `File: ${preview.artifactPath}`,
-          `Size: ${formatBytes(preview.size)}`,
-          `Prepared export ID: ${preview.localExportId}`,
-          `Content hash: ${preview.contentHash}`,
-        ];
-        if (!params.send) {
-          if (ctx.hasUI) {
-            ctx.ui.notify(
-              `Kindle dry run\nRecipient: ${preview.recipient}\nSubject: ${preview.subject}\nFile: ${preview.filename}\nSize: ${formatBytes(preview.size)}\nPrepared export: ${preview.localExportId}\nContent hash: ${preview.contentHash}`,
-              'info',
-            );
-          }
-          return {
-            content: [{ type: 'text', text: previewLines.join('\n') }],
-            details: {
-              libraryDir: services.libraryDir,
-              destination,
-              dryRun: true,
-              articleId: preview.articleId,
-              format: preview.format,
-              recipient: preview.redactedRecipient,
-              subject: preview.subject,
-              filename: preview.filename,
-              size: preview.size,
-              exportId: preview.localExportId,
-              preparedExportId: preview.localExportId,
-              contentHash: preview.contentHash,
-              artifactPath: preview.artifactPath,
-              manifestPath: preview.localManifestPath,
-            },
-          };
-        }
-        const result = await deliverKindleWithConfirmation(services, preview, signal, ctx);
-        return {
-          content: [{
-            type: 'text',
-            text: [
-              `Sent ${result.record.format} to ${result.redactedRecipient}.`,
-              `Delivery manifest: ${result.manifestPath}`,
-              `Retained local export: ${result.localArtifactPath}`,
-            ].join('\n'),
-          }],
-          details: {
-            libraryDir: services.libraryDir,
-            destination,
-            dryRun: false,
-            exportId: result.record.id,
-            articleId: result.record.articleId,
-            format: result.record.format,
-            recipient: result.redactedRecipient,
-            artifactPath: result.artifactPath,
-            manifestPath: result.manifestPath,
-            localArtifactPath: result.localArtifactPath,
-            preparedExportId: result.record.delivery?.preparedExportId,
-            contentHash: result.record.artifact.contentHash,
-          },
-        };
-      }
-
-      if (format !== 'markdown') {
-        throw new Error('Obsidian exports require format markdown');
-      }
-      if (!services.obsidianConfig) {
-        throw new Error('Obsidian is not configured. Run /reads-config and choose Obsidian destination.');
-      }
-      const obsidian = await services.getObsidian();
-      if (!obsidian) throw new Error('Obsidian destination could not be loaded. Check the Pi Reads installation.');
-
-      const plan = await obsidian.plan(params.articleId, services.obsidianConfig, signal);
-      const overwrite = await resolveObsidianOverwrite(plan, ctx, { headlessOverwrite: params.overwrite });
-      const result = await withFileMutationQueue(services.obsidianConfig.vaultPath, () =>
-        obsidian.deliver(plan, overwrite),
-      );
-      let openWarning: string | undefined;
-      if (params.open ?? services.obsidianConfig.openAfterExport) {
-        openWarning = await openObsidianNote(pi, result.openUri, signal);
-      }
-      return {
-        content: [
-          {
-            type: 'text',
-            text: [
-              `Delivered Obsidian export ${result.record.id}.`,
-              `Note: ${result.notePath}`,
-              `Assets: ${result.assetPaths.length}`,
-              `Manifest: ${result.manifestPath}`,
-              ...(openWarning ? [`Obsidian open warning: ${openWarning}`] : []),
-            ].join('\n'),
-          },
-        ],
-        details: {
-          libraryDir: services.libraryDir,
-          destination,
-          exportId: result.record.id,
-          articleId: result.record.articleId,
-          format: result.record.format,
-          artifactPath: result.artifactPath,
-          manifestPath: result.manifestPath,
-          notePath: result.notePath,
-          noteRelativePath: result.noteRelativePath,
-          assetPaths: result.assetPaths,
-          changedPaths: result.changedPaths,
-          openUri: result.openUri,
-          ...(openWarning ? { openWarning } : {}),
-        },
-      };
+      const request = resolveReadsExportRequest(params, services);
+      onUpdate?.({
+        content: [{ type: 'text', text: `Preparing ${request.destination} ${request.format} export…` }],
+        details: {},
+      });
+      return executeReadsExport(request, { pi, services, signal, ctx });
     },
   });
 
