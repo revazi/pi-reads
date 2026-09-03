@@ -95,6 +95,8 @@ test('Pi extension registers and executes capture, generation, export, and libra
     assert.match(sourceId, /^src_/);
     assert.match(archiveArticleId, /^art_/);
     assert.match(String(capture.details?.sourceContentPath), new RegExp(sourceId));
+    assert.ok(Buffer.byteLength(capture.content[0]?.text ?? '') < 200);
+    assert.doesNotMatch(capture.content[0]?.text ?? '', /Source content:|Archive content:|structure index/u);
     const sourceIndex = JSON.parse(await readFile(String(capture.details?.sourceIndexPath), 'utf8')) as {
       sourceContentHash: string;
       headings: Array<{ id: string }>;
@@ -127,8 +129,10 @@ test('Pi extension registers and executes capture, generation, export, and libra
     );
     const generatedArticleId = String(generated.details?.articleId);
     assert.match(generatedArticleId, /^art_/);
-    assert.match(generated.content[0]?.text ?? '', /Coverage: complete/u);
+    assert.match(generated.content[0]?.text ?? '', /\(digest, complete\)/u);
     assert.equal((generated.details?.sourceCoverage as { policy: string }).policy, 'complete');
+    assert.ok(Buffer.byteLength(generated.content[0]?.text ?? '') < 200);
+    assert.doesNotMatch(generated.content[0]?.text ?? '', /Article content:|Manifest:/u);
 
     const exported = await tools.get('reads_export')!.execute(
       'export-call',
@@ -139,6 +143,8 @@ test('Pi extension registers and executes capture, generation, export, and libra
     );
     const artifactPath = String(exported.details?.artifactPath);
     assert.match(await readFile(artifactPath, 'utf8'), /Extension digest/);
+    assert.match(exported.content[0]?.text ?? '', new RegExp(artifactPath, 'u'));
+    assert.doesNotMatch(exported.content[0]?.text ?? '', /Manifest:/u);
 
     const epubExport = await tools.get('reads_export')!.execute(
       'epub-export-call',
@@ -295,14 +301,15 @@ test('Pi extension registers and executes capture, generation, export, and libra
     ]);
     assert.equal(sentMessages.length, 1);
     assert.match(sentMessages[0], /reads_ingest/);
-    assert.match(sentMessages[0], /destination "obsidian"/);
+    assert.match(sentMessages[0], /reads_export to Obsidian as Markdown/u);
+    assert.ok(Buffer.byteLength(sentMessages[0]) < 600);
     const kindleSelections = ['synthesis', 'kindle-epub'];
     await commands.get('reads')!.handler('https://example.test/kindle', {
       ...context,
       hasUI: true,
       ui: { ...context.ui, async select() { return kindleSelections.shift(); } },
     });
-    assert.match(sentMessages[1], /destination "kindle"/);
+    assert.match(sentMessages[1], /reads_export to Kindle as EPUB/u);
     assert.match(sentMessages[1], /interactive confirmation/);
 
     const configSelections = ['Obsidian destination', 'no'];
@@ -492,7 +499,7 @@ test('archive-only /reads executes directly without a model and preserves destin
       ui: { ...baseContext.ui, async select() { return digestSelections.shift(); } },
     });
     assert.equal(sentMessages.length, 1);
-    assert.match(sentMessages[0], /write a cited digest/);
+    assert.match(sentMessages[0], /Write a digest with \[\^cite_id\] citations/u);
   } finally {
     if (previousLibraryDir === undefined) delete process.env.PI_READS_LIBRARY_DIR;
     else process.env.PI_READS_LIBRARY_DIR = previousLibraryDir;

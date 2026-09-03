@@ -91,6 +91,8 @@ test('local export handler prepares local and EPUB formats behind one result con
   );
   assert.equal(local.details.destination, 'local');
   assert.equal(epub.details.format, 'epub');
+  assert.ok(Buffer.byteLength(local.content[0].text) < 300);
+  assert.doesNotMatch(local.content[0].text, /Manifest:/u);
   assert.equal(localCalls, 1);
   assert.equal(epubCalls, 1);
 });
@@ -141,6 +143,7 @@ test('Kindle handler keeps dry runs redacted and delegates sends to the centrali
   const dryRun = await executeKindleExport(dryRequest, dryContext);
   assert.equal(dryRun.details.recipient, preview.redactedRecipient);
   assert.doesNotMatch(JSON.stringify(dryRun), /reader@kindle\.com/u);
+  assert.ok(Buffer.byteLength(dryRun.content[0].text) < 600);
   assert.equal(deliveries, 0);
 
   const headlessRequest = resolveReadsExportRequest({
@@ -203,5 +206,7 @@ test('Obsidian handler delegates conflicts to the centralized fail-closed overwr
   conflicts = [];
   const delivered = await executeObsidianExport(request, context);
   assert.equal(delivered.details.destination, 'obsidian');
+  assert.ok(Buffer.byteLength(delivered.content[0].text) < 300);
+  assert.doesNotMatch(delivered.content[0].text, /Manifest:|Assets:/u);
   assert.equal(deliveries, 1);
 });

@@ -30,6 +30,16 @@ function outputBytes(value: string): number {
   return Buffer.byteLength(value, 'utf8');
 }
 
+function citationSuggestion(sourceId: string, startLocator: string, endLocator = startLocator): {
+  id: string;
+  sourceId: string;
+  locator: { fragment: string };
+} {
+  const fragment = startLocator === endLocator ? startLocator : `${startLocator}..${endLocator}`;
+  const digest = versionedSha256(`${sourceId}\n${fragment}`).slice('sha256:'.length, 'sha256:'.length + 12);
+  return { id: `cite_${digest}`, sourceId, locator: { fragment } };
+}
+
 function utf8Prefix(value: string, maxBytes: number): string {
   if (maxBytes <= 0) return '';
   let bytes = 0;
@@ -235,8 +245,11 @@ async function executeSourceRead(
     request.endLocator,
     request.startByte,
   );
+  const citation = citationSuggestion(request.id, result.startLocator, result.endLocator);
   const record: SourceDataRecord = {
     metadata: [
+      `citation_id: ${citation.id}`,
+      `citation_fragment: ${citation.locator.fragment}`,
       `start_locator: ${result.startLocator}`,
       `end_locator: ${result.endLocator}`,
       `included_locator_count: ${result.includedLocators.length}`,
@@ -276,6 +289,7 @@ async function executeSourceRead(
       returnedContentBytes,
       returnedEndByte,
       completedLocators,
+      citation,
       ...(nextByte === undefined ? {} : { nextByte }),
     },
   };
@@ -288,9 +302,12 @@ async function executeSourceSearch(
   if (!request.id?.startsWith('src_')) throw new Error('source id is required for source-text search');
   if (!request.query?.trim()) throw new Error('query is required for reads_library search');
   const matches = await services.library.searchSourceText(request.id, request.query, { limit: request.limit ?? 20 });
-  const records: SourceDataRecord[] = matches.map((match) => ({
+  const citations = matches.map((match) => citationSuggestion(request.id!, match.locator));
+  const records: SourceDataRecord[] = matches.map((match, index) => ({
     metadata: [
       `locator: ${match.locator}`,
+      `citation_id: ${citations[index]!.id}`,
+      `citation_fragment: ${citations[index]!.locator.fragment}`,
       `kind: ${match.kind}`,
       `block_start_byte: ${match.startByte}`,
       `block_end_byte: ${match.endByte}`,
@@ -307,6 +324,7 @@ async function executeSourceSearch(
       ...sourceDetails(services, 'search', request.id, bounded, returnedMatches.map(({ locator }) => locator)),
       query: request.query,
       totalMatches: matches.length,
+      citations: citations.slice(0, bounded.returnedRecords),
     },
   };
 }
