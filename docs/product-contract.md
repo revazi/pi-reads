@@ -89,6 +89,14 @@ Each source may have a deterministic `markdown-blocks-v1` structure index derive
 
 Local file paths may be retained in a local source manifest but must not be presented as public citations. URL citations use the source's canonical URL.
 
+## Private full-text search
+
+`indexes/search-v1.json` is a derived, local `bm25-lexical-v1` index over archive/generated prose plus titles, authors, canonical URLs, and forward-compatible tags/status. It stores weighted term frequencies and exact block byte ranges/hashes, not embeddings or a remote-service identifier. Queries run offline and may filter by mode, ISO date range, author, source ID, tag, and status.
+
+Results identify article mode, article/source IDs, field, stable locator, score, and an exact UTF-8 excerpt capped at 320 bytes. Archive body hits use source `h_…`/`p_…` locators; generated prose uses deterministic `b_…` locators. Tool output remains within the caller's 1–32 KiB budget and delimits excerpts as untrusted library data.
+
+Canonical manifests/content remain authoritative. Corpus and index hashes detect stale/corrupt indexes; search rebuilds atomically on demand or automatically after deletion, corruption, or corpus change. The index contains no timestamp, so rebuilding unchanged records yields identical bytes.
+
 ## Article contract
 
 An article records:

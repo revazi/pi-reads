@@ -31,16 +31,11 @@ Saving rejects incomplete coverage, targeted digests, stale hashes, invalid/dupl
 
 ## Library retrieval
 
-`reads_library` actions:
+Use `reads_library` `list`, metadata `search`, or `show`. For exact source data use `outline`; `read` with source ID/start locator and optional end locator; or source-scoped `search`. Follow `nextLocator`/`nextByte`; only `completedLocators` count toward complete coverage.
 
-- `list`: recent article metadata.
-- `search` without `id`: article metadata search.
-- `show`: source/article metadata and local paths.
-- `outline` with a source ID: stable heading/paragraph locators; continue with `startLocator: nextLocator`.
-- `read` with source ID and `startLocator`: exact inclusive range; optionally set `endLocator`, and continue clipped output with `startByte: nextByte`.
-- `search` with source ID and `query`: exact lexical excerpts.
+`full-text` searches titles, authors, URLs, archive/generated prose locally without a model or embeddings. Optional filters are mode, date (`from`/`to`), author, source, tag, and status. Results label mode and contain bounded exact excerpts/locators. Use `rebuild-search` for an explicit deterministic rebuild; missing, stale, or corrupt indexes recover automatically.
 
-Source retrieval defaults to 8192 bytes; `maxBytes` accepts 1024–32768. Check clipping/omission metadata. Only `completedLocators` count toward complete coverage.
+Text retrieval defaults to 8192 bytes; `maxBytes` accepts 1024–32768. Check clipping/omission metadata.
 
 ## Export
 
@@ -54,8 +49,8 @@ If PDF needs Chromium, ask the user to run `/reads-install-browser`.
 
 For Obsidian conflicts, show the listed paths and obtain explicit approval before retrying with `overwrite: true`. Never infer approval.
 
-Kindle starts with a dry run. Report only the redacted recipient, subject, size, prepared export ID, content hash, and retained artifact path. Preserve `preparedExportId`; set `send: true` only on explicit request and reuse that exact reviewed ID. The tool must show the full recipient and obtain interactive confirmation. Headless send is forbidden. Keep credentials in the OS credential store (environment overrides are for CI); never put addresses, usernames, or passwords in arguments, prose, manifests, or Git. On cancel/failure, report the retained artifact for reuse/manual upload.
+Kindle starts with a dry run; report its redacted recipient, subject, size, prepared ID/hash, and retained path. On explicit send, reuse that exact reviewed ID as `preparedExportId`; the tool must show the full recipient and confirm interactively. Headless send is forbidden. Keep credentials in the OS store (environment overrides are CI-only), never in arguments/prose/manifests/Git. On cancel/failure, report the retained artifact.
 
 ## Commands
 
-`/reads` runs the workflow; `/reads-config` configures destinations; `/reads-list` browses articles; `/reads-install-browser` installs PDF Chromium.
+`/reads` runs the workflow; `/reads-config` configures destinations; `/reads-list` browses; `/reads-search` searches locally; `/reads-rebuild-search` rebuilds search; `/reads-install-browser` installs PDF Chromium.

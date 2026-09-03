@@ -3,6 +3,7 @@ export * from './citation-grounding.ts';
 export * from './config.ts';
 export * from './domain.ts';
 export * from './errors.ts';
+export * from './full-text-search.ts';
 export * from './frontmatter.ts';
 export * from './library.ts';
 export * from './library-index.ts';

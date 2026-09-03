@@ -80,7 +80,7 @@ test('Pi extension registers and executes capture, generation, export, and libra
     );
     assert.deepEqual(
       new Set(commands.keys()),
-      new Set(['reads', 'reads-config', 'reads-install-browser', 'reads-list']),
+      new Set(['reads', 'reads-config', 'reads-search', 'reads-rebuild-search', 'reads-install-browser', 'reads-list']),
     );
 
     const capture = await tools.get('reads_ingest')!.execute(
@@ -148,6 +148,27 @@ test('Pi extension registers and executes capture, generation, export, and libra
     assert.match(generated.content[0]?.text ?? '', /Grounding: 0\/1 located; 0\/1 article sections uncited/u);
     assert.ok(Buffer.byteLength(generated.content[0]?.text ?? '') < 200);
     assert.doesNotMatch(generated.content[0]?.text ?? '', /Article content:|Manifest:/u);
+
+    const fullText = await tools.get('reads_library')!.execute(
+      'full-text-call',
+      { action: 'full-text', query: 'generated claim', mode: 'digest', maxBytes: 1_024 },
+      signal,
+      undefined,
+      context,
+    );
+    assert.match(fullText.content[0]?.text ?? '', /BEGIN PI_READS_LIBRARY_DATA/u);
+    assert.match(fullText.content[0]?.text ?? '', new RegExp(`article_id: ${generatedArticleId}`, 'u'));
+    assert.match(fullText.content[0]?.text ?? '', /mode: digest/u);
+    assert.ok(Buffer.byteLength(fullText.content[0]?.text ?? '') <= 1_024);
+    assert.equal(fullText.details?.returnedMatches, 1);
+    const rebuiltSearch = await tools.get('reads_library')!.execute(
+      'rebuild-search-call',
+      { action: 'rebuild-search' },
+      signal,
+      undefined,
+      context,
+    );
+    assert.match(rebuiltSearch.content[0]?.text ?? '', /Rebuilt local search index/u);
 
     const exported = await tools.get('reads_export')!.execute(
       'export-call',
@@ -456,6 +477,13 @@ test('archive-only /reads executes directly without a model and preserves destin
     const localArtifact = /^Artifact: (.+)$/m.exec(localReport)?.[1];
     assert.ok(localArtifact);
     assert.match(await readFile(localArtifact, 'utf8'), /Faithful direct-command prose/);
+
+    await commands.get('reads-search')!.handler('Faithful direct-command', baseContext);
+    assert.match(notifications.at(-1) ?? '', /BEGIN PI_READS_LIBRARY_DATA/u);
+    assert.match(notifications.at(-1) ?? '', /mode: archive/u);
+    await commands.get('reads-rebuild-search')!.handler('', baseContext);
+    assert.match(notifications.at(-1) ?? '', /Rebuilt local search index/u);
+    assert.equal(sentMessages.length, 0);
 
     const obsidianSelections = ['archive', 'obsidian'];
     await commands.get('reads')!.handler(sourcePath, {

@@ -33,6 +33,7 @@ const REQUIRED_FILES = [
   'package.json',
   'schemas/v1/citation-diagnostics.schema.json',
   'schemas/v1/config.schema.json',
+  'schemas/v1/search-index.schema.json',
   'schemas/v1/source-content-index.schema.json',
   'skills/pi-reads/SKILL.md',
 ] as const;
