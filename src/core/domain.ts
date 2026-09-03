@@ -38,6 +38,12 @@ export interface SourceRecord {
     extractor?: string;
     extractorVersion?: string;
   };
+  lineage?: {
+    predecessorSourceId: string;
+    rootSourceId: string;
+    reason: 'content-changed' | 'explicit-duplicate';
+    matchedBy: 'canonical-url' | 'content-hash';
+  };
 }
 
 export interface Citation {

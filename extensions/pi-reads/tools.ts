@@ -1,6 +1,7 @@
 import { StringEnum, Type } from '@earendil-works/pi-ai';
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
 import type { Citation } from '../../src/core/domain.ts';
+import type { CaptureResult } from '../../src/application/library-service.ts';
 import type { SourceCoverageInput } from '../../src/core/source-coverage.ts';
 import { executeReadsExport, resolveReadsExportRequest } from './export-handlers.ts';
 import {
@@ -33,6 +34,25 @@ const CoverageEvidenceSchema = Type.Object({
   ),
 });
 
+function captureResultText(result: CaptureResult): string[] {
+  switch (result.status) {
+    case 'captured':
+      return [`Captured ${result.source.id}; archive ${result.archiveArticle.id}.`, 'Use reads_library for bounded source retrieval.'];
+    case 'exact-duplicate':
+      return [`Exact duplicate; reused ${result.source.id} and archive ${result.archiveArticle.id}.`, 'No source or article was created.'];
+    case 'changed-content':
+      return [
+        `Changed content detected for ${result.match!.canonicalUrl}; existing source ${result.source.id}.`,
+        'No source or article was created. Ask the user before retrying reads_ingest with recapture true.',
+      ];
+    case 'recaptured':
+      return [
+        `Recaptured ${result.source.id}; archive ${result.archiveArticle.id}.`,
+        `Predecessors: ${result.source.lineage!.predecessorSourceId}; ${result.archiveArticle.supersedesArticleId}.`,
+      ];
+  }
+}
+
 const CitationSchema = Type.Object({
   id: Type.String(),
   sourceId: Type.String(),
@@ -45,33 +65,40 @@ export function registerReadsTools(pi: ExtensionAPI): void {
   pi.registerTool({
     name: 'reads_ingest',
     label: 'Reads Ingest',
-    description: 'Capture URL, text, Markdown, or a local text file as an immutable source and faithful archive. Returns IDs; prose stays local.',
-    promptSnippet: 'Capture a source without rewriting it',
-    promptGuidelines: ['reads_ingest creates immutable archive prose; never rewrite or overwrite it.'],
+    description: 'Capture URL, text, Markdown, or a local text file as an immutable source/archive; exact duplicates reuse records and changed canonical URLs require explicit recapture.',
+    promptSnippet: 'Capture or explicitly recapture a source',
+    promptGuidelines: [
+      'reads_ingest creates immutable archive prose; never rewrite or overwrite it, and set recapture true only after explicit user approval.',
+    ],
     parameters: Type.Object({
       kind: SourceKind,
       value: Type.String(),
       label: Type.Optional(Type.String()),
+      recapture: Type.Optional(Type.Boolean()),
     }),
     async execute(_toolCallId, params, signal, onUpdate, ctx) {
       const services = await openReadsServices(ctx.cwd);
       onUpdate?.({ content: [{ type: 'text', text: `Capturing ${params.kind} source…` }], details: {} });
       const result = await withFileMutationQueue(services.libraryDir, () =>
-        services.library.capture(sourceInput(params.kind, params.value, params.label, ctx.cwd), {}, signal),
+        services.library.capture(
+          sourceInput(params.kind, params.value, params.label, ctx.cwd),
+          {},
+          signal,
+          { recapture: params.recapture ?? false },
+        ),
       );
 
       return {
         content: [
           {
             type: 'text',
-            text: [
-              `Captured ${result.source.id}; archive ${result.archiveArticle.id}.`,
-              'Use reads_library for bounded source retrieval.',
-            ].join('\n'),
+            text: captureResultText(result).join('\n'),
           },
         ],
         details: {
           libraryDir: services.libraryDir,
+          status: result.status,
+          persisted: result.persisted,
           sourceId: result.source.id,
           archiveArticleId: result.archiveArticle.id,
           sourceManifestPath: result.sourceManifestPath,
@@ -79,6 +106,8 @@ export function registerReadsTools(pi: ExtensionAPI): void {
           sourceIndexPath: result.sourceIndexPath,
           articleManifestPath: result.articleManifestPath,
           articleContentPath: result.articleContentPath,
+          ...(result.match ? { match: result.match } : {}),
+          ...(result.source.lineage ? { lineage: result.source.lineage } : {}),
         },
       };
     },

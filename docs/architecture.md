@@ -170,8 +170,9 @@ Model-visible success text contains only the identifiers, warnings, cursors, and
 input
   → source adapter
   → deterministic extraction/cleanup
-  → immutable Source
-  → archive Article with matching text hash
+  → canonical-URL/content-hash match under the serialized library transaction
+  → reuse an exact Source/archive, report changed content without writing, or explicitly recapture
+  → new immutable Source/archive with predecessor lineage when recapturing
   → render
   → fidelity verification
   → Export

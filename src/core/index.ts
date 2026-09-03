@@ -1,3 +1,4 @@
+export * from './capture-deduplication.ts';
 export * from './citation-grounding.ts';
 export * from './config.ts';
 export * from './domain.ts';

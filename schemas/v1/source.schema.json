@@ -120,6 +120,27 @@
         ]
       }
     },
+    "lineage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["predecessorSourceId", "rootSourceId", "reason", "matchedBy"],
+      "properties": {
+        "predecessorSourceId": {
+          "type": "string",
+          "pattern": "^src_[a-z0-9]{16,64}$"
+        },
+        "rootSourceId": {
+          "type": "string",
+          "pattern": "^src_[a-z0-9]{16,64}$"
+        },
+        "reason": {
+          "enum": ["content-changed", "explicit-duplicate"]
+        },
+        "matchedBy": {
+          "enum": ["canonical-url", "content-hash"]
+        }
+      }
+    },
     "capture": {
       "type": "object",
       "additionalProperties": false,
