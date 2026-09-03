@@ -53,6 +53,25 @@ export interface Citation {
   note?: string;
 }
 
+export type SourceCoveragePolicy = 'complete' | 'targeted';
+
+export interface SourceCoverageSummary {
+  policy: SourceCoveragePolicy;
+  warning?: string;
+  sources: Array<{
+    sourceId: string;
+    sourceContentHash: Sha256Digest;
+    indexAlgorithm: 'markdown-blocks-v1';
+    indexLocatorHash: Sha256Digest;
+    consideredLocatorHash: Sha256Digest;
+    consideredLocatorCount: number;
+    totalLocatorCount: number;
+    missingLocatorCount: number;
+    missingLocators: string[];
+    missingLocatorsTruncated: boolean;
+  }>;
+}
+
 export interface GeneratedBy {
   provider: string;
   model: string;
@@ -81,6 +100,7 @@ export interface ArticleRecord {
     verifiedAt?: string;
   };
   generatedBy?: GeneratedBy;
+  sourceCoverage?: SourceCoverageSummary;
   presentation?: {
     sourceFontStyle?: 'serif' | 'sans-serif';
     bodyFontSizeAdjustment?: -1;

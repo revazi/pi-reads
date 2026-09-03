@@ -83,7 +83,7 @@ Raw HTML is evidence, not working prose. It must never be edited in place. Raw c
 
 Each source may have a deterministic `markdown-blocks-v1` structure index derived from `content.md`. The index records the source content/text hashes, UTF-8 byte length, stable content-derived heading and paragraph IDs, exact byte ranges, per-range hashes, heading ancestry, character counts, and approximate token counts. It contains no generated timestamp, so identical source bytes and manifests produce identical index bytes. The derived index may be verified or rebuilt atomically without modifying the source manifest, source prose, or archive article.
 
-`reads_library` can expose that index as a bounded outline, read an inclusive heading/paragraph locator range, or search a single source lexically. Retrieval defaults to an 8 KiB result budget and accepts explicit 1–32 KiB budgets. Returned excerpts are exact source substrings, include the source ID and stable locators, and are enclosed in `PI_READS_SOURCE_DATA` records marked as untrusted data rather than instructions. Budget exhaustion omits whole records or clips an exact UTF-8-safe prefix and reports that fact.
+`reads_library` can expose that index as a bounded outline, read an inclusive heading/paragraph locator range, or search a single source lexically. Retrieval defaults to an 8 KiB result budget and accepts explicit 1–32 KiB budgets. Returned excerpts are exact source substrings, include the source ID and stable locators, and are enclosed in `PI_READS_SOURCE_DATA` records marked as untrusted data rather than instructions. Budget exhaustion omits whole records or clips an exact UTF-8-safe prefix and reports `nextLocator` or `nextByte` continuation cursors.
 
 Local file paths may be retained in a local source manifest but must not be presented as public citations. URL citations use the source's canonical URL.
 
@@ -96,9 +96,10 @@ An article records:
 - citations;
 - creation time;
 - optional print presentation settings;
-- either archive verification or AI generation metadata.
+- either archive verification or AI generation metadata;
+- verified source-coverage policy and per-source diagnostics for newly generated articles.
 
-`archiveVerification` and `generatedBy` are mutually exclusive.
+`archiveVerification` is mutually exclusive with `generatedBy` and `sourceCoverage`.
 
 Generated articles record the active provider, model, generation time, and—when available—the Pi session ID and thinking level. Prompts and credentials are not persisted in the article manifest.
 
@@ -113,6 +114,8 @@ The existing presentation behavior maps into `article.presentation`:
 Generated Markdown references citation IDs using standard Markdown footnotes, for example `[^cite_example]`. Each referenced ID must have exactly one matching `Citation` in the article manifest.
 
 Every citation must reference one of the article's `sourceIds`. A citation should include the most precise available locator and may include a short supporting quote. Exporters resolve source metadata from the source manifest and render destination-appropriate footnotes or endnotes.
+
+Generated articles choose one source-coverage policy. `complete` requires coverage evidence for every heading and paragraph locator in every source index and is required for `digest`. `targeted` records only selected sections, is limited to `synthesis`, and persists a warning that the result is not comprehensive. Coverage evidence is bound to each source content hash and index locator-set hash. Unknown, duplicate, stale, or incomplete evidence fails before article persistence. Targeted manifests retain missing-section counts and at most 20 stable missing locators plus a truncation flag. Coverage policy and warnings remain visible in generated exports; citations continue to point to original captured sources.
 
 For `digest` and `synthesis` modes:
 

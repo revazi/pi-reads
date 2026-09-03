@@ -51,12 +51,24 @@ test('EPUB export creates a validated reflowable book with embedded assets and c
     assert.match(articleXhtml, /const readable = true/);
     assert.match(strFromU8(files['EPUB/package.opf']), /media-type="image\/png"/);
 
+    const { index: sourceIndex } = await library.loadSourceIndex(captured.source.id);
     const generated = await library.saveGenerated({
       mode: 'digest',
       title: 'Cited EPUB digest',
       body: 'A generated observation.[^cite_epub]',
       sourceIds: [captured.source.id],
       citations: [{ id: 'cite_epub', sourceId: captured.source.id, quote: 'Faithful source prose.' }],
+      coverage: {
+        policy: 'complete',
+        sources: [{
+          sourceId: captured.source.id,
+          sourceContentHash: sourceIndex.sourceContentHash,
+          consideredLocators: [
+            ...sourceIndex.headings.map(({ id }) => id),
+            ...sourceIndex.paragraphs.map(({ id }) => id),
+          ],
+        }],
+      },
       generatedBy: {
         provider: 'fixture-provider',
         model: 'fixture-model',

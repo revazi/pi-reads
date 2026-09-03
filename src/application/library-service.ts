@@ -9,6 +9,10 @@ import type {
   SourceRecord,
   StoredText,
 } from '../core/domain.ts';
+import {
+  verifySourceCoverage,
+  type SourceCoverageInput,
+} from '../core/source-coverage.ts';
 import { analyzeMarkdown } from '../core/ingest/text.ts';
 import { ingestSource, type IngestSourceDependencies, type SourceInput } from '../core/ingest/index.ts';
 import {
@@ -73,6 +77,7 @@ export interface SaveGeneratedArticleInput {
   sourceIds: string[];
   citations: Citation[];
   generatedBy: GeneratedBy;
+  coverage: SourceCoverageInput;
 }
 
 export interface StoredArticle {
@@ -330,8 +335,14 @@ export class LibraryService {
       }
     }
 
-    const sourceEntries = await Promise.all(input.sourceIds.map(async (sourceId) => [sourceId, (await this.loadSource(sourceId)).source] as const));
-    const sources = new Map(sourceEntries);
+    const sourceIds = [...new Set(input.sourceIds)];
+    const storedSources = await Promise.all(sourceIds.map((sourceId) => this.loadSource(sourceId)));
+    const sources = new Map(storedSources.map((stored) => [stored.source.id, stored.source] as const));
+    const sourceIndexes = new Map(await Promise.all(storedSources.map(async (stored) => [
+      stored.source.id,
+      (await this.ensureSourceIndex(stored)).index,
+    ] as const)));
+    const sourceCoverage = verifySourceCoverage(input.mode, sourceIds, sourceIndexes, input.coverage);
     return this.index.transaction(async (index) => {
       const slug = input.slug
         ? assertSafeSlug(input.slug)
@@ -350,7 +361,7 @@ export class LibraryService {
         title: input.title.trim(),
         slug,
         ...(input.description ? { description: input.description } : {}),
-        sourceIds: [...new Set(input.sourceIds)],
+        sourceIds,
         body: {
           path: bodyPath,
           mediaType: 'text/markdown',
@@ -361,6 +372,7 @@ export class LibraryService {
         citations: input.citations,
         createdAt: this.now().toISOString(),
         generatedBy: input.generatedBy,
+        sourceCoverage,
       };
       assertArticleInvariants(article, sources);
 
@@ -469,10 +481,11 @@ export class LibraryService {
     sourceId: string,
     startLocator: string,
     endLocator?: string,
+    startByte?: number,
   ): Promise<SourceRangeRead> {
     const stored = await this.loadSource(sourceId);
     const { index } = await this.ensureSourceIndex(stored);
-    return readIndexedSourceRange(index, stored.content, startLocator, endLocator);
+    return readIndexedSourceRange(index, stored.content, startLocator, endLocator, startByte);
   }
 
   async searchSourceText(

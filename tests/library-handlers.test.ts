@@ -64,6 +64,8 @@ test('outline and locator reads include source identity, stable locators, and un
     assert.match(outlineText, new RegExp(`source_id: ${capture.source.id}`, 'u'));
     assert.ok((outline.details.locators as string[]).some((locator) => locator.startsWith('h_')));
     assert.ok((outline.details.locators as string[]).some((locator) => locator.startsWith('p_')));
+    assert.equal(outline.details.sourceContentHash, capture.source.content.contentHash);
+    assert.match(outlineText, new RegExp(`source_content_hash: ${capture.source.content.contentHash}`, 'u'));
 
     const structure = await library.sourceOutline(capture.source.id);
     const section = structure.headings.find(({ text }) => text === 'Untrusted section')!;
@@ -160,6 +162,47 @@ test('source operations strictly enforce caller-selected UTF-8 budgets and rebui
     assert.ok(Buffer.byteLength(exactTexts(large.content[0].text)[0]) > Buffer.byteLength(exactTexts(small.content[0].text)[0]));
     assert.ok(sourceMarkdown.includes(exactTexts(small.content[0].text)[0]));
     assert.doesNotMatch(exactTexts(small.content[0].text)[0], /�/u);
+    assert.equal(typeof small.details.nextByte, 'number');
+    assert.match(small.content[0].text, /has_more: true /u);
+    assert.match(small.content[0].text, new RegExp(`next_byte: 0*${small.details.nextByte}`, 'u'));
+    assert.deepEqual(small.details.completedLocators, []);
+
+    const fullRange = await library.readSourceRange(capture.source.id, longParagraph);
+    const chunks: string[] = [];
+    let startByte: number | undefined;
+    let completedLocators: string[] = [];
+    do {
+      const chunk = await executeReadsLibrary({
+        action: 'read',
+        id: capture.source.id,
+        startLocator: longParagraph,
+        startByte,
+        maxBytes: MIN_SOURCE_RESULT_MAX_BYTES,
+      }, services);
+      chunks.push(exactTexts(chunk.content[0].text)[0]);
+      startByte = chunk.details.nextByte as number | undefined;
+      completedLocators = chunk.details.completedLocators as string[];
+    } while (startByte !== undefined);
+    assert.equal(chunks.join(''), fullRange.text);
+    assert.deepEqual(completedLocators, [longParagraph]);
+
+    const pagedLocators: string[] = [];
+    let outlineCursor: string | undefined;
+    let totalLocatorCount = 0;
+    do {
+      const page = await executeReadsLibrary({
+        action: 'outline',
+        id: capture.source.id,
+        startLocator: outlineCursor,
+        maxBytes: MIN_SOURCE_RESULT_MAX_BYTES,
+      }, services);
+      pagedLocators.push(...page.details.locators as string[]);
+      totalLocatorCount = page.details.totalLocatorCount as number;
+      outlineCursor = page.details.nextLocator as string | undefined;
+      if (outlineCursor) assert.match(page.content[0].text, new RegExp(`next_locator: ${outlineCursor}`, 'u'));
+    } while (outlineCursor !== undefined);
+    assert.equal(pagedLocators.length, totalLocatorCount);
+    assert.equal(new Set(pagedLocators).size, totalLocatorCount);
 
     await assert.rejects(
       () => executeReadsLibrary({

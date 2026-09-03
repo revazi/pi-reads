@@ -117,6 +117,94 @@
         }
       }
     },
+    "sourceCoverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["policy", "sources"],
+      "properties": {
+        "policy": {
+          "enum": ["complete", "targeted"]
+        },
+        "warning": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sources": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "sourceId",
+              "sourceContentHash",
+              "indexAlgorithm",
+              "indexLocatorHash",
+              "consideredLocatorHash",
+              "consideredLocatorCount",
+              "totalLocatorCount",
+              "missingLocatorCount",
+              "missingLocators",
+              "missingLocatorsTruncated"
+            ],
+            "properties": {
+              "sourceId": {
+                "type": "string",
+                "pattern": "^src_[a-z0-9]{16,64}$"
+              },
+              "sourceContentHash": {
+                "$ref": "common.schema.json#/$defs/contentHash"
+              },
+              "indexAlgorithm": {
+                "const": "markdown-blocks-v1"
+              },
+              "indexLocatorHash": {
+                "$ref": "common.schema.json#/$defs/contentHash"
+              },
+              "consideredLocatorHash": {
+                "$ref": "common.schema.json#/$defs/contentHash"
+              },
+              "consideredLocatorCount": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "totalLocatorCount": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "missingLocatorCount": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "missingLocators": {
+                "type": "array",
+                "maxItems": 20,
+                "items": {
+                  "type": "string",
+                  "pattern": "^[hp]_[0-9a-f]{16}_[1-9][0-9]*$"
+                }
+              },
+              "missingLocatorsTruncated": {
+                "type": "boolean"
+              }
+            }
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "policy": { "const": "targeted" }
+            },
+            "required": ["policy"]
+          },
+          "then": {
+            "required": ["warning"]
+          }
+        }
+      ]
+    },
     "presentation": {
       "type": "object",
       "additionalProperties": false,
@@ -162,9 +250,18 @@
             }
           }
         },
-        "not": {
-          "required": ["generatedBy"]
-        }
+        "allOf": [
+          {
+            "not": {
+              "required": ["generatedBy"]
+            }
+          },
+          {
+            "not": {
+              "required": ["sourceCoverage"]
+            }
+          }
+        ]
       },
       "else": {
         "required": ["generatedBy"],
@@ -196,6 +293,14 @@
               "path": {
                 "type": "string",
                 "pattern": "^articles/digest/art_[a-z0-9]{16,64}/content\\.md$"
+              }
+            }
+          },
+          "sourceCoverage": {
+            "type": "object",
+            "properties": {
+              "policy": {
+                "const": "complete"
               }
             }
           }

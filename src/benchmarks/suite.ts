@@ -11,6 +11,7 @@ import { KindleService, type KindleEnvironment, type KindlePreview } from '../ap
 import { LibraryService } from '../application/library-service.ts';
 import type { ResolvedKindleConfig } from '../core/config.ts';
 import type { RecordIdPrefix } from '../core/library.ts';
+import type { SourceCoverageInput } from '../core/source-coverage.ts';
 import { createBenchmarkFixtures } from './fixtures.ts';
 
 export const BENCHMARK_NAMES = [
@@ -233,6 +234,20 @@ class BenchmarkTransport implements KindleMailTransport {
   }
 }
 
+async function completeCoverage(library: LibraryService, sourceIds: readonly string[]): Promise<SourceCoverageInput> {
+  return {
+    policy: 'complete',
+    sources: await Promise.all(sourceIds.map(async (sourceId) => {
+      const { index } = await library.loadSourceIndex(sourceId);
+      return {
+        sourceId,
+        sourceContentHash: index.sourceContentHash,
+        consideredLocators: [...index.headings.map(({ id }) => id), ...index.paragraphs.map(({ id }) => id)],
+      };
+    })),
+  };
+}
+
 export async function runBenchmarkSuite(options: BenchmarkSuiteOptions = {}): Promise<BenchmarkReport> {
   const ownLibrary = !options.libraryDir;
   const libraryDir = options.libraryDir ?? await mkdtemp(path.join(os.tmpdir(), 'pi-reads-benchmark-'));
@@ -343,6 +358,7 @@ export async function runBenchmarkSuite(options: BenchmarkSuiteOptions = {}): Pr
         body: 'A deterministic digest records the benchmark source and its provenance.[^cite_long]',
         sourceIds: [captured.source.id],
         citations: [{ id: 'cite_long', sourceId: captured.source.id, quote: 'deterministic reading-library behavior' }],
+        coverage: await completeCoverage(library, [captured.source.id]),
         generatedBy: { provider: 'benchmark', model: 'deterministic-fixture', generatedAt: now().toISOString() },
       });
       digestArticleId = digest.article.id;
@@ -370,6 +386,7 @@ export async function runBenchmarkSuite(options: BenchmarkSuiteOptions = {}): Pr
           body,
           sourceIds: captures.map((capture) => capture.source.id),
           citations,
+          coverage: await completeCoverage(library, captures.map((capture) => capture.source.id)),
           generatedBy: { provider: 'benchmark', model: 'deterministic-fixture', generatedAt: now().toISOString() },
         });
       },

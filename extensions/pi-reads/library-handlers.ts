@@ -12,6 +12,7 @@ export interface ReadsLibraryRequest {
   limit?: number;
   startLocator?: string;
   endLocator?: string;
+  startByte?: number;
   maxBytes?: number;
 }
 
@@ -58,6 +59,7 @@ function renderSourceData(
   records: readonly SourceDataRecord[],
   totalRecords: number,
   clippedRecord: boolean,
+  headerMetadata: readonly string[],
 ): string {
   const lines = [
     '--- BEGIN PI_READS_SOURCE_DATA ---',
@@ -68,6 +70,7 @@ function renderSourceData(
     `total_records: ${totalRecords}`,
     `records_omitted: ${Math.max(0, totalRecords - records.length)}`,
     `record_clipped: ${clippedRecord}`,
+    ...headerMetadata,
   ];
   for (const record of records) {
     lines.push('--- BEGIN SOURCE RECORD ---', ...record.metadata);
@@ -91,32 +94,53 @@ function boundedSourceData(
   operation: string,
   inputRecords: readonly SourceDataRecord[],
   maxBytes: number | undefined,
-): { text: string; returnedRecords: number; clipped: boolean; maxBytes: number } {
+  headerMetadata: readonly string[] = [],
+): { text: string; returnedRecords: number; returnedTextBytes: number[]; clipped: boolean; maxBytes: number } {
   const budget = sourceResultBudget(maxBytes);
   const selected: SourceDataRecord[] = [];
   for (const record of inputRecords) {
-    const candidate = renderSourceData(sourceId, operation, [...selected, record], inputRecords.length, false);
+    const candidate = renderSourceData(
+      sourceId, operation, [...selected, record], inputRecords.length, false, headerMetadata,
+    );
     if (outputBytes(candidate) <= budget) {
       selected.push(record);
       continue;
     }
     if (selected.length === 0 && record.text !== undefined) {
-      const empty = renderSourceData(sourceId, operation, [{ ...record, text: '' }], inputRecords.length, true);
+      const empty = renderSourceData(
+        sourceId, operation, [{ ...record, text: '' }], inputRecords.length, true, headerMetadata,
+      );
       let clippedText = utf8Prefix(record.text, Math.max(0, budget - outputBytes(empty) - 16));
-      let clipped = renderSourceData(sourceId, operation, [{ ...record, text: clippedText }], inputRecords.length, true);
+      let clipped = renderSourceData(
+        sourceId, operation, [{ ...record, text: clippedText }], inputRecords.length, true, headerMetadata,
+      );
       while (outputBytes(clipped) > budget && clippedText) {
         clippedText = [...clippedText].slice(0, -1).join('');
-        clipped = renderSourceData(sourceId, operation, [{ ...record, text: clippedText }], inputRecords.length, true);
+        clipped = renderSourceData(
+          sourceId, operation, [{ ...record, text: clippedText }], inputRecords.length, true, headerMetadata,
+        );
       }
       if (outputBytes(clipped) <= budget) {
-        return { text: clipped, returnedRecords: 1, clipped: true, maxBytes: budget };
+        return {
+          text: clipped,
+          returnedRecords: 1,
+          returnedTextBytes: [outputBytes(clippedText)],
+          clipped: true,
+          maxBytes: budget,
+        };
       }
     }
     break;
   }
-  const text = renderSourceData(sourceId, operation, selected, inputRecords.length, false);
+  const text = renderSourceData(sourceId, operation, selected, inputRecords.length, false, headerMetadata);
   if (outputBytes(text) > budget) throw new Error('Source result metadata exceeds maxBytes');
-  return { text, returnedRecords: selected.length, clipped: false, maxBytes: budget };
+  return {
+    text,
+    returnedRecords: selected.length,
+    returnedTextBytes: selected.map((record) => outputBytes(record.text ?? '')),
+    clipped: false,
+    maxBytes: budget,
+  };
 }
 
 function sourceDetails(
@@ -164,11 +188,38 @@ async function executeSourceOutline(
       });
     }
   }
-  const bounded = boundedSourceData(request.id, 'outline', records, request.maxBytes);
-  const locators = records.slice(0, bounded.returnedRecords).map((record) => record.metadata[0]!.slice('locator: '.length));
+  const firstRecord = request.startLocator
+    ? records.findIndex((record) => record.metadata[0] === `locator: ${request.startLocator}`)
+    : 0;
+  if (firstRecord < 0) throw new Error(`Unknown source locator: ${request.startLocator}`);
+  const remaining = records.slice(firstRecord);
+  const bounded = boundedSourceData(
+    request.id,
+    'outline',
+    remaining,
+    request.maxBytes,
+    [
+      `source_content_hash: ${outline.sourceContentHash}`,
+      `total_locator_count: ${records.length}`,
+      'has_more: false',
+      `next_locator: ${'-'.repeat(70)}`,
+    ],
+  );
+  const locators = remaining.slice(0, bounded.returnedRecords).map((record) => record.metadata[0]!.slice('locator: '.length));
+  const nextLocator = remaining[bounded.returnedRecords]?.metadata[0]?.slice('locator: '.length);
+  const output = nextLocator
+    ? bounded.text
+        .replace('has_more: false', 'has_more: true ')
+        .replace(`next_locator: ${'-'.repeat(70)}`, `next_locator: ${nextLocator.padEnd(70, ' ')}`)
+    : bounded.text;
   return {
-    content: [{ type: 'text', text: bounded.text }],
-    details: sourceDetails(services, 'outline', request.id, bounded, locators),
+    content: [{ type: 'text', text: output }],
+    details: {
+      ...sourceDetails(services, 'outline', request.id, bounded, locators),
+      sourceContentHash: outline.sourceContentHash,
+      totalLocatorCount: records.length,
+      ...(nextLocator ? { nextLocator } : {}),
+    },
   };
 }
 
@@ -178,7 +229,12 @@ async function executeSourceRead(
 ): Promise<ReadsLibraryToolResult> {
   if (!request.id?.startsWith('src_')) throw new Error('source id is required for reads_library read');
   if (!request.startLocator) throw new Error('startLocator is required for reads_library read');
-  const result = await services.library.readSourceRange(request.id, request.startLocator, request.endLocator);
+  const result = await services.library.readSourceRange(
+    request.id,
+    request.startLocator,
+    request.endLocator,
+    request.startByte,
+  );
   const record: SourceDataRecord = {
     metadata: [
       `start_locator: ${result.startLocator}`,
@@ -186,12 +242,25 @@ async function executeSourceRead(
       `included_locator_count: ${result.includedLocators.length}`,
       `start_byte: ${result.startByte}`,
       `end_byte: ${result.endByte}`,
+      'has_more: false',
+      'next_byte: --------------------',
     ],
     text: result.text,
   };
   const bounded = boundedSourceData(request.id, 'read', [record], request.maxBytes);
+  const returnedContentBytes = bounded.returnedTextBytes[0] ?? 0;
+  const returnedEndByte = result.startByte + returnedContentBytes;
+  const completedLocators = result.includedLocators
+    .filter(({ endByte }) => endByte <= returnedEndByte)
+    .map(({ locator }) => locator);
+  const nextByte = bounded.clipped ? returnedEndByte : undefined;
+  const output = nextByte === undefined
+    ? bounded.text
+    : bounded.text
+        .replace('has_more: false', 'has_more: true ')
+        .replace('next_byte: --------------------', `next_byte: ${String(nextByte).padStart(20, '0')}`);
   return {
-    content: [{ type: 'text', text: bounded.text }],
+    content: [{ type: 'text', text: output }],
     details: {
       ...sourceDetails(
         services,
@@ -204,6 +273,10 @@ async function executeSourceRead(
       endLocator: result.endLocator,
       startByte: result.startByte,
       endByte: result.endByte,
+      returnedContentBytes,
+      returnedEndByte,
+      completedLocators,
+      ...(nextByte === undefined ? {} : { nextByte }),
     },
   };
 }

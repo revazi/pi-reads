@@ -7,7 +7,7 @@ Canonical records:
 - `source.schema.json` — immutable captured input and provenance
 - `source-content-index.schema.json` — deterministic heading/paragraph locators derived from source Markdown
 - `citation.schema.json` — a generated article's reference to a source
-- `article.schema.json` — an archive, digest, or synthesis reading document
+- `article.schema.json` — an archive, digest, or synthesis reading document with optional backward-compatible coverage metadata
 - `export.schema.json` — a rendered artifact and destination attempt
 - `config.schema.json` — non-secret user configuration
 

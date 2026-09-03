@@ -240,6 +240,62 @@ export async function writeLibraryFileCreateOnly(
   return canonicalTarget;
 }
 
+type ArticleCoverageSource = NonNullable<ArticleRecord['sourceCoverage']>['sources'][number];
+
+function assertCoverageSource(
+  mode: ArticleMode,
+  policy: NonNullable<ArticleRecord['sourceCoverage']>['policy'],
+  coverage: ArticleCoverageSource | undefined,
+  source: SourceRecord,
+): void {
+  if (coverage?.sourceContentHash !== source.content.contentHash) {
+    throw new Error(`${mode} article coverage does not match source ${source.id}`);
+  }
+  if (coverage.consideredLocatorCount + coverage.missingLocatorCount !== coverage.totalLocatorCount) {
+    throw new Error(`${mode} article coverage counts are inconsistent for ${source.id}`);
+  }
+  if (
+    policy === 'complete' &&
+    (coverage.missingLocatorCount !== 0 || coverage.indexLocatorHash !== coverage.consideredLocatorHash)
+  ) {
+    throw new Error(`${mode} article complete coverage reports missing source sections`);
+  }
+}
+
+function assertGeneratedCoverage(article: ArticleRecord, sources: ReadonlyMap<string, SourceRecord>): void {
+  const sourceCoverage = article.sourceCoverage!;
+  if (article.mode === 'digest' && sourceCoverage.policy === 'targeted') {
+    throw new Error('A digest cannot claim targeted source coverage');
+  }
+  const coverageSources = new Map(sourceCoverage.sources.map((coverage) => [coverage.sourceId, coverage]));
+  if (coverageSources.size !== article.sourceIds.length || sourceCoverage.sources.length !== article.sourceIds.length) {
+    throw new Error(`${article.mode} article coverage must describe every source exactly once`);
+  }
+  for (const sourceId of article.sourceIds) {
+    assertCoverageSource(article.mode, sourceCoverage.policy, coverageSources.get(sourceId), sources.get(sourceId)!);
+  }
+  if (sourceCoverage.policy === 'targeted' && !sourceCoverage.warning) {
+    throw new Error(`${article.mode} article targeted coverage requires a warning`);
+  }
+}
+
+function assertGeneratedCitations(article: ArticleRecord): void {
+  if (article.citations.length === 0) {
+    throw new Error(`${article.mode} article requires at least one citation`);
+  }
+  const sourceIds = new Set(article.sourceIds);
+  const citationIds = new Set<string>();
+  for (const citation of article.citations) {
+    if (!sourceIds.has(citation.sourceId)) {
+      throw new Error(`Citation ${citation.id} references a source outside the article`);
+    }
+    if (citationIds.has(citation.id)) {
+      throw new Error(`Duplicate citation ID ${citation.id}`);
+    }
+    citationIds.add(citation.id);
+  }
+}
+
 export function assertArticleInvariants(article: ArticleRecord, sources: ReadonlyMap<string, SourceRecord>): void {
   if (article.sourceIds.length === 0) {
     throw new Error('Article must reference at least one source');
@@ -255,7 +311,7 @@ export function assertArticleInvariants(article: ArticleRecord, sources: Readonl
   }
 
   if (article.mode === 'archive') {
-    if (article.sourceIds.length !== 1 || !article.archiveVerification || article.generatedBy) {
+    if (article.sourceIds.length !== 1 || !article.archiveVerification || article.generatedBy || article.sourceCoverage) {
       throw new Error('Archive article requires one source and archive verification without generation metadata');
     }
 
@@ -276,22 +332,9 @@ export function assertArticleInvariants(article: ArticleRecord, sources: Readonl
     return;
   }
 
-  if (!article.generatedBy || article.archiveVerification) {
-    throw new Error(`${article.mode} article requires generation metadata without archive verification`);
+  if (!article.generatedBy || !article.sourceCoverage || article.archiveVerification) {
+    throw new Error(`${article.mode} article requires generation and source coverage metadata without archive verification`);
   }
-  if (article.citations.length === 0) {
-    throw new Error(`${article.mode} article requires at least one citation`);
-  }
-
-  const sourceIds = new Set(article.sourceIds);
-  const citationIds = new Set<string>();
-  for (const citation of article.citations) {
-    if (!sourceIds.has(citation.sourceId)) {
-      throw new Error(`Citation ${citation.id} references a source outside the article`);
-    }
-    if (citationIds.has(citation.id)) {
-      throw new Error(`Duplicate citation ID ${citation.id}`);
-    }
-    citationIds.add(citation.id);
-  }
+  assertGeneratedCoverage(article, sources);
+  assertGeneratedCitations(article);
 }

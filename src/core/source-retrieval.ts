@@ -102,6 +102,7 @@ export function readSourceRange(
   markdown: string,
   startLocator: string,
   endLocator = startLocator,
+  fromByte?: number,
 ): SourceRangeRead {
   const blocks = orderedBlocks(index);
   const startIndex = blocks.findIndex(({ range }) => range.id === startLocator);
@@ -112,14 +113,23 @@ export function readSourceRange(
 
   const selected = blocks.slice(startIndex, endIndex + 1);
   for (const { range } of selected) indexedSourceText(markdown, range);
-  const startByte = selected[0]!.range.startByte;
+  const rangeStartByte = selected[0]!.range.startByte;
   const endByte = selected.at(-1)!.range.endByte;
-  const text = Buffer.from(markdown).subarray(startByte, endByte).toString('utf8');
+  const startByte = fromByte ?? rangeStartByte;
+  if (!Number.isSafeInteger(startByte) || startByte < rangeStartByte || startByte >= endByte) {
+    throw new Error(`startByte must be an integer from ${rangeStartByte} to ${endByte - 1}`);
+  }
+  const sourceBytes = Buffer.from(markdown);
+  const selectedBytes = sourceBytes.subarray(startByte, endByte);
+  const text = selectedBytes.toString('utf8');
+  if (!Buffer.from(text).equals(selectedBytes)) throw new Error('startByte must be on a UTF-8 character boundary');
   return {
     sourceId: index.sourceId,
     startLocator,
     endLocator,
-    includedLocators: selected.map(({ range, kind }) => blockLocator(range, kind)),
+    includedLocators: selected
+      .filter(({ range }) => range.endByte > startByte)
+      .map(({ range, kind }) => blockLocator(range, kind)),
     startByte,
     endByte,
     text,

@@ -95,6 +95,11 @@ test('Pi extension registers and executes capture, generation, export, and libra
     assert.match(sourceId, /^src_/);
     assert.match(archiveArticleId, /^art_/);
     assert.match(String(capture.details?.sourceContentPath), new RegExp(sourceId));
+    const sourceIndex = JSON.parse(await readFile(String(capture.details?.sourceIndexPath), 'utf8')) as {
+      sourceContentHash: string;
+      headings: Array<{ id: string }>;
+      paragraphs: Array<{ id: string }>;
+    };
 
     const generated = await tools.get('reads_save_article')!.execute(
       'save-call',
@@ -104,6 +109,17 @@ test('Pi extension registers and executes capture, generation, export, and libra
         body: 'A generated claim.[^cite_evidence]',
         sourceIds: [sourceId],
         citations: [{ id: 'cite_evidence', sourceId, quote: 'Evidence.' }],
+        coverage: {
+          policy: 'complete',
+          sources: [{
+            sourceId,
+            sourceContentHash: sourceIndex.sourceContentHash,
+            consideredLocators: [
+              ...sourceIndex.headings.map(({ id }) => id),
+              ...sourceIndex.paragraphs.map(({ id }) => id),
+            ],
+          }],
+        },
       },
       signal,
       undefined,
@@ -111,6 +127,8 @@ test('Pi extension registers and executes capture, generation, export, and libra
     );
     const generatedArticleId = String(generated.details?.articleId);
     assert.match(generatedArticleId, /^art_/);
+    assert.match(generated.content[0]?.text ?? '', /Coverage: complete/u);
+    assert.equal((generated.details?.sourceCoverage as { policy: string }).policy, 'complete');
 
     const exported = await tools.get('reads_export')!.execute(
       'export-call',

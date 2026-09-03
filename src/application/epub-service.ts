@@ -36,6 +36,7 @@ code { font-family: monospace; }
 a { color: inherit; }
 blockquote { border-left: 0.2em solid #999; margin-left: 0; padding-left: 1em; }
 .article-meta, .article-source { color: #555; font-size: 0.9em; }
+.article-coverage-warning { border-left: 0.2em solid #9a6700; padding-left: 0.75em; }
 .article-citations { border-top: 1px solid #bbb; margin-top: 2em; padding-top: 1em; }
 `;
 
@@ -138,7 +139,7 @@ function articleXhtml(article: ArticleRecord, sources: readonly SourceRecord[], 
 <!DOCTYPE html>
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="${escapeXml(article.language ?? 'en')}">
 <head><meta charset="utf-8"/><title>${escapeXml(article.title)}</title><link rel="stylesheet" type="text/css" href="styles.css"/></head>
-<body><article><header><h1>${escapeXml(article.title)}</h1>${authors.length ? `<p class="article-meta">${escapeXml(authors.join(', '))}</p>` : ''}${sourceLinks ? `<p class="article-source">Sources: ${sourceLinks}</p>` : ''}</header><main>${body}</main></article></body>
+<body><article><header><h1>${escapeXml(article.title)}</h1>${authors.length ? `<p class="article-meta">${escapeXml(authors.join(', '))}</p>` : ''}${sourceLinks ? `<p class="article-source">Sources: ${sourceLinks}</p>` : ''}${article.sourceCoverage?.warning ? `<p class="article-coverage-warning">${escapeXml(article.sourceCoverage.warning)}</p>` : ''}</header><main>${body}</main></article></body>
 </html>`;
 }
 
