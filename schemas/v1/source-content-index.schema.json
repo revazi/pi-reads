@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/revazi/pi-reads/schemas/v1/source-content-index.schema.json",
+  "title": "Pi Reads Source Content Index",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "algorithm",
+    "sourceId",
+    "sourceContentHash",
+    "sourceTextHash",
+    "byteLength",
+    "characterCount",
+    "approximateTokenCount",
+    "headings",
+    "paragraphs"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "algorithm": { "const": "markdown-blocks-v1" },
+    "sourceId": { "type": "string", "pattern": "^src_[a-z0-9]{16,64}$" },
+    "sourceContentHash": { "$ref": "common.schema.json#/$defs/contentHash" },
+    "sourceTextHash": { "$ref": "common.schema.json#/$defs/contentHash" },
+    "byteLength": { "type": "integer", "minimum": 1 },
+    "characterCount": { "type": "integer", "minimum": 1 },
+    "approximateTokenCount": { "type": "integer", "minimum": 1 },
+    "headings": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/heading" }
+    },
+    "paragraphs": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/paragraph" }
+    }
+  },
+  "$defs": {
+    "range": {
+      "type": "object",
+      "required": ["id", "startByte", "endByte", "textHash", "characterCount", "approximateTokenCount"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[hp]_[a-f0-9]{16}_[1-9][0-9]*$" },
+        "startByte": { "type": "integer", "minimum": 0 },
+        "endByte": { "type": "integer", "minimum": 1 },
+        "textHash": { "$ref": "common.schema.json#/$defs/contentHash" },
+        "characterCount": { "type": "integer", "minimum": 1 },
+        "approximateTokenCount": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "heading": {
+      "allOf": [
+        { "$ref": "#/$defs/range" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["id", "startByte", "endByte", "textHash", "characterCount", "approximateTokenCount", "level", "text"],
+          "properties": {
+            "id": true,
+            "startByte": true,
+            "endByte": true,
+            "textHash": true,
+            "characterCount": true,
+            "approximateTokenCount": true,
+            "level": { "type": "integer", "minimum": 1, "maximum": 6 },
+            "text": { "type": "string", "minLength": 1 },
+            "parentHeadingId": { "type": "string", "pattern": "^h_[a-f0-9]{16}_[1-9][0-9]*$" }
+          }
+        }
+      ]
+    },
+    "paragraph": {
+      "allOf": [
+        { "$ref": "#/$defs/range" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["id", "startByte", "endByte", "textHash", "characterCount", "approximateTokenCount"],
+          "properties": {
+            "id": true,
+            "startByte": true,
+            "endByte": true,
+            "textHash": true,
+            "characterCount": true,
+            "approximateTokenCount": true,
+            "headingId": { "type": "string", "pattern": "^h_[a-f0-9]{16}_[1-9][0-9]*$" }
+          }
+        }
+      ]
+    }
+  }
+}

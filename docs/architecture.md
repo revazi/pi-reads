@@ -119,6 +119,7 @@ The filesystem adapter implements the layout in the product contract. It must:
 - reject traversal and absolute record paths;
 - write atomically and create-only;
 - treat manifests as canonical and `indexes/library.json` as a rebuildable metadata cache;
+- derive versioned per-source heading/paragraph indexes from exact `content.md` bytes, with content-hash binding and independently verifiable UTF-8 byte ranges;
 - update the index with synced temporary files and atomic renames while an interruption marker protects canonical record/index consistency;
 - detect stale indexes from constant-time source/mode directory stamps and rebuild from immutable manifests when the index is missing, malformed, stale, or interrupted;
 - serialize in-process index mutations in addition to the Pi-facing file mutation queue;

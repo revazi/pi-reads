@@ -22,10 +22,17 @@ import {
   resolveLibraryPath,
   sourceContentPath,
   sourceDirectory,
+  sourceStructureIndexPath,
+  writeLibraryFileAtomic,
   type RecordIdPrefix,
 } from '../core/library.ts';
 import { LibraryIndexStore, type LibraryIndexStats } from '../core/library-index.ts';
 import { assertSafeSlug } from '../core/slugs.ts';
+import {
+  createSourceContentIndex,
+  verifySourceContentIndex,
+  type SourceContentIndex,
+} from '../core/source-index.ts';
 import { versionedSha256 } from '../core/text.ts';
 
 const ARTICLE_MODES: readonly ArticleMode[] = ['archive', 'digest', 'synthesis'];
@@ -46,6 +53,7 @@ export interface CaptureResult {
   sourceContentPath: string;
   articleManifestPath: string;
   articleContentPath: string;
+  sourceIndexPath: string;
 }
 
 export interface SaveGeneratedArticleInput {
@@ -71,6 +79,11 @@ export interface StoredSource {
   manifestPath: string;
   contentPath: string;
   content: string;
+}
+
+export interface StoredSourceIndex {
+  index: SourceContentIndex;
+  indexPath: string;
 }
 
 function json(value: unknown): string {
@@ -154,6 +167,7 @@ export class LibraryService {
     const { source, archiveArticle } = await this.index.transaction(async (index) => {
       const source = await this.storeSource(draft);
       const archiveArticle = await this.storeArchive(source, draft, index.articles);
+      await this.writeSourceIndex(source, draft.content);
       return {
         value: { source, archiveArticle },
         sources: [...index.sources, source],
@@ -168,6 +182,7 @@ export class LibraryService {
       sourceContentPath: this.absolute(source.content.path),
       articleManifestPath: this.absolute(path.posix.join(articleDirectory('archive', archiveArticle.id), 'manifest.json')),
       articleContentPath: this.absolute(archiveArticle.body.path),
+      sourceIndexPath: this.absolute(sourceStructureIndexPath(source.id)),
     };
   }
 
@@ -391,6 +406,37 @@ export class LibraryService {
   async rebuildIndex(): Promise<LibraryIndexStats> {
     await this.ensureLibrary();
     return this.index.rebuild();
+  }
+
+  private async writeSourceIndex(source: SourceRecord, content: string): Promise<StoredSourceIndex> {
+    const index = createSourceContentIndex(source, content);
+    const relativeIndexPath = sourceStructureIndexPath(source.id);
+    await writeLibraryFileAtomic(
+      this.libraryDir,
+      relativeIndexPath,
+      json(index),
+      { allowGitWorkingTree: this.allowGitWorkingTree },
+    );
+    verifySourceContentIndex(source, content, index);
+    return { index, indexPath: this.absolute(relativeIndexPath) };
+  }
+
+  async rebuildSourceIndex(sourceId: string): Promise<StoredSourceIndex> {
+    const stored = await this.loadSource(sourceId);
+    return this.writeSourceIndex(stored.source, stored.content);
+  }
+
+  async loadSourceIndex(sourceId: string): Promise<StoredSourceIndex> {
+    const stored = await this.loadSource(sourceId);
+    const indexPath = this.absolute(sourceStructureIndexPath(sourceId));
+    let index: SourceContentIndex;
+    try {
+      index = JSON.parse(await readFile(indexPath, 'utf8')) as SourceContentIndex;
+    } catch (error: unknown) {
+      throw new Error(`Could not read source content index for ${sourceId}: ${String(error)}`);
+    }
+    verifySourceContentIndex(stored.source, stored.content, index);
+    return { index, indexPath };
   }
 
   async loadSource(sourceId: string): Promise<StoredSource> {
