@@ -21,7 +21,7 @@ Call `reads_ingest` with one of:
 - `kind: "markdown"` and pasted Markdown
 - `kind: "file"` and a local `.txt`, `.md`, or `.markdown` path
 
-The tool creates both an immutable `Source` and a faithful `archive` article. Preserve the returned `sourceId`, `archiveArticleId`, and content paths.
+The tool creates both an immutable `Source` and a faithful `archive` article, plus a deterministic heading/paragraph index derived from the exact source Markdown. Preserve the returned `sourceId`, `archiveArticleId`, `sourceIndexPath`, and content paths.
 
 For archive-only requests, do not rewrite the body. Export the returned archive article directly with `reads_export`.
 

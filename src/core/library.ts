@@ -1,4 +1,4 @@
-import { access, link, mkdir, realpath, rename, rm, unlink, writeFile } from 'node:fs/promises';
+import { access, link, mkdir, open, realpath, rename, rm, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import type { ArticleMode, ArticleRecord, SourceRecord } from './domain.ts';
@@ -22,6 +22,10 @@ export function sourceDirectory(sourceId: string): string {
 
 export function sourceContentPath(sourceId: string): string {
   return path.posix.join(sourceDirectory(sourceId), 'content.md');
+}
+
+export function sourceStructureIndexPath(sourceId: string): string {
+  return path.posix.join('indexes', 'sources', sourceId, 'structure-v1.json');
 }
 
 export function articleDirectory(mode: ArticleMode, articleId: string): string {
@@ -158,6 +162,48 @@ export async function createImmutableRecordDirectory(
     await rm(temporary, { recursive: true, force: true });
   }
 
+  return canonicalTarget;
+}
+
+export async function writeLibraryFileAtomic(
+  libraryRoot: string,
+  relativePath: string,
+  contents: string | NodeJS.ArrayBufferView,
+  options: { allowGitWorkingTree?: boolean } = {},
+): Promise<string> {
+  await assertSafeLibraryRoot(libraryRoot, options);
+  const target = resolveLibraryPath(libraryRoot, relativePath);
+  const parent = path.dirname(target);
+  await mkdir(parent, { recursive: true });
+  const canonicalRoot = await realpath(path.resolve(libraryRoot));
+  const canonicalParent = await realpath(parent);
+  if (canonicalParent !== canonicalRoot && !canonicalParent.startsWith(`${canonicalRoot}${path.sep}`)) {
+    throw new Error(`Library path crosses a symlink outside its root: ${relativePath}`);
+  }
+  const canonicalTarget = path.join(canonicalParent, path.basename(target));
+  const temporary = path.join(canonicalParent, `.${path.basename(target)}.${randomUUID()}.tmp`);
+  let handle;
+  try {
+    handle = await open(temporary, 'wx');
+    await handle.writeFile(contents);
+    await handle.sync();
+    await handle.close();
+    handle = undefined;
+    await rename(temporary, canonicalTarget);
+    try {
+      const directoryHandle = await open(canonicalParent, 'r');
+      try {
+        await directoryHandle.sync();
+      } finally {
+        await directoryHandle.close();
+      }
+    } catch {
+      // Some platforms cannot fsync directories; the file itself is already synced and atomically renamed.
+    }
+  } finally {
+    await handle?.close().catch(() => undefined);
+    await rm(temporary, { force: true });
+  }
   return canonicalTarget;
 }
 

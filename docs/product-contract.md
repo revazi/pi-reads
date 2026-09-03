@@ -81,6 +81,8 @@ A source records:
 
 Raw HTML is evidence, not working prose. It must never be edited in place. Raw captures and copied article content are local library data and must not be committed to this repository.
 
+Each source may have a deterministic `markdown-blocks-v1` structure index derived from `content.md`. The index records the source content/text hashes, UTF-8 byte length, stable content-derived heading and paragraph IDs, exact byte ranges, per-range hashes, heading ancestry, character counts, and approximate token counts. It contains no generated timestamp, so identical source bytes and manifests produce identical index bytes. The derived index may be verified or rebuilt atomically without modifying the source manifest, source prose, or archive article.
+
 Local file paths may be retained in a local source manifest but must not be presented as public citations. URL citations use the source's canonical URL.
 
 ## Article contract
@@ -183,7 +185,10 @@ Configuration contains preferences, never credentials. Obsidian configuration ma
         manifest.json
         <artifact>
   indexes/
-    library.json           # derived and rebuildable
+    library.json           # derived and rebuildable library metadata
+    sources/
+      <source-id>/
+        structure-v1.json  # deterministic heading/paragraph ranges
 ```
 
 Physical mode directories make archive/generated path collisions impossible. The schema requires each article body path to match its mode directory.

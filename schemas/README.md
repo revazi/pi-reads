@@ -5,6 +5,7 @@ The JSON Schemas in `v1/` are the machine-readable form of the Pi Reads product 
 Canonical records:
 
 - `source.schema.json` — immutable captured input and provenance
+- `source-content-index.schema.json` — deterministic heading/paragraph locators derived from source Markdown
 - `citation.schema.json` — a generated article's reference to a source
 - `article.schema.json` — an archive, digest, or synthesis reading document
 - `export.schema.json` — a rendered artifact and destination attempt

@@ -1,6 +1,5 @@
-import { access, mkdir, open, readFile, readdir, realpath, rename, rm, stat } from 'node:fs/promises';
+import { access, mkdir, readFile, readdir, rm, stat } from 'node:fs/promises';
 import path from 'node:path';
-import { randomUUID } from 'node:crypto';
 import type { ArticleMode, ArticleRecord, SourceRecord } from './domain.ts';
 import {
   articleContentPath,
@@ -9,6 +8,7 @@ import {
   resolveLibraryPath,
   sourceContentPath,
   sourceDirectory,
+  writeLibraryFileAtomic,
 } from './library.ts';
 
 const ARTICLE_MODES: readonly ArticleMode[] = ['archive', 'digest', 'synthesis'];
@@ -172,43 +172,13 @@ async function hasDirtyMarker(libraryRoot: string): Promise<boolean> {
   }
 }
 
-async function atomicWrite(libraryRoot: string, relativePath: string, contents: string): Promise<void> {
-  const target = resolveLibraryPath(libraryRoot, relativePath);
-  const parent = path.dirname(target);
-  await mkdir(parent, { recursive: true });
-  const canonicalRoot = await realpath(path.resolve(libraryRoot));
-  const canonicalParent = await realpath(parent);
-  if (canonicalParent !== canonicalRoot && !canonicalParent.startsWith(`${canonicalRoot}${path.sep}`)) {
-    throw new Error(`Library index path crosses a symlink outside its root: ${relativePath}`);
-  }
-  const canonicalTarget = path.join(canonicalParent, path.basename(target));
-  const temporary = path.join(canonicalParent, `.${path.basename(target)}.${randomUUID()}.tmp`);
-  let handle;
-  try {
-    handle = await open(temporary, 'wx');
-    await handle.writeFile(contents, 'utf8');
-    await handle.sync();
-    await handle.close();
-    handle = undefined;
-    await rename(temporary, canonicalTarget);
-    try {
-      const directoryHandle = await open(canonicalParent, 'r');
-      try {
-        await directoryHandle.sync();
-      } finally {
-        await directoryHandle.close();
-      }
-    } catch {
-      // Some platforms cannot fsync directories; the file itself is already synced and atomically renamed.
-    }
-  } finally {
-    await handle?.close().catch(() => undefined);
-    await rm(temporary, { force: true });
-  }
-}
-
-async function markDirty(libraryRoot: string): Promise<void> {
-  await atomicWrite(libraryRoot, LIBRARY_INDEX_DIRTY_PATH, 'index update in progress\n');
+async function markDirty(libraryRoot: string, allowGitWorkingTree: boolean): Promise<void> {
+  await writeLibraryFileAtomic(
+    libraryRoot,
+    LIBRARY_INDEX_DIRTY_PATH,
+    'index update in progress\n',
+    { allowGitWorkingTree },
+  );
 }
 
 async function clearDirty(libraryRoot: string): Promise<void> {
@@ -310,7 +280,12 @@ export class LibraryIndexStore {
     if (!parseLibraryIndex(index)) {
       throw new Error('Could not rebuild library index: canonical manifests contain duplicate or invalid metadata');
     }
-    await atomicWrite(this.libraryRoot, LIBRARY_INDEX_PATH, `${JSON.stringify(index)}\n`);
+    await writeLibraryFileAtomic(
+      this.libraryRoot,
+      LIBRARY_INDEX_PATH,
+      `${JSON.stringify(index)}\n`,
+      { allowGitWorkingTree: this.allowGitWorkingTree },
+    );
     await clearDirty(this.libraryRoot);
     return index;
   }
@@ -344,7 +319,7 @@ export class LibraryIndexStore {
     await this.ensureRoot();
     return withIndexMutation(this.libraryRoot, async () => {
       const current = await this.loadOrRebuildLocked();
-      await markDirty(this.libraryRoot);
+      await markDirty(this.libraryRoot, this.allowGitWorkingTree);
       const result = await operation(current);
       const articles = [...result.articles].sort((left, right) =>
         right.createdAt.localeCompare(left.createdAt) || left.id.localeCompare(right.id));
@@ -357,7 +332,12 @@ export class LibraryIndexStore {
         articles,
       };
       if (!parseLibraryIndex(next)) throw new Error('Refusing to write an invalid library index');
-      await atomicWrite(this.libraryRoot, LIBRARY_INDEX_PATH, `${JSON.stringify(next)}\n`);
+      await writeLibraryFileAtomic(
+        this.libraryRoot,
+        LIBRARY_INDEX_PATH,
+        `${JSON.stringify(next)}\n`,
+        { allowGitWorkingTree: this.allowGitWorkingTree },
+      );
       await clearDirty(this.libraryRoot);
       return result.value;
     });

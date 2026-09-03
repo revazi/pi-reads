@@ -32,6 +32,7 @@ const REQUIRED_FILES = [
   'extensions/pi-reads/index.ts',
   'package.json',
   'schemas/v1/config.schema.json',
+  'schemas/v1/source-content-index.schema.json',
   'skills/pi-reads/SKILL.md',
 ] as const;
 
