@@ -24,10 +24,10 @@ For generated work:
 2. Choose coverage:
    - `complete` is required for `digest`. Read first-to-last locator, following `nextByte`, and collect every `completedLocators` entry.
    - `targeted` is for focused `synthesis`. Search/read only relevant sections and record only considered locators. The saved article carries a non-comprehensive warning.
-3. Write generated Markdown with nearby citation markers. Retrieval supplies deterministic citation ID/fragment suggestions; use them when they support the claim.
-4. Call `reads_save_article` with source IDs, citations, and coverage `{policy, sources:[{sourceId, sourceContentHash, consideredLocators}]}`.
+3. Write generated Markdown with nearby citation markers. Use retrieval's deterministic citation ID/fragment suggestions and copy quotes exactly from the immutable source range.
+4. Call `reads_save_article` with source IDs, citations, and coverage `{policy, sources:[{sourceId, sourceContentHash, consideredLocators}]}`. Review its bounded grounding summary, including missing citation locators and uncited generated sections, before export.
 
-Saving rejects incomplete complete coverage, targeted digests, stale hashes, unknown/duplicate locators, unsupported citations, and missing source evidence.
+Saving rejects incomplete coverage, targeted digests, stale hashes, invalid/duplicate locators, fabricated quotes, unsupported citations, and missing evidence. Diagnostics never rewrite or fact-check prose.
 
 ## Library retrieval
 

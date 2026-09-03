@@ -78,6 +78,8 @@ test('application services capture, generate, list, and export immutable article
     assert.equal(generated.article.generatedBy?.model, 'fixture-model');
     assert.equal(generated.article.sourceCoverage?.policy, 'complete');
     assert.equal(generated.article.sourceCoverage?.sources[0].missingLocatorCount, 0);
+    assert.equal(generated.article.citationDiagnostics?.verifiedQuoteCount, 1);
+    assert.equal(generated.article.citationDiagnostics?.sources[0]?.missingLocatorCount, 1);
 
     const markdownExport = await exports.prepare(generated.article.id, 'markdown');
     const exportedMarkdown = await readFile(markdownExport.artifactPath, 'utf8');

@@ -53,6 +53,42 @@ export interface Citation {
   note?: string;
 }
 
+export interface CitationGroundingSourceDiagnostics {
+  sourceId: string;
+  citationCount: number;
+  locatedCitationCount: number;
+  verifiedQuoteCount: number;
+  sectionCitationCounts: Array<{ locator: string; citationCount: number }>;
+  sectionCitationCountsTruncated: boolean;
+  missingLocatorCount: number;
+  missingLocatorCitationIds: string[];
+  missingLocatorCitationIdsTruncated: boolean;
+}
+
+export interface CitationGroundingDiagnostics {
+  algorithm: 'citation-grounding-v1';
+  citationCount: number;
+  locatedCitationCount: number;
+  verifiedQuoteCount: number;
+  sourceCount: number;
+  sources: CitationGroundingSourceDiagnostics[];
+  sourcesTruncated: boolean;
+  articleSectionCount: number;
+  citedArticleSectionCount: number;
+  uncitedArticleSectionCount: number;
+  articleSections: Array<{
+    id: string;
+    heading?: string;
+    headingTruncated?: boolean;
+    citationCount: number;
+    citationIds: string[];
+    citationIdsTruncated: boolean;
+  }>;
+  articleSectionsTruncated: boolean;
+  uncitedArticleSections: Array<{ id: string; heading?: string; headingTruncated?: boolean }>;
+  uncitedArticleSectionsTruncated: boolean;
+}
+
 export type SourceCoveragePolicy = 'complete' | 'targeted';
 
 export interface SourceCoverageSummary {
@@ -101,6 +137,7 @@ export interface ArticleRecord {
   };
   generatedBy?: GeneratedBy;
   sourceCoverage?: SourceCoverageSummary;
+  citationDiagnostics?: CitationGroundingDiagnostics;
   presentation?: {
     sourceFontStyle?: 'serif' | 'sans-serif';
     bodyFontSizeAdjustment?: -1;

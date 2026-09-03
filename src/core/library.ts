@@ -279,6 +279,60 @@ function assertGeneratedCoverage(article: ArticleRecord, sources: ReadonlyMap<st
   }
 }
 
+type CitationDiagnostics = NonNullable<ArticleRecord['citationDiagnostics']>;
+type CitationSourceDiagnostics = CitationDiagnostics['sources'][number];
+
+function assertCitationDiagnosticTotals(article: ArticleRecord, diagnostics: CitationDiagnostics): void {
+  const countsInvalid = diagnostics.citationCount !== article.citations.length ||
+    diagnostics.locatedCitationCount > diagnostics.citationCount ||
+    diagnostics.verifiedQuoteCount > diagnostics.citationCount;
+  if (diagnostics.algorithm !== 'citation-grounding-v1' || countsInvalid) {
+    throw new Error(`${article.mode} article citation diagnostic counts are inconsistent`);
+  }
+  const sectionCountsInvalid =
+    diagnostics.citedArticleSectionCount + diagnostics.uncitedArticleSectionCount !== diagnostics.articleSectionCount;
+  if (sectionCountsInvalid) {
+    throw new Error(`${article.mode} article section citation diagnostic counts are inconsistent`);
+  }
+}
+
+function assertCitationSourceDiagnostic(
+  mode: ArticleMode,
+  source: CitationSourceDiagnostics,
+  articleSourceIds: ReadonlySet<string>,
+): void {
+  const countsInvalid = source.locatedCitationCount + source.missingLocatorCount !== source.citationCount ||
+    source.verifiedQuoteCount > source.citationCount;
+  if (!articleSourceIds.has(source.sourceId) || countsInvalid) {
+    throw new Error(`${mode} article citation diagnostics are inconsistent for ${source.sourceId}`);
+  }
+}
+
+function assertCitationDiagnosticSources(article: ArticleRecord, diagnostics: CitationDiagnostics): void {
+  const sourceDiagnostics = new Map(diagnostics.sources.map((source) => [source.sourceId, source]));
+  const shapeInvalid = diagnostics.sourceCount !== article.sourceIds.length ||
+    sourceDiagnostics.size !== diagnostics.sources.length ||
+    diagnostics.sources.length !== Math.min(diagnostics.sourceCount, 20) ||
+    diagnostics.sourcesTruncated !== (diagnostics.sourceCount > 20);
+  if (shapeInvalid) throw new Error(`${article.mode} article citation source diagnostics are inconsistent`);
+
+  const articleSourceIds = new Set(article.sourceIds);
+  for (const source of diagnostics.sources) {
+    assertCitationSourceDiagnostic(article.mode, source, articleSourceIds);
+  }
+  const totalCitations = diagnostics.sources.reduce((total, source) => total + source.citationCount, 0);
+  if (!diagnostics.sourcesTruncated && totalCitations !== diagnostics.citationCount) {
+    throw new Error(`${article.mode} article source citation diagnostic counts are inconsistent`);
+  }
+}
+
+function assertCitationDiagnostics(article: ArticleRecord): void {
+  const diagnostics = article.citationDiagnostics;
+  if (!diagnostics) return;
+  assertCitationDiagnosticTotals(article, diagnostics);
+  assertCitationDiagnosticSources(article, diagnostics);
+}
+
 function assertGeneratedCitations(article: ArticleRecord): void {
   if (article.citations.length === 0) {
     throw new Error(`${article.mode} article requires at least one citation`);
@@ -296,6 +350,10 @@ function assertGeneratedCitations(article: ArticleRecord): void {
   }
 }
 
+function hasArchiveGenerationMetadata(article: ArticleRecord): boolean {
+  return Boolean(article.generatedBy || article.sourceCoverage || article.citationDiagnostics);
+}
+
 export function assertArticleInvariants(article: ArticleRecord, sources: ReadonlyMap<string, SourceRecord>): void {
   if (article.sourceIds.length === 0) {
     throw new Error('Article must reference at least one source');
@@ -311,7 +369,7 @@ export function assertArticleInvariants(article: ArticleRecord, sources: Readonl
   }
 
   if (article.mode === 'archive') {
-    if (article.sourceIds.length !== 1 || !article.archiveVerification || article.generatedBy || article.sourceCoverage) {
+    if (article.sourceIds.length !== 1 || !article.archiveVerification || hasArchiveGenerationMetadata(article)) {
       throw new Error('Archive article requires one source and archive verification without generation metadata');
     }
 
@@ -337,4 +395,5 @@ export function assertArticleInvariants(article: ArticleRecord, sources: Readonl
   }
   assertGeneratedCoverage(article, sources);
   assertGeneratedCitations(article);
+  assertCitationDiagnostics(article);
 }

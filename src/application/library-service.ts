@@ -9,6 +9,7 @@ import type {
   SourceRecord,
   StoredText,
 } from '../core/domain.ts';
+import { verifyCitationGrounding } from '../core/citation-grounding.ts';
 import {
   verifySourceCoverage,
   type SourceCoverageInput,
@@ -342,6 +343,15 @@ export class LibraryService {
       stored.source.id,
       (await this.ensureSourceIndex(stored)).index,
     ] as const)));
+    const citationDiagnostics = verifyCitationGrounding(
+      input.body,
+      input.citations,
+      new Map(storedSources.map((stored) => [stored.source.id, {
+        source: stored.source,
+        index: sourceIndexes.get(stored.source.id)!,
+        content: stored.content,
+      }] as const)),
+    );
     const sourceCoverage = verifySourceCoverage(input.mode, sourceIds, sourceIndexes, input.coverage);
     return this.index.transaction(async (index) => {
       const slug = input.slug
@@ -373,6 +383,7 @@ export class LibraryService {
         createdAt: this.now().toISOString(),
         generatedBy: input.generatedBy,
         sourceCoverage,
+        citationDiagnostics,
       };
       assertArticleInvariants(article, sources);
 
