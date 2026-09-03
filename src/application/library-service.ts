@@ -33,6 +33,14 @@ import {
   verifySourceContentIndex,
   type SourceContentIndex,
 } from '../core/source-index.ts';
+import {
+  readSourceRange as readIndexedSourceRange,
+  searchSourceText as searchIndexedSourceText,
+  sourceOutline as createSourceOutline,
+  type SourceOutline,
+  type SourceRangeRead,
+  type SourceSearchMatch,
+} from '../core/source-retrieval.ts';
 import { versionedSha256 } from '../core/text.ts';
 
 const ARTICLE_MODES: readonly ArticleMode[] = ['archive', 'digest', 'synthesis'];
@@ -426,17 +434,55 @@ export class LibraryService {
     return this.writeSourceIndex(stored.source, stored.content);
   }
 
+  private async readSourceIndex(stored: StoredSource): Promise<StoredSourceIndex> {
+    const indexPath = this.absolute(sourceStructureIndexPath(stored.source.id));
+    const index = JSON.parse(await readFile(indexPath, 'utf8')) as SourceContentIndex;
+    verifySourceContentIndex(stored.source, stored.content, index);
+    return { index, indexPath };
+  }
+
   async loadSourceIndex(sourceId: string): Promise<StoredSourceIndex> {
     const stored = await this.loadSource(sourceId);
-    const indexPath = this.absolute(sourceStructureIndexPath(sourceId));
-    let index: SourceContentIndex;
     try {
-      index = JSON.parse(await readFile(indexPath, 'utf8')) as SourceContentIndex;
+      return await this.readSourceIndex(stored);
     } catch (error: unknown) {
       throw new Error(`Could not read source content index for ${sourceId}: ${String(error)}`);
     }
-    verifySourceContentIndex(stored.source, stored.content, index);
-    return { index, indexPath };
+  }
+
+  private async ensureSourceIndex(stored: StoredSource): Promise<StoredSourceIndex> {
+    try {
+      return await this.readSourceIndex(stored);
+    } catch (error: unknown) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+      return this.writeSourceIndex(stored.source, stored.content);
+    }
+  }
+
+  async sourceOutline(sourceId: string): Promise<SourceOutline> {
+    const stored = await this.loadSource(sourceId);
+    const { index } = await this.ensureSourceIndex(stored);
+    return createSourceOutline(index);
+  }
+
+  async readSourceRange(
+    sourceId: string,
+    startLocator: string,
+    endLocator?: string,
+  ): Promise<SourceRangeRead> {
+    const stored = await this.loadSource(sourceId);
+    const { index } = await this.ensureSourceIndex(stored);
+    return readIndexedSourceRange(index, stored.content, startLocator, endLocator);
+  }
+
+  async searchSourceText(
+    sourceId: string,
+    query: string,
+    options: { limit?: number; contextCharacters?: number } = {},
+  ): Promise<SourceSearchMatch[]> {
+    const stored = await this.loadSource(sourceId);
+    const { index } = await this.ensureSourceIndex(stored);
+    return searchIndexedSourceText(index, stored.content, query, options);
   }
 
   async loadSource(sourceId: string): Promise<StoredSource> {

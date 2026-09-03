@@ -183,7 +183,8 @@ No model-authored prose enters this path.
 
 ```text
 one or more immutable Sources
-  → Pi reads source content
+  → Pi requests bounded outlines, exact locator ranges, or lexical excerpts
+  → delimited source data enters model context under an explicit byte budget
   → model authors a cited draft
   → application validates source IDs and citation IDs
   → immutable generated Article

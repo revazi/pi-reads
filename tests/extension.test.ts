@@ -227,6 +227,35 @@ test('Pi extension registers and executes capture, generation, export, and libra
       context,
     );
     assert.match(searched.content[0]?.text ?? '', /Extension digest/);
+    const outlined = await tools.get('reads_library')!.execute(
+      'outline-call',
+      { action: 'outline', id: sourceId, maxBytes: 1024 },
+      signal,
+      undefined,
+      context,
+    );
+    assert.match(outlined.content[0]?.text ?? '', /BEGIN PI_READS_SOURCE_DATA/u);
+    assert.equal(outlined.details?.sourceId, sourceId);
+    const paragraphLocator = (outlined.details?.locators as string[]).find((locator) => locator.startsWith('p_'));
+    assert.ok(paragraphLocator);
+    const sourceRead = await tools.get('reads_library')!.execute(
+      'source-read-call',
+      { action: 'read', id: sourceId, startLocator: paragraphLocator, maxBytes: 1024 },
+      signal,
+      undefined,
+      context,
+    );
+    assert.match(sourceRead.content[0]?.text ?? '', /Evidence\./u);
+    assert.match(sourceRead.content[0]?.text ?? '', new RegExp(paragraphLocator, 'u'));
+    const sourceSearch = await tools.get('reads_library')!.execute(
+      'source-search-call',
+      { action: 'search', id: sourceId, query: 'Evidence', maxBytes: 1024 },
+      signal,
+      undefined,
+      context,
+    );
+    assert.match(sourceSearch.content[0]?.text ?? '', /Evidence\./u);
+    assert.equal(sourceSearch.details?.sourceId, sourceId);
 
     const readsSelections = ['digest — shorter cited AI summary of the source', 'obsidian'];
     const displayedModeChoices: string[] = [];

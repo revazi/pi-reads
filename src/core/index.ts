@@ -7,6 +7,7 @@ export * from './library-index.ts';
 export * from './network.ts';
 export * from './slugs.ts';
 export * from './source-index.ts';
+export * from './source-retrieval.ts';
 export * from './text.ts';
 export * from './extraction/cleanup.ts';
 export * from './extraction/fonts.ts';

@@ -84,7 +84,7 @@ For iCloud Mail settings and CI environment overrides, see [EPUB and Kindle deli
 | `/reads-list` | Browse saved articles |
 | `/reads-install-browser` | Install Chromium for PDF export |
 
-Pi Reads also provides the `reads_ingest`, `reads_save_article`, `reads_export`, and `reads_library` tools for agent-driven workflows.
+Pi Reads also provides the `reads_ingest`, `reads_save_article`, `reads_export`, and `reads_library` tools for agent-driven workflows. `reads_library` supports byte-bounded source outlines, exact heading/paragraph range reads, and lexical excerpts so the model can retrieve only the evidence it needs.
 
 ## Privacy and safety
 
