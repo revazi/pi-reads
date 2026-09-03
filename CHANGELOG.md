@@ -18,6 +18,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - Persistent tool contracts, skill guidance, generated workflow prompts, and common success results now avoid duplicated prose while retaining archive, source-data, citation, overwrite, and Kindle confirmation rules; source retrieval suggests compact deterministic citation IDs.
 - Generated saves now verify quoted text against immutable source ranges, resolve paragraph/heading/fragment locators through source indexes, fail closed on fabricated evidence, and persist bounded per-source/per-section citation grounding diagnostics including uncited article sections.
 - Capture now reuses exact canonical/content duplicates, reports changed canonical content without persistence, and creates linked immutable source/archive records only for explicitly approved recapture.
+- Private offline full-text search now covers titles, authors, URLs, archive/generated prose, and forward-compatible tag/status metadata with BM25-style ranking, filters, bounded exact locator snippets, explicit rebuild, and deterministic corruption recovery.
 
 ### Security
 

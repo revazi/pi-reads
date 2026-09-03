@@ -506,6 +506,11 @@ export class LibraryService {
     return [...(await this.index.read()).articles];
   }
 
+  async listSources(): Promise<SourceRecord[]> {
+    await this.ensureLibrary();
+    return [...(await this.index.read()).sources];
+  }
+
   async searchArticles(query: string, limit = 50): Promise<ArticleRecord[]> {
     await this.ensureLibrary();
     const needle = query.trim().toLowerCase();

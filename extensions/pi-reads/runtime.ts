@@ -6,6 +6,7 @@ import type { ExportService } from '../../src/application/export-service.ts';
 import type { KindleService } from '../../src/application/kindle-service.ts';
 import type { LibraryService } from '../../src/application/library-service.ts';
 import type { ObsidianService } from '../../src/application/obsidian-service.ts';
+import type { SearchService } from '../../src/application/search-service.ts';
 
 type ResolvedConfiguration = Awaited<ReturnType<typeof resolveConfiguration>>;
 
@@ -24,6 +25,7 @@ export interface ReadsServices {
   getKindle(): Promise<KindleService>;
   getKindleCredentialStore(): Promise<SystemKindleCredentialStore>;
   getObsidian(): Promise<ObsidianService | undefined>;
+  getSearch(): Promise<SearchService>;
 }
 
 export async function openReadsServices(cwd: string): Promise<ReadsServices> {
@@ -35,6 +37,7 @@ export async function openReadsServices(cwd: string): Promise<ReadsServices> {
   let kindlePromise: Promise<KindleService> | undefined;
   let credentialStorePromise: Promise<SystemKindleCredentialStore> | undefined;
   let obsidianPromise: Promise<ObsidianService | undefined> | undefined;
+  let searchPromise: Promise<SearchService> | undefined;
 
   const getExports = (): Promise<ExportService> => {
     exportsPromise ??= import('../../src/application/export-service.ts')
@@ -69,6 +72,12 @@ export async function openReadsServices(cwd: string): Promise<ReadsServices> {
     })).catch((error: unknown) => { throw capabilityError('Kindle delivery support', error); });
     return kindlePromise;
   };
+  const getSearch = (): Promise<SearchService> => {
+    searchPromise ??= import('../../src/application/search-service.ts')
+      .then(({ SearchService }) => new SearchService({ library }))
+      .catch((error: unknown) => { throw capabilityError('Full-text search support', error); });
+    return searchPromise;
+  };
   const getObsidian = (): Promise<ObsidianService | undefined> => {
     if (!configuration.obsidian) return Promise.resolve(undefined);
     obsidianPromise ??= Promise.all([
@@ -90,5 +99,6 @@ export async function openReadsServices(cwd: string): Promise<ReadsServices> {
     getKindle,
     getKindleCredentialStore,
     getObsidian,
+    getSearch,
   };
 }

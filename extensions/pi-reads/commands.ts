@@ -11,6 +11,7 @@ import {
   withReadsMutationQueue as withFileMutationQueue,
 } from './operations.ts';
 import { executeReadsConfiguration } from './configuration.ts';
+import { executeReadsLibrary } from './library-handlers.ts';
 import { openReadsServices } from './runtime.ts';
 
 type InputKind = 'url' | 'text' | 'markdown' | 'file';
@@ -229,6 +230,29 @@ export function registerReadsCommands(pi: ExtensionAPI): void {
     handler: async (args, ctx) => {
       const services = await openReadsServices(ctx.cwd);
       await executeReadsConfiguration(args, services, ctx);
+    },
+  });
+
+  pi.registerCommand('reads-search', {
+    description: 'Search local source and article text without a model or network service',
+    handler: async (args, ctx) => {
+      const query = args.trim();
+      if (!query) {
+        ctx.ui.notify('Usage: /reads-search <query>', 'error');
+        return;
+      }
+      const services = await openReadsServices(ctx.cwd);
+      const result = await executeReadsLibrary({ action: 'full-text', query }, services);
+      ctx.ui.notify(result.content[0]?.text ?? 'No search results.', 'info');
+    },
+  });
+
+  pi.registerCommand('reads-rebuild-search', {
+    description: 'Rebuild the derived local full-text search index',
+    handler: async (_args, ctx) => {
+      const services = await openReadsServices(ctx.cwd);
+      const result = await executeReadsLibrary({ action: 'rebuild-search' }, services);
+      ctx.ui.notify(result.content[0]?.text ?? 'Search index rebuilt.', 'info');
     },
   });
 

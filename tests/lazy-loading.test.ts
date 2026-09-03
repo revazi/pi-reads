@@ -151,7 +151,7 @@ process.stdout.write(JSON.stringify({
       optionalError: string;
     };
     assert.equal(result.toolCount, 4);
-    assert.equal(result.commandCount, 4);
+    assert.equal(result.commandCount, 6);
     assert.equal(result.listed, 1);
     assert.match(result.sourceId, /^src_/u);
     assert.match(result.optionalError, /Local export support could not be loaded\. Reinstall or update Pi Reads/u);

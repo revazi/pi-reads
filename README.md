@@ -13,7 +13,7 @@ Pi Reads turns web pages, pasted text, Markdown, and local files into a private 
 - **Faithful archive** — captures the source without AI rewriting, reuses exact duplicates, and links explicitly recaptured versions.
 - **Digest** — creates a shorter, cited version.
 - **Synthesis** — creates a new, cited article from source ideas.
-- **Local library** — stores sources, articles, provenance, and exports under `~/Documents/pi-reads` by default.
+- **Local library** — stores sources, articles, provenance, and exports under `~/Documents/pi-reads` by default, with offline lexical search.
 - **Reading destinations** — exports to local files, Obsidian, and Kindle.
 - **Safe delivery** — asks before overwriting Obsidian files or sending Kindle email.
 
@@ -51,11 +51,14 @@ For the first PDF export, install Chromium once:
 /reads-install-browser
 ```
 
-Browse saved articles with:
+Browse or privately search saved articles with:
 
 ```text
 /reads-list
+/reads-search <query>
 ```
+
+Search uses a rebuildable local BM25-style lexical index—no model, embeddings, or remote search service. Run `/reads-rebuild-search` for an explicit rebuild; missing or corrupt indexes recover automatically.
 
 ## Obsidian
 
@@ -84,6 +87,8 @@ For iCloud Mail settings and CI environment overrides, see [EPUB and Kindle deli
 | `/reads` | Capture an article and choose a mode and destination |
 | `/reads-config` | Configure the library, Obsidian, or Kindle |
 | `/reads-list` | Browse saved articles |
+| `/reads-search <query>` | Search local metadata and archive/generated prose |
+| `/reads-rebuild-search` | Rebuild the derived local search index |
 | `/reads-install-browser` | Install Chromium for PDF export |
 
 Pi Reads also provides the `reads_ingest`, `reads_save_article`, `reads_export`, and `reads_library` tools for agent-driven workflows. `reads_ingest` reports canonical-URL changes without writing; `recapture: true` requires explicit approval and creates linked immutable versions. `reads_library` supports byte-bounded source outlines, exact heading/paragraph range reads, and lexical excerpts so the model can retrieve only the evidence it needs.
