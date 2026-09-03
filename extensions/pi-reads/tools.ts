@@ -87,7 +87,7 @@ export function registerReadsTools(pi: ExtensionAPI): void {
   pi.registerTool({
     name: 'reads_save_article',
     label: 'Reads Save Article',
-    description: 'Persist a generated digest or synthesis with citations and verified complete/targeted source coverage; never stores archive prose.',
+    description: 'Persist a generated digest or synthesis after exact quote, source-locator, citation, and complete/targeted coverage checks; never stores archive prose.',
     promptSnippet: 'Save a cited generated article',
     promptGuidelines: [
       'reads_save_article requires nearby [^cite_id] markers backed by captured sources; digests require complete coverage and targeted coverage is synthesis-only.',
@@ -138,6 +138,7 @@ export function registerReadsTools(pi: ExtensionAPI): void {
             type: 'text',
             text: [
               `Saved ${result.article.id} (${result.article.mode}, ${result.article.sourceCoverage!.policy}).`,
+              `Grounding: ${result.article.citationDiagnostics!.locatedCitationCount}/${result.article.citationDiagnostics!.citationCount} located; ${result.article.citationDiagnostics!.uncitedArticleSectionCount}/${result.article.citationDiagnostics!.articleSectionCount} article sections uncited.`,
               ...(result.article.sourceCoverage?.warning ? [`Warning: ${result.article.sourceCoverage.warning}`] : []),
             ].join('\n'),
           },
@@ -150,6 +151,7 @@ export function registerReadsTools(pi: ExtensionAPI): void {
           contentPath: result.contentPath,
           manifestPath: result.manifestPath,
           sourceCoverage: result.article.sourceCoverage,
+          citationDiagnostics: result.article.citationDiagnostics,
         },
       };
     },

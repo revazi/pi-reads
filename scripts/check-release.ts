@@ -31,6 +31,7 @@ const REQUIRED_FILES = [
   'examples/pi-reads.example.json',
   'extensions/pi-reads/index.ts',
   'package.json',
+  'schemas/v1/citation-diagnostics.schema.json',
   'schemas/v1/config.schema.json',
   'schemas/v1/source-content-index.schema.json',
   'skills/pi-reads/SKILL.md',

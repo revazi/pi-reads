@@ -187,8 +187,8 @@ one or more immutable Sources
   → delimited source data enters model context under an explicit byte budget
   → continuation cursors traverse long outlines/ranges without unbounded results
   → model authors a cited draft and declares complete or targeted coverage evidence
-  → application verifies source hashes and considered locators, then validates source/citation IDs
-  → immutable generated Article
+  → application verifies source hashes, coverage/paragraph locators, markers, and exact quoted source text
+  → immutable generated Article with bounded coverage and citation-grounding diagnostics
   → render
   → Export
 ```

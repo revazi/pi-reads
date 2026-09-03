@@ -205,6 +205,9 @@
         }
       ]
     },
+    "citationDiagnostics": {
+      "$ref": "citation-diagnostics.schema.json"
+    },
     "presentation": {
       "type": "object",
       "additionalProperties": false,
@@ -259,6 +262,11 @@
           {
             "not": {
               "required": ["sourceCoverage"]
+            }
+          },
+          {
+            "not": {
+              "required": ["citationDiagnostics"]
             }
           }
         ]

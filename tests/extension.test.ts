@@ -131,6 +131,8 @@ test('Pi extension registers and executes capture, generation, export, and libra
     assert.match(generatedArticleId, /^art_/);
     assert.match(generated.content[0]?.text ?? '', /\(digest, complete\)/u);
     assert.equal((generated.details?.sourceCoverage as { policy: string }).policy, 'complete');
+    assert.equal((generated.details?.citationDiagnostics as { verifiedQuoteCount: number }).verifiedQuoteCount, 1);
+    assert.match(generated.content[0]?.text ?? '', /Grounding: 0\/1 located; 0\/1 article sections uncited/u);
     assert.ok(Buffer.byteLength(generated.content[0]?.text ?? '') < 200);
     assert.doesNotMatch(generated.content[0]?.text ?? '', /Article content:|Manifest:/u);
 
