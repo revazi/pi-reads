@@ -9,6 +9,11 @@ import type {
   SourceRecord,
   StoredText,
 } from '../core/domain.ts';
+import {
+  detectCaptureMatch,
+  sourceLineage,
+  type CaptureMatch,
+} from '../core/capture-deduplication.ts';
 import { verifyCitationGrounding } from '../core/citation-grounding.ts';
 import {
   verifySourceCoverage,
@@ -59,7 +64,15 @@ export interface LibraryServiceOptions {
   createId?: (prefix: RecordIdPrefix) => string;
 }
 
+export type CaptureStatus = 'captured' | 'exact-duplicate' | 'changed-content' | 'recaptured';
+
+export interface CaptureOptions {
+  recapture?: boolean;
+}
+
 export interface CaptureResult {
+  status: CaptureStatus;
+  persisted: boolean;
   source: SourceRecord;
   archiveArticle: ArticleRecord;
   sourceManifestPath: string;
@@ -67,6 +80,14 @@ export interface CaptureResult {
   articleManifestPath: string;
   articleContentPath: string;
   sourceIndexPath: string;
+  match?: {
+    status: CaptureMatch['status'];
+    matchedBy: CaptureMatch['matchedBy'];
+    existingSourceId: string;
+    existingArchiveArticleId: string;
+    incomingContentHash: SourceRecord['content']['contentHash'];
+    canonicalUrl?: string;
+  };
 }
 
 export interface SaveGeneratedArticleInput {
@@ -122,6 +143,23 @@ function rawCaptureName(mediaType: string | undefined): string {
   }
 }
 
+function withSourceLineage(
+  source: SourceRecord,
+  lineage: SourceRecord['lineage'],
+): SourceRecord {
+  return lineage ? { ...source, lineage } : source;
+}
+
+function assertSourceLineage(source: SourceRecord): void {
+  const lineage = source.lineage;
+  if (!lineage) return;
+  assertRecordId(lineage.predecessorSourceId, 'src');
+  assertRecordId(lineage.rootSourceId, 'src');
+  if (lineage.predecessorSourceId === source.id || lineage.rootSourceId === source.id) {
+    throw new Error(`Source ${source.id} recapture lineage cannot reference itself`);
+  }
+}
+
 function assertStoredTextIntegrity(content: string, stored: StoredText, label: string): void {
   const analysis = analyzeMarkdown(content);
   if (analysis.contentHash !== stored.contentHash) {
@@ -170,26 +208,17 @@ export class LibraryService {
     return resolveLibraryPath(this.libraryDir, relativePath);
   }
 
-  async capture(
-    input: SourceInput,
-    dependencies: IngestSourceDependencies = {},
-    signal?: AbortSignal,
-  ): Promise<CaptureResult> {
-    await this.ensureLibrary();
-    const draft = await ingestSource(input, dependencies, signal);
-    signal?.throwIfAborted();
-    const { source, archiveArticle } = await this.index.transaction(async (index) => {
-      const source = await this.storeSource(draft);
-      const archiveArticle = await this.storeArchive(source, draft, index.articles);
-      await this.writeSourceIndex(source, draft.content);
-      return {
-        value: { source, archiveArticle },
-        sources: [...index.sources, source],
-        articles: [...index.articles, archiveArticle],
-      };
-    });
-
+  private captureResult(
+    status: CaptureStatus,
+    persisted: boolean,
+    source: SourceRecord,
+    archiveArticle: ArticleRecord,
+    draft: IngestedSourceDraft,
+    match?: CaptureMatch,
+  ): CaptureResult {
     return {
+      status,
+      persisted,
       source,
       archiveArticle,
       sourceManifestPath: this.absolute(path.posix.join(sourceDirectory(source.id), 'manifest.json')),
@@ -197,10 +226,68 @@ export class LibraryService {
       articleManifestPath: this.absolute(path.posix.join(articleDirectory('archive', archiveArticle.id), 'manifest.json')),
       articleContentPath: this.absolute(archiveArticle.body.path),
       sourceIndexPath: this.absolute(sourceStructureIndexPath(source.id)),
+      ...(match ? {
+        match: {
+          status: match.status,
+          matchedBy: match.matchedBy,
+          existingSourceId: match.source.id,
+          existingArchiveArticleId: archiveArticle.supersedesArticleId ?? archiveArticle.id,
+          incomingContentHash: draft.contentHash,
+          ...(draft.canonicalUrl ? { canonicalUrl: draft.canonicalUrl } : {}),
+        },
+      } : {}),
     };
   }
 
-  private async storeSource(draft: IngestedSourceDraft): Promise<SourceRecord> {
+  async capture(
+    input: SourceInput,
+    dependencies: IngestSourceDependencies = {},
+    signal?: AbortSignal,
+    options: CaptureOptions = {},
+  ): Promise<CaptureResult> {
+    await this.ensureLibrary();
+    const draft = await ingestSource(input, dependencies, signal);
+    signal?.throwIfAborted();
+    return this.index.transaction(async (index) => {
+      let match = detectCaptureMatch(draft, index.sources);
+      let predecessorArchive: ArticleRecord | undefined;
+      if (match) {
+        const matchedSourceId = match.source.id;
+        const indexedArchive = index.articles.find(
+          (article) => article.mode === 'archive' && article.sourceIds[0] === matchedSourceId,
+        );
+        if (!indexedArchive) throw new Error(`Matched source ${match.source.id} has no faithful archive article`);
+        const [storedSource, storedArchive] = await Promise.all([
+          this.loadSource(match.source.id),
+          this.loadArticle(indexedArchive.id),
+        ]);
+        assertArticleInvariants(storedArchive.article, new Map([[storedSource.source.id, storedSource.source]]));
+        match = { ...match, source: storedSource.source };
+        predecessorArchive = storedArchive.article;
+      }
+      if (match && !options.recapture) {
+        return {
+          value: this.captureResult(match.status, false, match.source, predecessorArchive!, draft, match),
+          sources: index.sources,
+          articles: index.articles,
+        };
+      }
+
+      const source = await this.storeSource(draft, match ? sourceLineage(match) : undefined);
+      const archiveArticle = await this.storeArchive(source, draft, index.articles, predecessorArchive);
+      await this.writeSourceIndex(source, draft.content);
+      return {
+        value: this.captureResult(match ? 'recaptured' : 'captured', true, source, archiveArticle, draft, match),
+        sources: [...index.sources, source],
+        articles: [...index.articles, archiveArticle],
+      };
+    });
+  }
+
+  private async storeSource(
+    draft: IngestedSourceDraft,
+    lineage?: NonNullable<SourceRecord['lineage']>,
+  ): Promise<SourceRecord> {
     const id = this.createId('src');
     assertRecordId(id, 'src');
     const directory = sourceDirectory(id);
@@ -209,7 +296,7 @@ export class LibraryService {
     const rawName = draft.rawContent === undefined ? undefined : rawCaptureName(draft.rawMediaType);
     const rawPath = rawName ? path.posix.join(directory, 'raw', rawName) : undefined;
 
-    const source: SourceRecord = {
+    const source = withSourceLineage({
       schemaVersion: 1,
       id,
       kind: draft.kind,
@@ -240,7 +327,8 @@ export class LibraryService {
           }
         : {}),
       capture: draft.capture,
-    };
+    }, lineage);
+    assertSourceLineage(source);
 
     await createImmutableRecordDirectory(
       this.libraryDir,
@@ -262,6 +350,7 @@ export class LibraryService {
     source: SourceRecord,
     draft: IngestedSourceDraft,
     existingArticles: readonly ArticleRecord[],
+    predecessor?: ArticleRecord,
   ): Promise<ArticleRecord> {
     const id = this.createId('art');
     assertRecordId(id, 'art');
@@ -285,6 +374,7 @@ export class LibraryService {
       },
       citations: [],
       createdAt: this.now().toISOString(),
+      ...(predecessor ? { supersedesArticleId: predecessor.id } : {}),
       archiveVerification: {
         sourceId: source.id,
         sourceTextHash: source.content.textHash,
@@ -520,6 +610,7 @@ export class LibraryService {
     if (source.content.path !== sourceContentPath(sourceId)) {
       throw new Error(`Source content path mismatch for ${sourceId}`);
     }
+    assertSourceLineage(source);
     const contentPath = this.absolute(source.content.path);
     const content = await readFile(contentPath, 'utf8');
     assertStoredTextIntegrity(content, source.content, `Source ${sourceId}`);

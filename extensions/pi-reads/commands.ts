@@ -2,6 +2,7 @@ import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 import type { ExtensionAPI, ExtensionCommandContext } from '@earendil-works/pi-coding-agent';
+import type { CaptureResult } from '../../src/application/library-service.ts';
 import {
   deliverKindleWithConfirmation,
   openObsidianNote,
@@ -15,6 +16,26 @@ import { openReadsServices } from './runtime.ts';
 type InputKind = 'url' | 'text' | 'markdown' | 'file';
 type RequestedMode = 'archive' | 'digest' | 'synthesis';
 type RequestedFormat = 'markdown' | 'html' | 'pdf' | 'epub' | 'obsidian' | 'kindle-epub' | 'kindle-pdf';
+
+function assertCaptureReadyForExport(capture: CaptureResult): void {
+  if (capture.status !== 'changed-content') return;
+  throw new Error(
+    `Changed content detected for ${capture.match!.canonicalUrl}; no records were created. ` +
+    'Use reads_ingest with recapture true only after explicitly approving a new immutable version.',
+  );
+}
+
+function archiveCaptureReport(capture: CaptureResult): string[] {
+  return capture.status === 'exact-duplicate'
+    ? [
+        `Exact duplicate; reused source ${capture.source.id}.`,
+        `Reused faithful archive ${capture.archiveArticle.id}.`,
+      ]
+    : [
+        `Captured source ${capture.source.id}.`,
+        `Created faithful archive ${capture.archiveArticle.id}.`,
+      ];
+}
 
 const MODE_CHOICES: ReadonlyArray<{ mode: RequestedMode; label: string }> = [
   { mode: 'archive', label: 'archive — faithful source capture; no AI rewriting' },
@@ -74,6 +95,7 @@ async function executeArchiveWorkflow(
     const capture = await withFileMutationQueue(services.libraryDir, () =>
       services.library.capture(sourceInput(selection.kind, selection.value, undefined, ctx.cwd), {}, ctx.signal),
     );
+    assertCaptureReadyForExport(capture);
     let artifactPath: string;
     const notes: string[] = [];
     const format = selection.format;
@@ -89,7 +111,7 @@ async function executeArchiveWorkflow(
       const delivered = await withFileMutationQueue(services.obsidianConfig.vaultPath, () =>
         obsidian.deliver(plan, overwrite),
       );
-      artifactPath = delivered.artifactPath;
+      artifactPath = delivered.notePath;
       if (services.obsidianConfig.openAfterExport) {
         const warning = await openObsidianNote(pi, delivered.openUri, ctx.signal);
         if (warning) notes.push(`Obsidian open warning: ${warning}`);
@@ -118,8 +140,7 @@ async function executeArchiveWorkflow(
     }
 
     ctx.ui.notify([
-      `Captured source ${capture.source.id}.`,
-      `Created faithful archive ${capture.archiveArticle.id}.`,
+      ...archiveCaptureReport(capture),
       `Artifact: ${artifactPath}`,
       ...notes,
     ].join('\n'), 'info');

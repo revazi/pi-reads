@@ -17,6 +17,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - Generated articles now persist verified `complete` or `targeted` source-coverage metadata. Complete digests require every indexed locator; targeted synthesis carries bounded missing-section diagnostics and a visible non-comprehensive warning. Outline and read continuation cursors support long sources without unbounded results.
 - Persistent tool contracts, skill guidance, generated workflow prompts, and common success results now avoid duplicated prose while retaining archive, source-data, citation, overwrite, and Kindle confirmation rules; source retrieval suggests compact deterministic citation IDs.
 - Generated saves now verify quoted text against immutable source ranges, resolve paragraph/heading/fragment locators through source indexes, fail closed on fabricated evidence, and persist bounded per-source/per-section citation grounding diagnostics including uncited article sections.
+- Capture now reuses exact canonical/content duplicates, reports changed canonical content without persistence, and creates linked immutable source/archive records only for explicitly approved recapture.
 
 ### Security
 

@@ -16,7 +16,7 @@ compatibility: Node.js 24+; PDF needs Playwright Chromium; Kindle send needs SMT
 
 ## Capture and generation
 
-Call `reads_ingest` with `kind` `url`, `text`, `markdown`, or `file` and the matching URL, content, or local `.txt`/`.md` path. It returns immutable source/archive IDs; archive-only requests can export the archive immediately.
+Call `reads_ingest` with `kind` `url`, `text`, `markdown`, or `file` and matching input. Exact duplicates reuse IDs. Changed canonical content creates nothing: obtain explicit approval before retrying with `recapture: true`, which creates linked immutable source/archive versions.
 
 For generated work:
 

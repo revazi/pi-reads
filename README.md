@@ -10,7 +10,7 @@ Pi Reads turns web pages, pasted text, Markdown, and local files into a private 
 
 ## What it does
 
-- **Faithful archive** — captures the source without AI rewriting.
+- **Faithful archive** — captures the source without AI rewriting, reuses exact duplicates, and links explicitly recaptured versions.
 - **Digest** — creates a shorter, cited version.
 - **Synthesis** — creates a new, cited article from source ideas.
 - **Local library** — stores sources, articles, provenance, and exports under `~/Documents/pi-reads` by default.
@@ -86,7 +86,7 @@ For iCloud Mail settings and CI environment overrides, see [EPUB and Kindle deli
 | `/reads-list` | Browse saved articles |
 | `/reads-install-browser` | Install Chromium for PDF export |
 
-Pi Reads also provides the `reads_ingest`, `reads_save_article`, `reads_export`, and `reads_library` tools for agent-driven workflows. `reads_library` supports byte-bounded source outlines, exact heading/paragraph range reads, and lexical excerpts so the model can retrieve only the evidence it needs.
+Pi Reads also provides the `reads_ingest`, `reads_save_article`, `reads_export`, and `reads_library` tools for agent-driven workflows. `reads_ingest` reports canonical-URL changes without writing; `recapture: true` requires explicit approval and creates linked immutable versions. `reads_library` supports byte-bounded source outlines, exact heading/paragraph range reads, and lexical excerpts so the model can retrieve only the evidence it needs.
 
 ## Privacy and safety
 

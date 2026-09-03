@@ -92,11 +92,24 @@ test('Pi extension registers and executes capture, generation, export, and libra
     );
     const sourceId = String(capture.details?.sourceId);
     const archiveArticleId = String(capture.details?.archiveArticleId);
+    assert.equal(capture.details?.status, 'captured');
     assert.match(sourceId, /^src_/);
     assert.match(archiveArticleId, /^art_/);
     assert.match(String(capture.details?.sourceContentPath), new RegExp(sourceId));
     assert.ok(Buffer.byteLength(capture.content[0]?.text ?? '') < 200);
     assert.doesNotMatch(capture.content[0]?.text ?? '', /Source content:|Archive content:|structure index/u);
+    const duplicate = await tools.get('reads_ingest')!.execute(
+      'duplicate-call',
+      { kind: 'markdown', value: '# Source\n\nEvidence.', label: 'Extension fixture' },
+      signal,
+      undefined,
+      context,
+    );
+    assert.equal(duplicate.details?.status, 'exact-duplicate');
+    assert.equal(duplicate.details?.persisted, false);
+    assert.equal(duplicate.details?.sourceId, sourceId);
+    assert.match(duplicate.content[0]?.text ?? '', /Exact duplicate; reused/u);
+
     const sourceIndex = JSON.parse(await readFile(String(capture.details?.sourceIndexPath), 'utf8')) as {
       sourceContentHash: string;
       headings: Array<{ id: string }>;

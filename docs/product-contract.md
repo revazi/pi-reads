@@ -44,7 +44,7 @@ Identifiers are opaque and prefixed by record type:
 
 Slugs are presentation values and are not identifiers. Duplicate slugs are allowed across record IDs and must be disambiguated at export time without overwriting an existing artifact.
 
-Completed source, article, and export records are immutable. A correction or regeneration creates a new ID. Articles may point to an earlier revision with `supersedesArticleId`.
+Completed source, article, and export records are immutable. A correction or regeneration creates a new ID. Recaptured sources record predecessor/root lineage, and their archive articles point to the prior archive with `supersedesArticleId`; successors are derived by reversing those immutable edges.
 
 Writers must use create-only, atomic writes:
 
@@ -80,6 +80,8 @@ A source records:
 - optional raw capture and assets.
 
 Raw HTML is evidence, not working prose. It must never be edited in place. Raw captures and copied article content are local library data and must not be committed to this repository.
+
+Capture matching is deterministic. For URL input, cleaned canonical-URL matches take precedence: equal content hashes reuse the newest matching source/archive, while changed content is reported without persistence. Without a canonical match, equal content hashes also reuse the newest exact record. `recapture: true` is accepted only as an explicit user decision; it creates new source/archive IDs with `content-changed` or `explicit-duplicate` lineage and never edits predecessor bytes.
 
 Each source may have a deterministic `markdown-blocks-v1` structure index derived from `content.md`. The index records the source content/text hashes, UTF-8 byte length, stable content-derived heading and paragraph IDs, exact byte ranges, per-range hashes, heading ancestry, character counts, and approximate token counts. It contains no generated timestamp, so identical source bytes and manifests produce identical index bytes. The derived index may be verified or rebuilt atomically without modifying the source manifest, source prose, or archive article.
 
