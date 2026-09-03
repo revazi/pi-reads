@@ -83,6 +83,8 @@ Raw HTML is evidence, not working prose. It must never be edited in place. Raw c
 
 Each source may have a deterministic `markdown-blocks-v1` structure index derived from `content.md`. The index records the source content/text hashes, UTF-8 byte length, stable content-derived heading and paragraph IDs, exact byte ranges, per-range hashes, heading ancestry, character counts, and approximate token counts. It contains no generated timestamp, so identical source bytes and manifests produce identical index bytes. The derived index may be verified or rebuilt atomically without modifying the source manifest, source prose, or archive article.
 
+`reads_library` can expose that index as a bounded outline, read an inclusive heading/paragraph locator range, or search a single source lexically. Retrieval defaults to an 8 KiB result budget and accepts explicit 1–32 KiB budgets. Returned excerpts are exact source substrings, include the source ID and stable locators, and are enclosed in `PI_READS_SOURCE_DATA` records marked as untrusted data rather than instructions. Budget exhaustion omits whole records or clips an exact UTF-8-safe prefix and reports that fact.
+
 Local file paths may be retained in a local source manifest but must not be presented as public citations. URL citations use the source's canonical URL.
 
 ## Article contract

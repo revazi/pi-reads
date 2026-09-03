@@ -13,6 +13,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - Library listing, metadata search, and slug allocation now use an atomic derived index that detects interrupted or stale updates and can rebuild solely from immutable source/article manifests.
 - Pi export routing now delegates to focused local, Obsidian, and Kindle handlers, while destination configuration uses focused validators and separate TUI collection, normalization, and persistence steps.
 - Captured sources now receive deterministic, versioned heading and paragraph indexes with stable IDs, exact UTF-8 byte ranges, hashes, hierarchy, and bounded character/token estimates; existing sources can rebuild indexes without rewriting archive prose.
+- `reads_library` now supports byte-bounded source outlines, inclusive heading/paragraph locator reads, and exact lexical excerpts enclosed in explicit untrusted-source-data delimiters.
 
 ### Security
 
