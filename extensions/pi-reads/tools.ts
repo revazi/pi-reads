@@ -341,17 +341,23 @@ export function registerReadsTools(pi: ExtensionAPI): void {
     name: 'reads_library',
     label: 'Reads Library',
     description:
-      'List stored Pi Reads articles or inspect source/article metadata by ID. Returns metadata and paths, not full article bodies. List output is limited to at most 50 articles.',
+      'List or search stored Pi Reads article metadata, or inspect source/article metadata by ID. Returns metadata and paths, not full article bodies. List/search output is limited to at most 50 articles.',
     promptSnippet: 'List or inspect Pi Reads library records',
     parameters: Type.Object({
-      action: StringEnum(['list', 'show'] as const),
+      action: StringEnum(['list', 'search', 'show'] as const),
       id: Type.Optional(Type.String({ description: 'src_ or art_ ID required for show' })),
+      query: Type.Optional(Type.String({ description: 'Metadata query required for search' })),
       limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 50 })),
     }),
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const services = await openReadsServices(ctx.cwd);
-      if (params.action === 'list') {
-        const articles = (await services.library.listArticles()).slice(0, params.limit ?? 20);
+      if (params.action === 'list' || params.action === 'search') {
+        if (params.action === 'search' && !params.query?.trim()) {
+          throw new Error('query is required for reads_library search');
+        }
+        const articles = params.action === 'search'
+          ? await services.library.searchArticles(params.query!, params.limit ?? 20)
+          : (await services.library.listArticles()).slice(0, params.limit ?? 20);
         const text = articles.length
           ? articles
               .map((article) => `${article.id}  ${article.mode.padEnd(9)}  ${article.title}  [${article.slug}]`)
@@ -361,6 +367,8 @@ export function registerReadsTools(pi: ExtensionAPI): void {
           content: [{ type: 'text', text }],
           details: {
             libraryDir: services.libraryDir,
+            action: params.action,
+            ...(params.query ? { query: params.query } : {}),
             articles: articles.map(({ id, mode, title, slug, createdAt }) => ({ id, mode, title, slug, createdAt })),
           },
         };

@@ -62,6 +62,7 @@ Set `send: true` only when the user explicitly asks for delivery. When a prior d
 Use `reads_library`:
 
 - `action: "list"` to find recent article IDs
+- `action: "search"` with a metadata `query` to find matching titles, slugs, descriptions, authors, modes, or IDs
 - `action: "show"` with a `src_…` or `art_…` ID to inspect metadata and local paths
 
 Do not expose raw source bodies in tool output; read the returned local content path only when needed.

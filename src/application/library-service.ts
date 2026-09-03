@@ -1,4 +1,4 @@
-import { mkdir, readdir, readFile } from 'node:fs/promises';
+import { mkdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import type {
   ArticleMode,
@@ -24,6 +24,7 @@ import {
   sourceDirectory,
   type RecordIdPrefix,
 } from '../core/library.ts';
+import { LibraryIndexStore, type LibraryIndexStats } from '../core/library-index.ts';
 import { assertSafeSlug } from '../core/slugs.ts';
 import { versionedSha256 } from '../core/text.ts';
 
@@ -120,12 +121,17 @@ export class LibraryService {
   private readonly allowGitWorkingTree: boolean;
   private readonly now: () => Date;
   private readonly createId: (prefix: RecordIdPrefix) => string;
+  private readonly index: LibraryIndexStore;
 
   constructor(options: LibraryServiceOptions) {
     this.libraryDir = path.resolve(options.libraryDir);
     this.allowGitWorkingTree = options.allowGitWorkingTree ?? false;
     this.now = options.now ?? (() => new Date());
     this.createId = options.createId ?? ((prefix) => createRecordId(prefix));
+    this.index = new LibraryIndexStore(this.libraryDir, {
+      allowGitWorkingTree: this.allowGitWorkingTree,
+      now: this.now,
+    });
   }
 
   private async ensureLibrary(): Promise<void> {
@@ -145,8 +151,15 @@ export class LibraryService {
     await this.ensureLibrary();
     const draft = await ingestSource(input, dependencies, signal);
     signal?.throwIfAborted();
-    const source = await this.storeSource(draft);
-    const archiveArticle = await this.storeArchive(source, draft);
+    const { source, archiveArticle } = await this.index.transaction(async (index) => {
+      const source = await this.storeSource(draft);
+      const archiveArticle = await this.storeArchive(source, draft, index.articles);
+      return {
+        value: { source, archiveArticle },
+        sources: [...index.sources, source],
+        articles: [...index.articles, archiveArticle],
+      };
+    });
 
     return {
       source,
@@ -216,11 +229,14 @@ export class LibraryService {
     return source;
   }
 
-  private async storeArchive(source: SourceRecord, draft: IngestedSourceDraft): Promise<ArticleRecord> {
+  private async storeArchive(
+    source: SourceRecord,
+    draft: IngestedSourceDraft,
+    existingArticles: readonly ArticleRecord[],
+  ): Promise<ArticleRecord> {
     const id = this.createId('art');
     assertRecordId(id, 'art');
-    const existing = await this.listArticles();
-    const slug = chooseAvailableSlug(source.title ?? 'article', existing.map((item) => item.slug));
+    const slug = chooseAvailableSlug(source.title ?? 'article', existingArticles.map((item) => item.slug));
     const bodyPath = articleContentPath('archive', id);
     const article: ArticleRecord = {
       schemaVersion: 1,
@@ -293,84 +309,88 @@ export class LibraryService {
 
     const sourceEntries = await Promise.all(input.sourceIds.map(async (sourceId) => [sourceId, (await this.loadSource(sourceId)).source] as const));
     const sources = new Map(sourceEntries);
-    const existing = await this.listArticles();
-    const slug = input.slug
-      ? assertSafeSlug(input.slug)
-      : chooseAvailableSlug(input.title, existing.map((item) => item.slug));
-    if (existing.some((item) => item.slug === slug)) {
-      throw new Error(`Article slug already exists: ${slug}`);
-    }
+    return this.index.transaction(async (index) => {
+      const slug = input.slug
+        ? assertSafeSlug(input.slug)
+        : chooseAvailableSlug(input.title, index.articles.map((item) => item.slug));
+      if (index.articles.some((item) => item.slug === slug)) {
+        throw new Error(`Article slug already exists: ${slug}`);
+      }
 
-    const id = this.createId('art');
-    assertRecordId(id, 'art');
-    const bodyPath = articleContentPath(input.mode, id);
-    const article: ArticleRecord = {
-      schemaVersion: 1,
-      id,
-      mode: input.mode,
-      title: input.title.trim(),
-      slug,
-      ...(input.description ? { description: input.description } : {}),
-      sourceIds: [...new Set(input.sourceIds)],
-      body: {
-        path: bodyPath,
-        mediaType: 'text/markdown',
-        contentHash: analysis.contentHash,
-        textHash: analysis.textHash,
-        byteLength: Buffer.byteLength(input.body),
-      },
-      citations: input.citations,
-      createdAt: this.now().toISOString(),
-      generatedBy: input.generatedBy,
-    };
-    assertArticleInvariants(article, sources);
+      const id = this.createId('art');
+      assertRecordId(id, 'art');
+      const bodyPath = articleContentPath(input.mode, id);
+      const article: ArticleRecord = {
+        schemaVersion: 1,
+        id,
+        mode: input.mode,
+        title: input.title.trim(),
+        slug,
+        ...(input.description ? { description: input.description } : {}),
+        sourceIds: [...new Set(input.sourceIds)],
+        body: {
+          path: bodyPath,
+          mediaType: 'text/markdown',
+          contentHash: analysis.contentHash,
+          textHash: analysis.textHash,
+          byteLength: Buffer.byteLength(input.body),
+        },
+        citations: input.citations,
+        createdAt: this.now().toISOString(),
+        generatedBy: input.generatedBy,
+      };
+      assertArticleInvariants(article, sources);
 
-    const directory = articleDirectory(input.mode, id);
-    await createImmutableRecordDirectory(
-      this.libraryDir,
-      directory,
-      [
-        { path: 'content.md', contents: input.body },
-        { path: 'manifest.json', contents: json(article) },
-      ],
-      { allowGitWorkingTree: this.allowGitWorkingTree },
-    );
-
-    return {
-      article,
-      manifestPath: this.absolute(path.posix.join(directory, 'manifest.json')),
-      contentPath: this.absolute(bodyPath),
-      content: input.body,
-    };
+      const directory = articleDirectory(input.mode, id);
+      await createImmutableRecordDirectory(
+        this.libraryDir,
+        directory,
+        [
+          { path: 'content.md', contents: input.body },
+          { path: 'manifest.json', contents: json(article) },
+        ],
+        { allowGitWorkingTree: this.allowGitWorkingTree },
+      );
+      const stored = {
+        article,
+        manifestPath: this.absolute(path.posix.join(directory, 'manifest.json')),
+        contentPath: this.absolute(bodyPath),
+        content: input.body,
+      };
+      return {
+        value: stored,
+        sources: index.sources,
+        articles: [...index.articles, article],
+      };
+    });
   }
 
   async listArticles(): Promise<ArticleRecord[]> {
     await this.ensureLibrary();
-    const records: ArticleRecord[] = [];
-    for (const mode of ARTICLE_MODES) {
-      const modePath = this.absolute(path.posix.join('articles', mode));
-      let entries;
-      try {
-        entries = await readdir(modePath, { withFileTypes: true });
-      } catch (error: unknown) {
-        if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-          continue;
-        }
-        throw error;
-      }
+    return [...(await this.index.read()).articles];
+  }
 
-      for (const entry of entries) {
-        if (!entry.isDirectory()) {
-          continue;
-        }
-        const manifestPath = path.join(modePath, entry.name, 'manifest.json');
-        const record = JSON.parse(await readFile(manifestPath, 'utf8')) as ArticleRecord;
-        assertRecordId(record.id, 'art');
-        records.push(record);
-      }
+  async searchArticles(query: string, limit = 50): Promise<ArticleRecord[]> {
+    await this.ensureLibrary();
+    const needle = query.trim().toLowerCase();
+    if (!needle) return [];
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 1_000) {
+      throw new Error('Article search limit must be an integer from 1 to 1000');
     }
+    const articles = (await this.index.read()).articles;
+    return articles.filter((article) => [
+      article.id,
+      article.mode,
+      article.title,
+      article.slug,
+      article.description ?? '',
+      ...(article.authors ?? []),
+    ].join('\n').toLowerCase().includes(needle)).slice(0, limit);
+  }
 
-    return records.sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+  async rebuildIndex(): Promise<LibraryIndexStats> {
+    await this.ensureLibrary();
+    return this.index.rebuild();
   }
 
   async loadSource(sourceId: string): Promise<StoredSource> {

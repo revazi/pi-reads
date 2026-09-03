@@ -188,7 +188,7 @@ Configuration contains preferences, never credentials. Obsidian configuration ma
 
 Physical mode directories make archive/generated path collisions impossible. The schema requires each article body path to match its mode directory.
 
-`indexes/library.json` is a cache, not canonical data. It may be deleted and rebuilt by scanning manifests.
+`indexes/library.json` is a cache, not canonical data. It contains source/article metadata needed for listing, search, canonical URL/hash lookup, date/mode filtering, and unique slug allocation. It may be deleted and rebuilt solely by scanning immutable manifests. Normal reads validate constant-time source and article-mode directory stamps rather than reopening each manifest. Index replacement is atomic, and an `indexes/dirty` interruption marker forces a rebuild after an incomplete canonical-record/index update.
 
 The application must refuse to use a Git working tree as a library root by default. An explicit unsafe override may be added for development fixtures, but production content must remain outside the package checkout.
 
