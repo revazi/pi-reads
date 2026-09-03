@@ -34,6 +34,18 @@ test('application services capture, generate, list, and export immutable article
     assert.equal(capture.archiveArticle.mode, 'archive');
     assert.equal(capture.archiveArticle.archiveVerification?.sourceTextHash, capture.source.content.textHash);
     assert.equal(await readFile(capture.sourceContentPath, 'utf8'), '# Captured source\n\nFaithful prose.\n\n```ts\nconst value = 1;\n```');
+    const { index: captureIndex } = await library.loadSourceIndex(capture.source.id);
+    const completeCoverage = {
+      policy: 'complete' as const,
+      sources: [{
+        sourceId: capture.source.id,
+        sourceContentHash: captureIndex.sourceContentHash,
+        consideredLocators: [
+          ...captureIndex.headings.map(({ id }) => id),
+          ...captureIndex.paragraphs.map(({ id }) => id),
+        ],
+      }],
+    };
 
     const archiveHtml = await exports.prepare(capture.archiveArticle.id, 'html');
     const renderedArchive = await readFile(archiveHtml.artifactPath, 'utf8');
@@ -53,6 +65,7 @@ test('application services capture, generate, list, and export immutable article
           quote: 'Faithful prose.',
         },
       ],
+      coverage: completeCoverage,
       generatedBy: {
         provider: 'fixture-provider',
         model: 'fixture-model',
@@ -63,6 +76,8 @@ test('application services capture, generate, list, and export immutable article
     });
     assert.equal(generated.article.mode, 'digest');
     assert.equal(generated.article.generatedBy?.model, 'fixture-model');
+    assert.equal(generated.article.sourceCoverage?.policy, 'complete');
+    assert.equal(generated.article.sourceCoverage?.sources[0].missingLocatorCount, 0);
 
     const markdownExport = await exports.prepare(generated.article.id, 'markdown');
     const exportedMarkdown = await readFile(markdownExport.artifactPath, 'utf8');
@@ -99,6 +114,7 @@ test('application services capture, generate, list, and export immutable article
           body: 'Missing marker.',
           sourceIds: [capture.source.id],
           citations: [{ id: 'cite_missing', sourceId: capture.source.id }],
+          coverage: completeCoverage,
           generatedBy: {
             provider: 'fixture',
             model: 'fixture',

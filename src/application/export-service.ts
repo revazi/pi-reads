@@ -97,6 +97,8 @@ function markdownWithCitationDefinitions(
         `title: ${JSON.stringify(article.title)}`,
         `slug: ${JSON.stringify(article.slug)}`,
         `sources: ${JSON.stringify(article.sourceIds)}`,
+        ...(article.sourceCoverage ? [`coveragePolicy: ${JSON.stringify(article.sourceCoverage.policy)}`] : []),
+        ...(article.sourceCoverage?.warning ? [`coverageWarning: ${JSON.stringify(article.sourceCoverage.warning)}`] : []),
         '---',
         '',
       ].join('\n')
@@ -249,6 +251,7 @@ export class ExportService {
 ${article.description ? `<p class="article-description">${escapeHtml(article.description)}</p>` : ''}
 ${authors ? `<p class="article-meta">${escapeHtml(authors)}</p>` : ''}
 ${sourceLinks ? `<p class="article-source">Sources: ${sourceLinks}</p>` : ''}
+${article.sourceCoverage?.warning ? `<p class="article-coverage-warning">${escapeHtml(article.sourceCoverage.warning)}</p>` : ''}
 </header>
 <main class="article-body">${bodyHtml}${citationListHtml(article, sources)}</main>
 </article>

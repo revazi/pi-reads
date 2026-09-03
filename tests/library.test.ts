@@ -149,6 +149,21 @@ test('article invariants reject archive/generated mixing and invalid citations',
     body: { ...archive.body, path: articleContentPath('digest', archive.id) },
     archiveVerification: undefined,
     generatedBy: { provider: 'fixture', model: 'fixture', generatedAt: archive.createdAt },
+    sourceCoverage: {
+      policy: 'complete',
+      sources: [{
+        sourceId: source.id,
+        sourceContentHash: source.content.contentHash,
+        indexAlgorithm: 'markdown-blocks-v1',
+        indexLocatorHash: source.content.contentHash,
+        consideredLocatorHash: source.content.contentHash,
+        consideredLocatorCount: 1,
+        totalLocatorCount: 1,
+        missingLocatorCount: 0,
+        missingLocators: [],
+        missingLocatorsTruncated: false,
+      }],
+    },
     citations: [{ id: 'cite_fixture', sourceId: source.id }],
   };
   assert.doesNotThrow(() => assertArticleInvariants(generated, sources));

@@ -6,6 +6,7 @@ export * from './library.ts';
 export * from './library-index.ts';
 export * from './network.ts';
 export * from './slugs.ts';
+export * from './source-coverage.ts';
 export * from './source-index.ts';
 export * from './source-retrieval.ts';
 export * from './text.ts';

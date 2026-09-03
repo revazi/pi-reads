@@ -75,6 +75,13 @@ test('locator reads return exact source bytes including whitespace between index
 
   assert.throws(() => readSourceRange(index, markdown, 'p_unknown'), /Unknown source locator/u);
   assert.throws(() => readSourceRange(index, markdown, end.id, start.id), /must not precede/u);
+  const unicodeParagraph = index.paragraphs.find((paragraph) => paragraph.headingId === index.headings[0].id)!;
+  const unicodeText = Buffer.from(markdown).subarray(unicodeParagraph.startByte, unicodeParagraph.endByte).toString('utf8');
+  const insideUnicodeByte = unicodeParagraph.startByte + Buffer.byteLength(unicodeText.slice(0, unicodeText.indexOf('é'))) + 1;
+  assert.throws(
+    () => readSourceRange(index, markdown, unicodeParagraph.id, unicodeParagraph.id, insideUnicodeByte),
+    /UTF-8 character boundary/u,
+  );
 });
 
 test('lexical search treats metacharacters literally and returns only exact source excerpts', () => {

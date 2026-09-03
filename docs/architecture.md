@@ -185,8 +185,9 @@ No model-authored prose enters this path.
 one or more immutable Sources
   → Pi requests bounded outlines, exact locator ranges, or lexical excerpts
   → delimited source data enters model context under an explicit byte budget
-  → model authors a cited draft
-  → application validates source IDs and citation IDs
+  → continuation cursors traverse long outlines/ranges without unbounded results
+  → model authors a cited draft and declares complete or targeted coverage evidence
+  → application verifies source hashes and considered locators, then validates source/citation IDs
   → immutable generated Article
   → render
   → Export

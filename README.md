@@ -41,6 +41,8 @@ Choose a mode:
 | `digest` | a shorter cited reading version |
 | `synthesis` | a newly written cited article |
 
+Digests use verified complete-source coverage. Focused syntheses may use targeted coverage, which records omitted sections and carries a non-comprehensive warning. Long sources are traversed through bounded continuation cursors rather than one unbounded model-context load.
+
 Then choose an output such as Markdown, PDF, EPUB, Obsidian, or Kindle.
 
 For the first PDF export, install Chromium once:

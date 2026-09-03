@@ -2,7 +2,7 @@ import { marked } from 'marked';
 import type { Sha256Digest, SourceRecord } from './domain.ts';
 import { versionedSha256 } from './text.ts';
 
-const SOURCE_CONTENT_INDEX_ALGORITHM = 'markdown-blocks-v1';
+export const SOURCE_CONTENT_INDEX_ALGORITHM = 'markdown-blocks-v1';
 
 export interface IndexedSourceRange {
   id: string;
