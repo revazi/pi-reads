@@ -16,18 +16,9 @@ compatibility: Node.js 24+; PDF needs Playwright Chromium; Kindle send needs SMT
 
 ## Capture and generation
 
-Call `reads_ingest` with `kind` `url`, `text`, `markdown`, or `file` and matching input. Exact duplicates reuse IDs. Changed canonical content creates nothing: obtain explicit approval before retrying with `recapture: true`, which creates linked immutable source/archive versions.
+`reads_ingest` accepts URL, text, Markdown, or file input. Exact duplicates reuse IDs. Changed canonical content creates nothing; only explicit approval permits `recapture: true` and linked immutable versions.
 
-For generated work:
-
-1. Run `reads_library` `outline` for each source. Keep `sourceContentHash`; follow `nextLocator` until the outline is complete.
-2. Choose coverage:
-   - `complete` is required for `digest`. Read first-to-last locator, following `nextByte`, and collect every `completedLocators` entry.
-   - `targeted` is for focused `synthesis`. Search/read only relevant sections and record only considered locators. The saved article carries a non-comprehensive warning.
-3. Write generated Markdown with nearby citation markers. Use retrieval's deterministic citation ID/fragment suggestions and copy quotes exactly from the immutable source range.
-4. Call `reads_save_article` with source IDs, citations, and coverage `{policy, sources:[{sourceId, sourceContentHash, consideredLocators}]}`. Review its bounded grounding summary, including missing citation locators and uncited generated sections, before export.
-
-Saving rejects incomplete coverage, targeted digests, stale hashes, invalid/duplicate locators, fabricated quotes, unsupported citations, and missing evidence. Diagnostics never rewrite or fact-check prose.
+For generated work: outline each source and retain its hash; complete digests read all locators through continuation cursors, while targeted synthesis records only considered locators and carries a warning. Write nearby citations using suggested IDs/fragments and exact quotes. Then `reads_save_article` with `{policy, sources:[{sourceId, sourceContentHash, consideredLocators}]}` and review its grounding summary. Saving rejects incomplete/stale coverage, targeted digests, invalid locators, fabricated quotes, unsupported citations, and missing evidence; diagnostics never rewrite prose.
 
 ## Library retrieval
 
@@ -36,6 +27,10 @@ Use `reads_library` `list`, metadata `search`, or `show`. For exact source data 
 `full-text` searches titles, authors, URLs, archive/generated prose locally without a model or embeddings. Optional filters are mode, date (`from`/`to`), author, source, tag, and status. Results label mode and contain bounded exact excerpts/locators. Use `rebuild-search` for an explicit deterministic rebuild; missing, stale, or corrupt indexes recover automatically.
 
 Text retrieval defaults to 8192 bytes; `maxBytes` accepts 1024–32768. Check clipping/omission metadata.
+
+## Reading state
+
+`state-show` returns revisioned state. `state-update` requires that current `expectedRevision` and can set status (`unread`, `reading`, `completed`, `archived`), canonical tags, rating 1–5, priority 0–5, and optional due/read-later dates (`null` clears optional fields). `queue`, `list`, and metadata `search` filter/sort state. State lives under `state/`, never in immutable manifests; revision conflicts fail closed. Portable snapshots include state and restore only absent or identical records.
 
 ## Export
 
@@ -53,4 +48,4 @@ Kindle starts with a dry run; report its redacted recipient, subject, size, prep
 
 ## Commands
 
-`/reads` runs the workflow; `/reads-config` configures destinations; `/reads-list` browses; `/reads-search` searches locally; `/reads-rebuild-search` rebuilds search; `/reads-install-browser` installs PDF Chromium.
+`/reads` runs capture/export; `/reads-list`, `/reads-search`, `/reads-state`, and `/reads-queue` manage the library; `/reads-rebuild-search` rebuilds search; `/reads-config` configures; `/reads-install-browser` installs PDF Chromium.

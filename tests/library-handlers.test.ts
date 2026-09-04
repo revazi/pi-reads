@@ -10,6 +10,7 @@ import {
 } from '../extensions/pi-reads/library-handlers.ts';
 import type { ReadsServices } from '../extensions/pi-reads/runtime.ts';
 import { LibraryService } from '../src/application/library-service.ts';
+import { UserStateService } from '../src/application/user-state-service.ts';
 
 const sourceMarkdown = [
   'Preamble paragraph.',
@@ -46,7 +47,13 @@ async function fixture(): Promise<{
     label: 'Bounded retrieval fixture',
     markdown: sourceMarkdown,
   });
-  return { libraryDir, library, services: { libraryDir, library } as ReadsServices, capture };
+  const userState = new UserStateService({ library });
+  return {
+    libraryDir,
+    library,
+    services: { libraryDir, library, getUserState: async () => userState } as ReadsServices,
+    capture,
+  };
 }
 
 test('outline and locator reads include source identity, stable locators, and untrusted-data delimiters', async () => {

@@ -36,7 +36,7 @@
           "createdAt": { "$ref": "common.schema.json#/$defs/timestamp" },
           "contentHash": { "$ref": "common.schema.json#/$defs/contentHash" },
           "tags": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
-          "status": { "type": "string", "minLength": 1 },
+          "status": { "enum": ["unread", "reading", "completed", "archived"] },
           "blocks": {
             "type": "array",
             "items": {

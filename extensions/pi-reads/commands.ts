@@ -18,6 +18,39 @@ type InputKind = 'url' | 'text' | 'markdown' | 'file';
 type RequestedMode = 'archive' | 'digest' | 'synthesis';
 type RequestedFormat = 'markdown' | 'html' | 'pdf' | 'epub' | 'obsidian' | 'kindle-epub' | 'kindle-pdf';
 
+const READING_STATUS_ARGUMENTS = ['unread', 'reading', 'completed', 'archived'] as const;
+
+type ReadingStatusArgument = (typeof READING_STATUS_ARGUMENTS)[number];
+
+function parseStateCommandArgs(args: string): { articleId: string; status?: ReadingStatusArgument } | undefined {
+  const [articleId, status, ...extra] = args.trim().split(/\s+/u).filter(Boolean);
+  if (!articleId || extra.length > 0) return undefined;
+  if (status && !READING_STATUS_ARGUMENTS.includes(status as ReadingStatusArgument)) return undefined;
+  return { articleId, ...(status ? { status: status as ReadingStatusArgument } : {}) };
+}
+
+async function executeStateCommand(args: string, ctx: ExtensionCommandContext): Promise<void> {
+  const parsed = parseStateCommandArgs(args);
+  if (!parsed) {
+    ctx.ui.notify('Usage: /reads-state <article-id> [unread|reading|completed|archived]', 'error');
+    return;
+  }
+  const services = await openReadsServices(ctx.cwd);
+  if (!parsed.status) {
+    const shown = await executeReadsLibrary({ action: 'state-show', id: parsed.articleId }, services);
+    ctx.ui.notify(shown.content[0]?.text ?? 'No reading state.', 'info');
+    return;
+  }
+  const current = await (await services.getUserState()).get(parsed.articleId);
+  const updated = await executeReadsLibrary({
+    action: 'state-update',
+    id: parsed.articleId,
+    expectedRevision: current.revision,
+    status: parsed.status,
+  }, services);
+  ctx.ui.notify(updated.content[0]?.text ?? 'Reading state updated.', 'info');
+}
+
 function assertCaptureReadyForExport(capture: CaptureResult): void {
   if (capture.status !== 'changed-content') return;
   throw new Error(
@@ -244,6 +277,28 @@ export function registerReadsCommands(pi: ExtensionAPI): void {
       const services = await openReadsServices(ctx.cwd);
       const result = await executeReadsLibrary({ action: 'full-text', query }, services);
       ctx.ui.notify(result.content[0]?.text ?? 'No search results.', 'info');
+    },
+  });
+
+  pi.registerCommand('reads-state', {
+    description: 'Show or update an article reading status without changing its immutable manifest',
+    handler: executeStateCommand,
+  });
+
+  pi.registerCommand('reads-queue', {
+    description: 'List the deterministic local reading queue',
+    handler: async (args, ctx) => {
+      const status = args.trim() || undefined;
+      if (status && !READING_STATUS_ARGUMENTS.includes(status as ReadingStatusArgument)) {
+        ctx.ui.notify('Usage: /reads-queue [unread|reading|completed|archived]', 'error');
+        return;
+      }
+      const services = await openReadsServices(ctx.cwd);
+      const result = await executeReadsLibrary({
+        action: 'queue',
+        ...(status ? { status: status as ReadingStatusArgument } : {}),
+      }, services);
+      ctx.ui.notify(result.content[0]?.text ?? 'Reading queue is empty.', 'info');
     },
   });
 

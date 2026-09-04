@@ -19,6 +19,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - Generated saves now verify quoted text against immutable source ranges, resolve paragraph/heading/fragment locators through source indexes, fail closed on fabricated evidence, and persist bounded per-source/per-section citation grounding diagnostics including uncited article sections.
 - Capture now reuses exact canonical/content duplicates, reports changed canonical content without persistence, and creates linked immutable source/archive records only for explicitly approved recapture.
 - Private offline full-text search now covers titles, authors, URLs, archive/generated prose, and forward-compatible tag/status metadata with BM25-style ranking, filters, bounded exact locator snippets, explicit rebuild, and deterministic corruption recovery.
+- Revisioned reading state now tracks unread/reading/completed/archived status, tags, rating, priority, and due/read-later dates outside immutable records, with conflict-safe updates, deterministic queues, state-aware list/search, and portable collision-safe snapshots.
 
 ### Security
 
