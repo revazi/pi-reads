@@ -1,5 +1,11 @@
 import type { FullTextSearchHit, FullTextSearchResult } from '../../src/application/search-service.ts';
 import type { ArticleMode } from '../../src/core/domain.ts';
+import type {
+  ArticleStateFilters,
+  ArticleStateSort,
+  ArticleUserStatePatch,
+  StatefulArticle,
+} from '../../src/core/user-state.ts';
 import type { FullTextSearchFilters } from '../../src/core/full-text-search.ts';
 import { versionedSha256 } from '../../src/core/text.ts';
 import type { ReadsServices } from './runtime.ts';
@@ -9,7 +15,8 @@ export const MIN_SOURCE_RESULT_MAX_BYTES = 1_024;
 export const MAX_SOURCE_RESULT_MAX_BYTES = 32 * 1024;
 
 export interface ReadsLibraryRequest {
-  action: 'list' | 'search' | 'show' | 'outline' | 'read' | 'full-text' | 'rebuild-search';
+  action: 'list' | 'search' | 'show' | 'outline' | 'read' | 'full-text' | 'rebuild-search' |
+    'state-show' | 'state-update' | 'queue';
   id?: string;
   query?: string;
   limit?: number;
@@ -24,6 +31,17 @@ export interface ReadsLibraryRequest {
   sourceId?: string;
   tag?: string;
   status?: string;
+  expectedRevision?: number;
+  tags?: string[];
+  rating?: number | null;
+  priority?: number;
+  dueAt?: string | null;
+  readLaterAt?: string | null;
+  minimumRating?: number;
+  minimumPriority?: number;
+  dueBefore?: string;
+  readLaterBefore?: string;
+  sort?: ArticleStateSort;
 }
 
 export interface ReadsLibraryToolResult {
@@ -447,6 +465,93 @@ async function executeSearchRebuild(services: ReadsServices): Promise<ReadsLibra
   };
 }
 
+function stateFilters(request: ReadsLibraryRequest): ArticleStateFilters {
+  return Object.fromEntries(Object.entries({
+    status: request.status,
+    tag: request.tag,
+    minimumRating: request.minimumRating,
+    minimumPriority: request.minimumPriority,
+    dueBefore: request.dueBefore,
+    readLaterBefore: request.readLaterBefore,
+  }).filter(([, value]) => value !== undefined)) as ArticleStateFilters;
+}
+
+function statePatch(request: ReadsLibraryRequest): ArticleUserStatePatch {
+  return Object.fromEntries(Object.entries({
+    status: request.status,
+    tags: request.tags,
+    rating: request.rating,
+    priority: request.priority,
+    dueAt: request.dueAt,
+    readLaterAt: request.readLaterAt,
+  }).filter(([, value]) => value !== undefined)) as ArticleUserStatePatch;
+}
+
+function stateLine(item: StatefulArticle): string {
+  const due = item.state.dueAt ? `  due:${item.state.dueAt.slice(0, 10)}` : '';
+  const rating = item.state.rating ? `  rating:${item.state.rating}` : '';
+  const shownTags = item.state.tags.slice(0, 5);
+  const tags = shownTags.length
+    ? `  tags:${shownTags.join(',')}${item.state.tags.length > shownTags.length ? ',…' : ''}`
+    : '';
+  return `${item.article.id}  ${item.state.status.padEnd(9)}  p${item.state.priority}${rating}${due}  ${utf8Prefix(item.article.title, 160)}${tags}`;
+}
+
+function stateDetails(item: StatefulArticle): Record<string, unknown> {
+  return {
+    articleId: item.article.id,
+    mode: item.article.mode,
+    title: utf8Prefix(item.article.title, 160),
+    createdAt: item.article.createdAt,
+    state: { ...item.state, tags: item.state.tags.slice(0, 20) },
+    tagsOmitted: Math.max(0, item.state.tags.length - 20),
+  };
+}
+
+async function executeStateShow(
+  request: ReadsLibraryRequest,
+  services: ReadsServices,
+): Promise<ReadsLibraryToolResult> {
+  if (!request.id) throw new Error('id is required for reads_library state-show');
+  const userState = await services.getUserState();
+  const [article, state] = await Promise.all([services.library.loadArticle(request.id), userState.get(request.id)]);
+  return {
+    content: [{ type: 'text', text: stateLine({ article: article.article, state }) }],
+    details: { action: 'state-show', ...stateDetails({ article: article.article, state }) },
+  };
+}
+
+async function executeStateUpdate(
+  request: ReadsLibraryRequest,
+  services: ReadsServices,
+): Promise<ReadsLibraryToolResult> {
+  if (!request.id) throw new Error('id is required for reads_library state-update');
+  if (request.expectedRevision === undefined) throw new Error('expectedRevision is required for state-update');
+  const userState = await services.getUserState();
+  const state = await userState.update({
+    articleId: request.id,
+    expectedRevision: request.expectedRevision,
+    patch: statePatch(request),
+  });
+  const article = await services.library.loadArticle(request.id);
+  return {
+    content: [{ type: 'text', text: `Updated ${request.id} state to revision ${state.revision}: ${state.status}, priority ${state.priority}.` }],
+    details: { action: 'state-update', ...stateDetails({ article: article.article, state }) },
+  };
+}
+
+async function executeQueue(
+  request: ReadsLibraryRequest,
+  services: ReadsServices,
+): Promise<ReadsLibraryToolResult> {
+  const userState = await services.getUserState();
+  const items = (await userState.queue(stateFilters(request), request.sort ?? 'priority')).slice(0, request.limit ?? 20);
+  return {
+    content: [{ type: 'text', text: items.length ? items.map(stateLine).join('\n') : 'Reading queue is empty.' }],
+    details: { action: 'queue', items: items.map(stateDetails), filters: stateFilters(request), sort: request.sort ?? 'priority' },
+  };
+}
+
 async function executeArticleCatalog(
   request: ReadsLibraryRequest,
   services: ReadsServices,
@@ -454,19 +559,21 @@ async function executeArticleCatalog(
   if (request.action === 'search' && !request.query?.trim()) {
     throw new Error('query is required for reads_library search');
   }
-  const articles = request.action === 'search'
-    ? await services.library.searchArticles(request.query!, request.limit ?? 20)
-    : (await services.library.listArticles()).slice(0, request.limit ?? 20);
-  const text = articles.length
-    ? articles.map((article) => `${article.id}  ${article.mode.padEnd(9)}  ${article.title}  [${article.slug}]`).join('\n')
-    : 'Pi Reads library has no articles.';
+  const candidates = request.action === 'search'
+    ? await services.library.searchArticles(request.query!, 10_000)
+    : await services.library.listArticles();
+  const userState = await services.getUserState();
+  const items = (await userState.catalog(candidates, stateFilters(request), request.sort ?? 'created'))
+    .slice(0, request.limit ?? 20);
   return {
-    content: [{ type: 'text', text }],
+    content: [{ type: 'text', text: items.length ? items.map(stateLine).join('\n') : 'Pi Reads library has no matching articles.' }],
     details: {
       libraryDir: services.libraryDir,
       action: request.action,
       ...(request.query ? { query: request.query } : {}),
-      articles: articles.map(({ id, mode, title, slug, createdAt }) => ({ id, mode, title, slug, createdAt })),
+      filters: stateFilters(request),
+      sort: request.sort ?? 'created',
+      articles: items.map(stateDetails),
     },
   };
 }
@@ -515,10 +622,17 @@ export async function executeReadsLibrary(
   request: ReadsLibraryRequest,
   services: ReadsServices,
 ): Promise<ReadsLibraryToolResult> {
-  if (request.action === 'full-text') return executeFullTextSearch(request, services);
-  if (request.action === 'rebuild-search') return executeSearchRebuild(services);
-  if (request.action === 'outline') return executeSourceOutline(request, services);
-  if (request.action === 'read') return executeSourceRead(request, services);
+  const exactHandlers: Partial<Record<ReadsLibraryRequest['action'], () => Promise<ReadsLibraryToolResult>>> = {
+    'state-show': () => executeStateShow(request, services),
+    'state-update': () => executeStateUpdate(request, services),
+    queue: () => executeQueue(request, services),
+    'full-text': () => executeFullTextSearch(request, services),
+    'rebuild-search': () => executeSearchRebuild(services),
+    outline: () => executeSourceOutline(request, services),
+    read: () => executeSourceRead(request, services),
+  };
+  const exactHandler = exactHandlers[request.action];
+  if (exactHandler) return exactHandler();
   if (request.action === 'search' && request.id) return executeSourceSearch(request, services);
   if (request.action === 'list' || request.action === 'search') return executeArticleCatalog(request, services);
   return executeShow(request, services);

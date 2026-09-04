@@ -95,7 +95,15 @@ Local file paths may be retained in a local source manifest but must not be pres
 
 Results identify article mode, article/source IDs, field, stable locator, score, and an exact UTF-8 excerpt capped at 320 bytes. Archive body hits use source `h_…`/`p_…` locators; generated prose uses deterministic `b_…` locators. Tool output remains within the caller's 1–32 KiB budget and delimits excerpts as untrusted library data.
 
-Canonical manifests/content remain authoritative. Corpus and index hashes detect stale/corrupt indexes; search rebuilds atomically on demand or automatically after deletion, corruption, or corpus change. The index contains no timestamp, so rebuilding unchanged records yields identical bytes.
+Canonical manifests/content remain authoritative. Corpus and index hashes detect stale/corrupt indexes; search rebuilds atomically on demand or automatically after deletion, corruption, state change, or corpus change. The index contains no timestamp, so rebuilding unchanged records yields identical bytes.
+
+## Reading state and queues
+
+Mutable article state is stored separately at `state/articles/<article-id>.json`; source/article manifests and content never contain or change for reading progress. An absent state is virtual revision 0 with `unread`, no tags, and priority 0. Persisted records carry a monotonically increasing revision, `updatedAt`, status (`unread`, `reading`, `completed`, `archived`), canonical unique tags, optional rating 1–5, priority 0–5, and optional normalized due/read-later timestamps.
+
+Updates use an expected-revision compare-and-swap under a cross-process atomic lock, then atomically replace only the state record. Stale revisions fail closed. The default queue contains unread/reading articles ordered by descending priority, earliest due date, oldest article, then ID; explicit filters/sorts remain deterministic. Library list/metadata search and private full-text search can filter state without opening immutable manifests for mutation.
+
+A `user-state-snapshot` contains canonical persisted state records sorted by article ID. Restore first validates every referenced article and every collision, writes only absent records, accepts identical canonical state as unchanged, and refuses differing existing state before writing. This state snapshot is the user-state component consumed by portable library backup/restore; credentials remain out of scope.
 
 ## Article contract
 

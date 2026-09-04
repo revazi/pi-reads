@@ -33,7 +33,7 @@ test('persistent Pi Reads tool prompt stays compact while retaining mandatory sa
   })));
   const guidance = tools.flatMap((tool) => [tool.promptSnippet ?? '', ...(tool.promptGuidelines ?? [])]).join('\n');
   assert.equal(tools.length, 4);
-  assert.ok([...schema].length <= 5_000, `tool contract grew to ${estimatedTokens(schema)} estimated tokens`);
+  assert.ok([...schema].length <= 5_500, `tool contract grew to ${estimatedTokens(schema)} estimated tokens`);
   assert.ok([...guidance].length <= 900, `tool guidance grew to ${estimatedTokens(guidance)} estimated tokens`);
 
   const contract = `${schema}\n${guidance}`;

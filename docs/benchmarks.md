@@ -61,7 +61,7 @@ Digest and synthesis prose is a deterministic fixture, not a model call, so toke
 pnpm --silent benchmark --token-usage /tmp/pi-token-usage.json
 ```
 
-The initial cold-registration budget is 500 ms on the benchmark environment. Registration includes importing the extension and registering its four tools and four commands, but excludes Node.js process startup. The report also records Node, operating-system, CPU, CI, package, commit, and browser-mode metadata. Its storage summary counts physical artifact paths and reports duplicate bytes by comparing their immutable hashes; delivery manifests that reference an existing prepared artifact do not count as another stored copy, while repeated rendering remains visible.
+The initial cold-registration budget is 500 ms on the benchmark environment. Registration includes importing the extension and registering its four tools and eight commands, but excludes Node.js process startup. The report also records Node, operating-system, CPU, CI, package, commit, and browser-mode metadata. Its storage summary counts physical artifact paths and reports duplicate bytes by comparing their immutable hashes; delivery manifests that reference an existing prepared artifact do not count as another stored copy, while repeated rendering remains visible.
 
 The deterministic test suite also creates 10,000 immutable article manifests, rebuilds `indexes/library.json`, and gates both indexed listing and metadata search at 500 ms each. Rebuilding is intentionally outside that latency budget because it is a recovery/migration path; normal listing, search, and slug allocation read the single derived index and constant-time catalog stamps instead of scanning manifests.
 
@@ -80,7 +80,7 @@ Issue #16 measured the extension at baseline commit `4b7004b` and after the comp
 | Successful local `reads_export` text | 105 | 56 | -46.7% |
 | Bounded source outline | 235 | 235 | unchanged |
 
-The outline intentionally remains unchanged because source identity/hash, stable locators, continuation state, byte accounting, and untrusted-data boundaries are operational or safety-critical. Contract tests cap schema, guidance, skill, workflow-prompt, and common-result sizes while asserting that archive immutability, source-as-data handling, citation grounding, Obsidian overwrite approval, Kindle send confirmation, and exact prepared-artifact reuse remain explicit.
+The outline intentionally remains unchanged because source identity/hash, stable locators, continuation state, byte accounting, and untrusted-data boundaries are operational or safety-critical. Later library-search and reading-state operations expanded the four-tool contract while keeping it below 1,375 estimated tokens—still below the pre-optimization 1,697-token baseline. Contract tests cap schema, guidance, skill, workflow-prompt, and common-result sizes while asserting that archive immutability, source-as-data handling, citation grounding, Obsidian overwrite approval, Kindle send confirmation, and exact prepared-artifact reuse remain explicit.
 
 ## Optional performance gates
 

@@ -13,6 +13,7 @@ export * from './source-coverage.ts';
 export * from './source-index.ts';
 export * from './source-retrieval.ts';
 export * from './text.ts';
+export * from './user-state.ts';
 export * from './extraction/cleanup.ts';
 export * from './extraction/fonts.ts';
 export * from './extraction/markdown.ts';

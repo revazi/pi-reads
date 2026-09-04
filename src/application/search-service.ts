@@ -21,7 +21,9 @@ import {
   writeLibraryFileAtomic,
 } from '../core/library.ts';
 import { versionedSha256 } from '../core/text.ts';
+import type { ArticleUserState } from '../core/user-state.ts';
 import type { LibraryService } from './library-service.ts';
+import type { UserStateService } from './user-state-service.ts';
 
 export const FULL_TEXT_SEARCH_INDEX_PATH = 'indexes/search-v1.json';
 const MAX_SNIPPET_BYTES = 320;
@@ -61,6 +63,7 @@ export interface SearchIndexStats {
 
 export interface SearchServiceOptions {
   library: LibraryService;
+  userState?: UserStateService;
 }
 
 const rebuildTails = new Map<string, Promise<void>>();
@@ -80,6 +83,7 @@ async function withSearchRebuild<T>(key: string, operation: () => Promise<T>): P
 function corpusDocument(
   article: ArticleRecord,
   sources: ReadonlyMap<string, SourceRecord>,
+  state?: ArticleUserState,
 ): FullTextCorpusDocument {
   const articleSources = article.sourceIds.map((sourceId) => sources.get(sourceId)).filter(Boolean) as SourceRecord[];
   const authors = [...new Set([...(article.authors ?? []), ...articleSources.flatMap((source) => source.authors ?? [])])];
@@ -93,6 +97,8 @@ function corpusDocument(
     sourceIds: article.sourceIds,
     createdAt: article.createdAt,
     contentHash: article.body.contentHash,
+    ...(state?.tags.length ? { tags: state.tags } : {}),
+    ...(state ? { status: state.status } : {}),
   };
 }
 
@@ -221,17 +227,21 @@ function normalizedDateFilter(value: string | undefined, label: string, endOfDay
 
 export class SearchService {
   private readonly library: LibraryService;
+  private readonly userState: UserStateService | undefined;
   private readonly indexPath: string;
 
   constructor(options: SearchServiceOptions) {
     this.library = options.library;
+    this.userState = options.userState;
     this.indexPath = resolveLibraryPath(options.library.libraryDir, FULL_TEXT_SEARCH_INDEX_PATH);
   }
 
   private async corpus(): Promise<{ descriptors: FullTextCorpusDocument[]; sources: Map<string, SourceRecord> }> {
     const [articles, sourceRecords] = await Promise.all([this.library.listArticles(), this.library.listSources()]);
     const sources = new Map(sourceRecords.map((source) => [source.id, source]));
-    return { descriptors: articles.map((article) => corpusDocument(article, sources)), sources };
+    const stateItems = this.userState ? await this.userState.catalog(articles, {}, 'created') : [];
+    const states = new Map(stateItems.map(({ article, state }) => [article.id, state]));
+    return { descriptors: articles.map((article) => corpusDocument(article, sources, states.get(article.id))), sources };
   }
 
   private async buildInputs(

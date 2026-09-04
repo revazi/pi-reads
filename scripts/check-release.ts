@@ -31,10 +31,12 @@ const REQUIRED_FILES = [
   'examples/pi-reads.example.json',
   'extensions/pi-reads/index.ts',
   'package.json',
+  'schemas/v1/article-user-state.schema.json',
   'schemas/v1/citation-diagnostics.schema.json',
   'schemas/v1/config.schema.json',
   'schemas/v1/search-index.schema.json',
   'schemas/v1/source-content-index.schema.json',
+  'schemas/v1/user-state-snapshot.schema.json',
   'skills/pi-reads/SKILL.md',
 ] as const;
 

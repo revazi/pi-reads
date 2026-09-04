@@ -7,6 +7,7 @@ import type { KindleService } from '../../src/application/kindle-service.ts';
 import type { LibraryService } from '../../src/application/library-service.ts';
 import type { ObsidianService } from '../../src/application/obsidian-service.ts';
 import type { SearchService } from '../../src/application/search-service.ts';
+import type { UserStateService } from '../../src/application/user-state-service.ts';
 
 type ResolvedConfiguration = Awaited<ReturnType<typeof resolveConfiguration>>;
 
@@ -26,6 +27,7 @@ export interface ReadsServices {
   getKindleCredentialStore(): Promise<SystemKindleCredentialStore>;
   getObsidian(): Promise<ObsidianService | undefined>;
   getSearch(): Promise<SearchService>;
+  getUserState(): Promise<UserStateService>;
 }
 
 export async function openReadsServices(cwd: string): Promise<ReadsServices> {
@@ -38,6 +40,7 @@ export async function openReadsServices(cwd: string): Promise<ReadsServices> {
   let credentialStorePromise: Promise<SystemKindleCredentialStore> | undefined;
   let obsidianPromise: Promise<ObsidianService | undefined> | undefined;
   let searchPromise: Promise<SearchService> | undefined;
+  let userStatePromise: Promise<UserStateService> | undefined;
 
   const getExports = (): Promise<ExportService> => {
     exportsPromise ??= import('../../src/application/export-service.ts')
@@ -72,9 +75,17 @@ export async function openReadsServices(cwd: string): Promise<ReadsServices> {
     })).catch((error: unknown) => { throw capabilityError('Kindle delivery support', error); });
     return kindlePromise;
   };
+  const getUserState = (): Promise<UserStateService> => {
+    userStatePromise ??= import('../../src/application/user-state-service.ts')
+      .then(({ UserStateService }) => new UserStateService({ library }))
+      .catch((error: unknown) => { throw capabilityError('Reading-state support', error); });
+    return userStatePromise;
+  };
   const getSearch = (): Promise<SearchService> => {
-    searchPromise ??= import('../../src/application/search-service.ts')
-      .then(({ SearchService }) => new SearchService({ library }))
+    searchPromise ??= Promise.all([
+      import('../../src/application/search-service.ts'),
+      getUserState(),
+    ]).then(([{ SearchService }, userState]) => new SearchService({ library, userState }))
       .catch((error: unknown) => { throw capabilityError('Full-text search support', error); });
     return searchPromise;
   };
@@ -100,5 +111,6 @@ export async function openReadsServices(cwd: string): Promise<ReadsServices> {
     getKindleCredentialStore,
     getObsidian,
     getSearch,
+    getUserState,
   };
 }

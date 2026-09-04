@@ -13,7 +13,7 @@ Pi Reads turns web pages, pasted text, Markdown, and local files into a private 
 - **Faithful archive** — captures the source without AI rewriting, reuses exact duplicates, and links explicitly recaptured versions.
 - **Digest** — creates a shorter, cited version.
 - **Synthesis** — creates a new, cited article from source ideas.
-- **Local library** — stores sources, articles, provenance, and exports under `~/Documents/pi-reads` by default, with offline lexical search.
+- **Local library** — stores sources, articles, provenance, exports, and separate reading state under `~/Documents/pi-reads`, with offline search and deterministic queues.
 - **Reading destinations** — exports to local files, Obsidian, and Kindle.
 - **Safe delivery** — asks before overwriting Obsidian files or sending Kindle email.
 
@@ -60,6 +60,15 @@ Browse or privately search saved articles with:
 
 Search uses a rebuildable local BM25-style lexical index—no model, embeddings, or remote search service. Run `/reads-rebuild-search` for an explicit rebuild; missing or corrupt indexes recover automatically.
 
+Track progress without changing immutable articles:
+
+```text
+/reads-state <article-id> reading
+/reads-queue
+```
+
+States are unread, reading, completed, or archived. Tool workflows can also set tags, rating, priority, and due/read-later dates with revision-conflict protection.
+
 ## Obsidian
 
 Run `/reads-config`, choose **Obsidian destination**, and select your vault and inbox folders. Pi Reads writes a Markdown note, copies its images, preserves provenance, and asks before replacing a conflicting file.
@@ -88,6 +97,8 @@ For iCloud Mail settings and CI environment overrides, see [EPUB and Kindle deli
 | `/reads-config` | Configure the library, Obsidian, or Kindle |
 | `/reads-list` | Browse saved articles |
 | `/reads-search <query>` | Search local metadata and archive/generated prose |
+| `/reads-state <article-id> [status]` | Show or update reading status |
+| `/reads-queue [status]` | List/filter the deterministic reading queue |
 | `/reads-rebuild-search` | Rebuild the derived local search index |
 | `/reads-install-browser` | Install Chromium for PDF export |
 
@@ -98,6 +109,7 @@ Pi Reads also provides the `reads_ingest`, `reads_save_article`, `reads_export`,
 - Your library stays outside the installed package and is not uploaded by Pi Reads.
 - Archived source prose is immutable and separate from generated prose.
 - Generated articles retain source IDs, citations, model information, and timestamps.
+- Mutable reading state is revisioned separately and never changes source or article manifests.
 - Kindle credentials stay in the operating-system credential store; environment overrides are available for CI.
 - Kindle sending and conflicting Obsidian overwrites require interactive confirmation.
 

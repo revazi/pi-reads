@@ -5,6 +5,7 @@ import path from 'node:path';
 import test from 'node:test';
 import { LibraryService } from '../src/application/library-service.ts';
 import { FULL_TEXT_SEARCH_INDEX_PATH, SearchService } from '../src/application/search-service.ts';
+import { UserStateService } from '../src/application/user-state-service.ts';
 import {
   createArticleSearchBlocks,
   createFullTextSearchIndex,
@@ -52,7 +53,13 @@ test('private full-text search labels archive/generated exact excerpts and appli
       },
       generatedBy: { provider: 'fixture', model: 'fixture', generatedAt: '2026-09-03T12:00:00.000Z' },
     });
-    const search = new SearchService({ library });
+    const userState = new UserStateService({ library });
+    await userState.update({
+      articleId: generated.article.id,
+      expectedRevision: 0,
+      patch: { status: 'reading', tags: ['research'] },
+    });
+    const search = new SearchService({ library, userState });
 
     const archiveResult = await search.search('meaningful prose', { mode: 'archive' });
     assert.equal(archiveResult.hits[0]?.mode, 'archive');
@@ -67,7 +74,12 @@ test('private full-text search labels archive/generated exact excerpts and appli
       archiveSnippet.excerpt,
     );
 
-    const generatedResult = await search.search('quasar', { mode: 'synthesis', sourceId: capture.source.id });
+    const generatedResult = await search.search('quasar', {
+      mode: 'synthesis',
+      sourceId: capture.source.id,
+      status: 'reading',
+      tag: 'research',
+    });
     assert.equal(generatedResult.hits[0]?.mode, 'synthesis');
     assert.equal(generatedResult.hits[0]?.articleId, generated.article.id);
     assert.match(generatedResult.hits[0]?.snippet.locator ?? '', /^(metadata:title|b_)/u);
@@ -88,6 +100,15 @@ test('private full-text search labels archive/generated exact excerpts and appli
     assert.ok(urlResult.hits.some(({ snippet }) => snippet.field === 'url'));
     const dateResult = await search.search('quasar', { from: '2026-09-03', to: '2026-09-03' });
     assert.equal(dateResult.hits[0]?.articleId, generated.article.id);
+    await userState.update({
+      articleId: generated.article.id,
+      expectedRevision: 1,
+      patch: { status: 'completed' },
+    });
+    const changedStateResult = await search.search('quasar', { status: 'completed' });
+    assert.equal(changedStateResult.recoveredIndex, true);
+    assert.equal(changedStateResult.hits[0]?.articleId, generated.article.id);
+    assert.deepEqual((await search.search('quasar', { status: 'reading' })).hits, []);
     assert.deepEqual((await search.search('quasar', { mode: 'digest' })).hits, []);
     await assert.rejects(() => search.search('quasar', { from: '2026-09-04', to: '2026-09-03' }), /from must not be after to/u);
   } finally {
@@ -146,8 +167,8 @@ test('BM25-style core supports forward-compatible tag and status filters', () =>
     content,
     blocks: createArticleSearchBlocks(content),
     tags: ['research'],
-    status: 'queued',
+    status: 'reading',
   }]);
-  assert.equal(searchFullTextIndex(index, 'private', { tag: 'RESEARCH', status: 'QUEUED' }).length, 1);
+  assert.equal(searchFullTextIndex(index, 'private', { tag: 'RESEARCH', status: 'READING' }).length, 1);
   assert.equal(searchFullTextIndex(index, 'private', { tag: 'other' }).length, 0);
 });

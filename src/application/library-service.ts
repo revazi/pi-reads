@@ -515,8 +515,8 @@ export class LibraryService {
     await this.ensureLibrary();
     const needle = query.trim().toLowerCase();
     if (!needle) return [];
-    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 1_000) {
-      throw new Error('Article search limit must be an integer from 1 to 1000');
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 10_000) {
+      throw new Error('Article search limit must be an integer from 1 to 10000');
     }
     const articles = (await this.index.read()).articles;
     return articles.filter((article) => [

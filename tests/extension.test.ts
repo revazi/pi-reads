@@ -80,7 +80,10 @@ test('Pi extension registers and executes capture, generation, export, and libra
     );
     assert.deepEqual(
       new Set(commands.keys()),
-      new Set(['reads', 'reads-config', 'reads-search', 'reads-rebuild-search', 'reads-install-browser', 'reads-list']),
+      new Set([
+        'reads', 'reads-config', 'reads-search', 'reads-state', 'reads-queue', 'reads-rebuild-search',
+        'reads-install-browser', 'reads-list',
+      ]),
     );
 
     const capture = await tools.get('reads_ingest')!.execute(
@@ -149,9 +152,69 @@ test('Pi extension registers and executes capture, generation, export, and libra
     assert.ok(Buffer.byteLength(generated.content[0]?.text ?? '') < 200);
     assert.doesNotMatch(generated.content[0]?.text ?? '', /Article content:|Manifest:/u);
 
+    const initialState = await tools.get('reads_library')!.execute(
+      'state-show-call',
+      { action: 'state-show', id: generatedArticleId },
+      signal,
+      undefined,
+      context,
+    );
+    assert.equal((initialState.details?.state as { revision: number }).revision, 0);
+    const updatedState = await tools.get('reads_library')!.execute(
+      'state-update-call',
+      {
+        action: 'state-update',
+        id: generatedArticleId,
+        expectedRevision: 0,
+        status: 'reading',
+        tags: ['research'],
+        rating: 5,
+        priority: 4,
+        dueAt: '2026-09-10',
+      },
+      signal,
+      undefined,
+      context,
+    );
+    assert.equal((updatedState.details?.state as { revision: number }).revision, 1);
+    await assert.rejects(
+      () => tools.get('reads_library')!.execute(
+        'stale-state-call',
+        { action: 'state-update', id: generatedArticleId, expectedRevision: 0, status: 'completed' },
+        signal,
+        undefined,
+        context,
+      ),
+      /revision conflict/u,
+    );
+    const queue = await tools.get('reads_library')!.execute(
+      'queue-call',
+      { action: 'queue', status: 'reading', tag: 'research' },
+      signal,
+      undefined,
+      context,
+    );
+    assert.match(queue.content[0]?.text ?? '', new RegExp(generatedArticleId, 'u'));
+    const filteredList = await tools.get('reads_library')!.execute(
+      'state-list-call',
+      { action: 'list', status: 'reading', sort: 'priority' },
+      signal,
+      undefined,
+      context,
+    );
+    assert.equal((filteredList.details?.articles as unknown[]).length, 1);
+    const filteredMetadataSearch = await tools.get('reads_library')!.execute(
+      'state-search-call',
+      { action: 'search', query: 'Extension digest', status: 'reading', sort: 'rating' },
+      signal,
+      undefined,
+      context,
+    );
+    assert.equal((filteredMetadataSearch.details?.articles as unknown[]).length, 1);
+
     const fullText = await tools.get('reads_library')!.execute(
       'full-text-call',
-      { action: 'full-text', query: 'generated claim', mode: 'digest', maxBytes: 1_024 },
+      { action: 'full-text', query: 'generated claim', mode: 'digest', status: 'reading', maxBytes: 1_024 },
       signal,
       undefined,
       context,
@@ -477,6 +540,13 @@ test('archive-only /reads executes directly without a model and preserves destin
     const localArtifact = /^Artifact: (.+)$/m.exec(localReport)?.[1];
     assert.ok(localArtifact);
     assert.match(await readFile(localArtifact, 'utf8'), /Faithful direct-command prose/);
+
+    const articleId = /^Created faithful archive (art_[a-z0-9]+)\.$/mu.exec(localReport)?.[1];
+    assert.ok(articleId);
+    await commands.get('reads-state')!.handler(`${articleId} reading`, baseContext);
+    assert.match(notifications.at(-1) ?? '', /state to revision 1: reading/u);
+    await commands.get('reads-queue')!.handler('reading', baseContext);
+    assert.match(notifications.at(-1) ?? '', new RegExp(articleId, 'u'));
 
     await commands.get('reads-search')!.handler('Faithful direct-command', baseContext);
     assert.match(notifications.at(-1) ?? '', /BEGIN PI_READS_LIBRARY_DATA/u);

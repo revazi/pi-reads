@@ -76,7 +76,7 @@ tests/
 
 The core owns:
 
-- `Source`, `Article`, `Citation`, and `Export` semantics;
+- `Source`, `Article`, `Citation`, `Export`, and separate mutable `ArticleUserState` semantics;
 - mode and identifier rules;
 - path-independent record validation;
 - content and visible-text hashing;
@@ -120,7 +120,8 @@ The filesystem adapter implements the layout in the product contract. It must:
 - write atomically and create-only;
 - treat manifests as canonical and `indexes/library.json` as a rebuildable metadata cache;
 - derive versioned per-source heading/paragraph indexes from exact `content.md` bytes, with content-hash binding and independently verifiable UTF-8 byte ranges;
-- build `indexes/search-v1.json` locally from canonical article/source metadata, weighted lexical terms, and exact block ranges; verify corpus/index hashes and rebuild deterministically after staleness, deletion, or corruption;
+- build `indexes/search-v1.json` locally from canonical article/source metadata, separate user state, weighted lexical terms, and exact block ranges; verify corpus/index hashes and rebuild deterministically after staleness, deletion, or corruption;
+- keep revisioned mutable reading state under `state/articles/`, serialized by a cross-process atomic lock, with compare-and-swap updates that never touch immutable manifests;
 - update the index with synced temporary files and atomic renames while an interruption marker protects canonical record/index consistency;
 - detect stale indexes from constant-time source/mode directory stamps and rebuild from immutable manifests when the index is missing, malformed, stale, or interrupted;
 - serialize in-process index mutations in addition to the Pi-facing file mutation queue;

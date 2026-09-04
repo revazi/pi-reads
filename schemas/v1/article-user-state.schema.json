@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/revazi/pi-reads/schemas/v1/article-user-state.schema.json",
+  "title": "Pi Reads Mutable Article User State",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "articleId", "revision", "status", "tags", "priority", "updatedAt"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "articleId": { "type": "string", "pattern": "^art_[a-z0-9]{16,64}$" },
+    "revision": { "type": "integer", "minimum": 1 },
+    "status": { "enum": ["unread", "reading", "completed", "archived"] },
+    "tags": {
+      "type": "array",
+      "maxItems": 50,
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^[\\p{L}\\p{N}][\\p{L}\\p{N}._-]{0,63}$" }
+    },
+    "rating": { "type": "integer", "minimum": 1, "maximum": 5 },
+    "priority": { "type": "integer", "minimum": 0, "maximum": 5 },
+    "dueAt": { "$ref": "common.schema.json#/$defs/timestamp" },
+    "readLaterAt": { "$ref": "common.schema.json#/$defs/timestamp" },
+    "updatedAt": { "$ref": "common.schema.json#/$defs/timestamp" }
+  }
+}

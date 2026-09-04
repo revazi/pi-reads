@@ -7,6 +7,8 @@ Canonical records:
 - `source.schema.json` — immutable captured input, provenance, and optional recapture lineage
 - `source-content-index.schema.json` — deterministic heading/paragraph locators derived from source Markdown
 - `search-index.schema.json` — rebuildable local BM25-style lexical index over article/source metadata and prose
+- `article-user-state.schema.json` — mutable, revisioned reading status, tags, rating, priority, and dates kept outside article manifests
+- `user-state-snapshot.schema.json` — portable deterministic user-state backup/restore payload
 - `citation.schema.json` — a generated article's reference to a source
 - `citation-diagnostics.schema.json` — bounded source-grounding and article-section citation diagnostics
 - `article.schema.json` — an archive, digest, or synthesis reading document with optional backward-compatible coverage/diagnostic metadata
