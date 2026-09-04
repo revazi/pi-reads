@@ -131,6 +131,37 @@ function bytes(value: Uint8Array | string): Uint8Array {
   return typeof value === 'string' ? Buffer.from(value) : value;
 }
 
+function assertExpectedExistingHash(
+  expectedHashes: Readonly<Record<string, string | null>> | undefined,
+  relativePath: string,
+  existing: Uint8Array | undefined,
+): void {
+  if (!Object.hasOwn(expectedHashes ?? {}, relativePath)) return;
+  const currentHash = existing ? versionedSha256(existing) : null;
+  if (currentHash !== expectedHashes![relativePath]) {
+    throw new Error(`Obsidian target changed after preview: ${relativePath}`);
+  }
+}
+
+export async function readObsidianVaultFile(
+  vaultPath: string,
+  relativePath: string,
+): Promise<Uint8Array | undefined> {
+  const canonicalVault = await assertVault(vaultPath);
+  await assertSafeExistingParents(canonicalVault, relativePath);
+  const target = resolveVaultPath(canonicalVault, relativePath);
+  try {
+    const info = await lstat(target);
+    if (info.isSymbolicLink() || !info.isFile()) {
+      throw new Error(`Obsidian target must be a regular file: ${relativePath}`);
+    }
+    return new Uint8Array(await readFile(target));
+  } catch (error: unknown) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined;
+    throw new Error(`Could not read Obsidian path ${relativePath}: ${errorMessage(error)}`);
+  }
+}
+
 export async function inspectObsidianVault(
   vaultPath: string,
   files: readonly ObsidianVaultFile[],
@@ -169,7 +200,7 @@ export async function inspectObsidianVault(
 export async function writeObsidianVault(
   vaultPath: string,
   files: readonly ObsidianVaultFile[],
-  options: { overwrite?: boolean } = {},
+  options: { overwrite?: boolean; expectedExistingHashes?: Readonly<Record<string, string | null>> } = {},
 ): Promise<ObsidianVaultWrite> {
   const canonicalVault = await assertVault(vaultPath);
   const changedPaths: string[] = [];
@@ -193,6 +224,8 @@ export async function writeObsidianVault(
           throw error;
         }
       }
+
+      assertExpectedExistingHash(options.expectedExistingHashes, file.relativePath, existing);
 
       if (existing && versionedSha256(existing) === versionedSha256(contents)) {
         continue;

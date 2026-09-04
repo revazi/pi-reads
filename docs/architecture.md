@@ -142,7 +142,7 @@ Archive rendering must run visible-text fidelity verification before an export i
 Destinations receive a prepared export; they do not generate article prose.
 
 - Local destination retains the artifact in the library.
-- Obsidian renders destination frontmatter, copies/downloads assets, rewrites relative links, and writes only conflict-approved targets in a configured vault.
+- Obsidian renders destination frontmatter, copies/downloads assets, rewrites relative links, and writes only conflict-approved targets in a configured vault. Its deterministic graph builder derives fixed library/topic/status/queue views from delivered-export metadata and separate user state, adds source links only to managed synthesis notes, never rewrites archive notes, refuses unmanaged collisions, and hash-checks targets again at write time.
 - Kindle dry-runs retain an immutable local EPUB/PDF and return its export ID and hash; a later SMTP delivery verifies and sends those exact bytes only after explicit interactive confirmation, then records evidence by reference without copying the artifact.
 
 Every external side effect returns delivery evidence suitable for a non-secret export manifest.

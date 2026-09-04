@@ -94,7 +94,8 @@ export async function openReadsServices(cwd: string): Promise<ReadsServices> {
     obsidianPromise ??= Promise.all([
       import('../../src/application/obsidian-service.ts'),
       getExports(),
-    ]).then(([{ ObsidianService }, exports]) => new ObsidianService({ library, exports }))
+      getUserState(),
+    ]).then(([{ ObsidianService }, exports, userState]) => new ObsidianService({ library, exports, userState }))
       .catch((error: unknown) => { throw capabilityError('Obsidian export support', error); });
     return obsidianPromise;
   };

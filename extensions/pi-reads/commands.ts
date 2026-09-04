@@ -51,6 +51,26 @@ async function executeStateCommand(args: string, ctx: ExtensionCommandContext): 
   ctx.ui.notify(updated.content[0]?.text ?? 'Reading state updated.', 'info');
 }
 
+async function executeObsidianGraphCommand(args: string, ctx: ExtensionCommandContext): Promise<void> {
+  const value = args.trim().toLowerCase();
+  if (value && value !== 'overwrite') {
+    ctx.ui.notify('Usage: /reads-obsidian-graph [overwrite]', 'error');
+    return;
+  }
+  const services = await openReadsServices(ctx.cwd);
+  const config = services.obsidianConfig;
+  if (!config) throw new Error('Obsidian is not configured. Run /reads-config and choose Obsidian destination.');
+  const obsidian = await services.getObsidian();
+  if (!obsidian) throw new Error('Obsidian destination could not be loaded. Check the Pi Reads installation.');
+  const plan = await obsidian.planGraph(config, ctx.signal);
+  const overwrite = await resolveObsidianOverwrite(plan, ctx, { headlessOverwrite: value === 'overwrite' });
+  const delivered = await withFileMutationQueue(config.vaultPath, () => obsidian.deliverGraph(plan, overwrite));
+  ctx.ui.notify([
+    `Obsidian reading graph: ${delivered.linkedArticleCount} exported notes; ${delivered.relationshipCount} synthesis links.`,
+    `Changed ${delivered.changedPaths.length} of ${delivered.managedPaths.length} managed targets.`,
+  ].join('\n'), 'info');
+}
+
 function assertCaptureReadyForExport(capture: CaptureResult): void {
   if (capture.status !== 'changed-content') return;
   throw new Error(
@@ -300,6 +320,11 @@ export function registerReadsCommands(pi: ExtensionAPI): void {
       }, services);
       ctx.ui.notify(result.content[0]?.text ?? 'Reading queue is empty.', 'info');
     },
+  });
+
+  pi.registerCommand('reads-obsidian-graph', {
+    description: 'Build managed Obsidian indexes, status views, queues, and synthesis backlinks',
+    handler: executeObsidianGraphCommand,
   });
 
   pi.registerCommand('reads-rebuild-search', {

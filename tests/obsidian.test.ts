@@ -8,6 +8,7 @@ import type { RecordIdPrefix } from '../src/core/library.ts';
 import { ExportService } from '../src/application/export-service.ts';
 import { LibraryService } from '../src/application/library-service.ts';
 import { ObsidianConflictError, ObsidianService } from '../src/application/obsidian-service.ts';
+import { UserStateService } from '../src/application/user-state-service.ts';
 import { downloadImageAsset } from '../src/adapters/destinations/obsidian.ts';
 
 function deterministicIds(): (prefix: RecordIdPrefix) => string {
@@ -57,12 +58,14 @@ test('Obsidian export writes metadata and assets, detects conflicts, and preserv
   const now = () => new Date('2026-08-21T10:30:00Z');
   const library = new LibraryService({ libraryDir, createId, now });
   const exports = new ExportService({ library, createId, now });
+  const userState = new UserStateService({ library, now });
   const fetched: string[] = [];
   const obsidian = new ObsidianService({
     library,
     exports,
     createId,
     now,
+    userState,
     fetchAsset: async (url) => {
       fetched.push(url);
       return { contents: new Uint8Array([5, 6, 7]), mediaType: 'image/webp' };
@@ -160,6 +163,99 @@ test('Obsidian export writes metadata and assets, detects conflicts, and preserv
     });
     assert.match(await readFile(overwritten.notePath, 'utf8'), /Faithful prose/);
     assert.equal(overwritten.record.delivery?.confirmationMethod, 'interactive');
+
+    await userState.update({
+      articleId: capture.archiveArticle.id,
+      expectedRevision: 0,
+      patch: {
+        status: 'reading',
+        tags: ['architecture'],
+        priority: 4,
+        dueAt: '2026-08-25',
+      },
+    });
+    const { index: sourceIndex } = await library.loadSourceIndex(capture.source.id);
+    const synthesis = await library.saveGenerated({
+      mode: 'synthesis',
+      title: 'Obsidian synthesis',
+      body: 'A connected observation.[^cite_graph]',
+      sourceIds: [capture.source.id],
+      citations: [{ id: 'cite_graph', sourceId: capture.source.id, quote: 'Faithful prose.' }],
+      coverage: {
+        policy: 'targeted',
+        sources: [{
+          sourceId: capture.source.id,
+          sourceContentHash: sourceIndex.sourceContentHash,
+          consideredLocators: [sourceIndex.paragraphs[0]!.id],
+        }],
+      },
+      generatedBy: { provider: 'fixture', model: 'fixture', generatedAt: now().toISOString() },
+    });
+    const synthesisPlan = await obsidian.plan(synthesis.article.id, config);
+    const synthesisExport = await obsidian.deliver(synthesisPlan);
+    await userState.update({
+      articleId: synthesis.article.id,
+      expectedRevision: 0,
+      patch: {
+        tags: ['architecture', 'synthesis'],
+        priority: 5,
+        readLaterAt: '2026-08-24',
+      },
+    });
+
+    const archiveBeforeGraph = await readFile(overwritten.notePath);
+    const graphPlan = await obsidian.planGraph(config);
+    assert.deepEqual(graphPlan.unmanagedConflicts, []);
+    assert.deepEqual([...graphPlan.inspection.missing].sort(), [
+      'Pi Reads/Library.md',
+      'Pi Reads/Reading Queue.md',
+      'Pi Reads/Reading Status.md',
+      'Pi Reads/Topics.md',
+    ]);
+    assert.deepEqual(graphPlan.inspection.conflicts, [synthesisExport.noteRelativePath]);
+    await assert.rejects(() => obsidian.deliverGraph(graphPlan), ObsidianConflictError);
+    const graph = await obsidian.deliverGraph(graphPlan, { overwrite: true });
+    assert.equal(graph.linkedArticleCount, 2);
+    assert.equal(graph.relationshipCount, 1);
+    assert.equal(graph.changedPaths.length, 5);
+    assert.deepEqual(await readFile(overwritten.notePath), archiveBeforeGraph);
+    assert.match(
+      await readFile(synthesisExport.notePath, 'utf8'),
+      /## Pi Reads source notes[\s\S]*\[article\]\(article\.md\)/u,
+    );
+    assert.match(await readFile(path.join(vaultPath, 'Pi Reads/Topics.md'), 'utf8'), /## architecture/u);
+    assert.match(await readFile(path.join(vaultPath, 'Pi Reads/Reading Status.md'), 'utf8'), /## reading/u);
+    assert.match(await readFile(path.join(vaultPath, 'Pi Reads/Reading Queue.md'), 'utf8'), /Obsidian synthesis[\s\S]*\[article\]/u);
+    assert.equal(await readFile(path.join(vaultPath, 'Unrelated.md'), 'utf8'), 'Do not change.');
+
+    const repeatedGraphPlan = await obsidian.planGraph(config);
+    assert.equal(repeatedGraphPlan.inspection.conflicts.length, 0);
+    assert.equal(repeatedGraphPlan.inspection.unchanged.length, 5);
+    const repeatedGraph = await obsidian.deliverGraph(repeatedGraphPlan);
+    assert.deepEqual(repeatedGraph.changedPaths, []);
+
+    const topicsPath = path.join(vaultPath, 'Pi Reads/Topics.md');
+    await writeFile(topicsPath, `${await readFile(topicsPath, 'utf8')}\nManual managed edit.\n`);
+    const managedConflict = await obsidian.planGraph(config);
+    assert.deepEqual(managedConflict.inspection.conflicts, ['Pi Reads/Topics.md']);
+    assert.deepEqual(managedConflict.unmanagedConflicts, []);
+    await assert.rejects(() => obsidian.deliverGraph(managedConflict), ObsidianConflictError);
+    await writeFile(topicsPath, `${await readFile(topicsPath, 'utf8')}Changed after preview.\n`);
+    await assert.rejects(
+      () => obsidian.deliverGraph(managedConflict, { overwrite: true }),
+      /changed after preview/u,
+    );
+    await obsidian.deliverGraph(await obsidian.planGraph(config), { overwrite: true });
+
+    const libraryIndexPath = path.join(vaultPath, 'Pi Reads/Library.md');
+    await writeFile(libraryIndexPath, 'Unrelated replacement.');
+    const unmanagedConflict = await obsidian.planGraph(config);
+    assert.deepEqual(unmanagedConflict.unmanagedConflicts, ['Pi Reads/Library.md']);
+    await assert.rejects(
+      () => obsidian.deliverGraph(unmanagedConflict, { overwrite: true }),
+      /will not overwrite unmanaged files/u,
+    );
+    assert.equal(await readFile(libraryIndexPath, 'utf8'), 'Unrelated replacement.');
 
     const pasted = await library.capture({
       kind: 'markdown',

@@ -42,10 +42,10 @@ Call `reads_export` with `articleId`, destination, and format:
 
 If PDF needs Chromium, ask the user to run `/reads-install-browser`.
 
-For Obsidian conflicts, show the listed paths and obtain explicit approval before retrying with `overwrite: true`. Never infer approval.
+For listed Obsidian conflicts, get explicit approval before `overwrite`; never infer it. `/reads-obsidian-graph` preserves archive notes and refuses unmanaged files.
 
 Kindle starts with a dry run; report its redacted recipient, subject, size, prepared ID/hash, and retained path. On explicit send, reuse that exact reviewed ID as `preparedExportId`; the tool must show the full recipient and confirm interactively. Headless send is forbidden. Keep credentials in the OS store (environment overrides are CI-only), never in arguments/prose/manifests/Git. On cancel/failure, report the retained artifact.
 
 ## Commands
 
-`/reads` runs capture/export; `/reads-list`, `/reads-search`, `/reads-state`, and `/reads-queue` manage the library; `/reads-rebuild-search` rebuilds search; `/reads-config` configures; `/reads-install-browser` installs PDF Chromium.
+`/reads` runs capture/export; `/reads-list`, `/reads-search`, `/reads-state`, and `/reads-queue` manage the library; `/reads-obsidian-graph` rebuilds managed vault navigation; `/reads-rebuild-search` rebuilds search; `/reads-config` configures; `/reads-install-browser` installs PDF Chromium.

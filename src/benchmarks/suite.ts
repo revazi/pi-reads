@@ -136,7 +136,7 @@ process.stdout.write(JSON.stringify({ wallTimeMs, toolCount: tools.length, comma
     timeout: 10_000,
   });
   const result = JSON.parse(stdout) as ColdRegistrationResult;
-  if (result.toolCount !== 4 || result.commandCount !== 8) {
+  if (result.toolCount !== 4 || result.commandCount !== 9) {
     throw new Error(`Cold extension registration produced ${result.toolCount} tools and ${result.commandCount} commands`);
   }
   return result;

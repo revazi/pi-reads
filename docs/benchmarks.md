@@ -61,7 +61,7 @@ Digest and synthesis prose is a deterministic fixture, not a model call, so toke
 pnpm --silent benchmark --token-usage /tmp/pi-token-usage.json
 ```
 
-The initial cold-registration budget is 500 ms on the benchmark environment. Registration includes importing the extension and registering its four tools and eight commands, but excludes Node.js process startup. The report also records Node, operating-system, CPU, CI, package, commit, and browser-mode metadata. Its storage summary counts physical artifact paths and reports duplicate bytes by comparing their immutable hashes; delivery manifests that reference an existing prepared artifact do not count as another stored copy, while repeated rendering remains visible.
+The initial cold-registration budget is 500 ms on the benchmark environment. Registration includes importing the extension and registering its four tools and nine commands, but excludes Node.js process startup. The report also records Node, operating-system, CPU, CI, package, commit, and browser-mode metadata. Its storage summary counts physical artifact paths and reports duplicate bytes by comparing their immutable hashes; delivery manifests that reference an existing prepared artifact do not count as another stored copy, while repeated rendering remains visible.
 
 The deterministic test suite also creates 10,000 immutable article manifests, rebuilds `indexes/library.json`, and gates both indexed listing and metadata search at 500 ms each. Rebuilding is intentionally outside that latency budget because it is a recovery/migration path; normal listing, search, and slug allocation read the single derived index and constant-time catalog stamps instead of scanning manifests.
 

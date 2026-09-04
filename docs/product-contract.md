@@ -159,6 +159,8 @@ An export records:
 
 Exports are derived and may be regenerated under new export IDs. They never become the source of truth for article content. EPUB artifacts contain validated package/navigation/spine documents and embed the image bytes needed for offline reading.
 
+The Obsidian reading graph considers only delivered Markdown exports for the configured vault whose current note retains its `piReadsArticleId` frontmatter. It deterministically derives four fixed `Pi Reads/` views for the managed library, topics, reading status, and reading queue. Exported syntheses may receive a derived source-note link section so Obsidian exposes backlinks from exported archive notes; archive notes and immutable export artifacts are never changed. Rebuilds are byte-idempotent. Differing managed targets require exact-path approval, unmanaged path collisions are never overwritten, and write-time expected hashes reject edits made after preview.
+
 Kindle delivery is an external side effect. A successful Kindle export record must contain the prepared local export ID, interactive confirmation timestamp, and delivery timestamp. Dry-runs retain an immutable local EPUB or PDF and expose its export ID and content hash with only a redacted recipient outside the confirmation dialog. A later send verifies the requested article, format, path, byte length, and hash, sends those exact prepared bytes, and records delivery evidence by reference rather than copying the attachment. SMTP credentials and full Kindle/sender addresses must come from the operating-system credential store or environment overrides and must not be written to JSON configuration, manifests, logs, article metadata, Pi tool results, or Git.
 
 ## Library location resolution
