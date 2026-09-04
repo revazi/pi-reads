@@ -8,6 +8,7 @@ export * from './frontmatter.ts';
 export * from './library.ts';
 export * from './library-index.ts';
 export * from './network.ts';
+export * from './obsidian-graph.ts';
 export * from './slugs.ts';
 export * from './source-coverage.ts';
 export * from './source-index.ts';

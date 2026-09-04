@@ -1,7 +1,7 @@
 import process from 'node:process';
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
 import type { DeliveredKindleExport, KindlePreview } from '../../src/application/kindle-service.ts';
-import type { ObsidianExportPlan } from '../../src/application/obsidian-service.ts';
+import type { ObsidianVaultInspection } from '../../src/adapters/destinations/obsidian.ts';
 import type { SourceInput } from '../../src/core/ingest/index.ts';
 import type { ReadsServices } from './runtime.ts';
 
@@ -46,10 +46,13 @@ export async function openObsidianNote(
 }
 
 export async function resolveObsidianOverwrite(
-  plan: ObsidianExportPlan,
+  plan: { inspection: ObsidianVaultInspection; unmanagedConflicts?: string[] },
   ctx: ExtensionContext,
   options: { headlessOverwrite?: boolean } = {},
 ): Promise<{ overwrite: boolean; confirmedAt?: string }> {
+  if (plan.unmanagedConflicts?.length) {
+    throw new Error(`Obsidian targets are not Pi Reads-managed and will not be overwritten: ${plan.unmanagedConflicts.join(', ')}`);
+  }
   if (plan.inspection.conflicts.length === 0) return { overwrite: false };
   if (ctx.hasUI) {
     const confirmed = await ctx.ui.confirm(

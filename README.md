@@ -71,7 +71,7 @@ States are unread, reading, completed, or archived. Tool workflows can also set 
 
 ## Obsidian
 
-Run `/reads-config`, choose **Obsidian destination**, and select your vault and inbox folders. Pi Reads writes a Markdown note, copies its images, preserves provenance, and asks before replacing a conflicting file.
+Run `/reads-config`, choose **Obsidian destination**, and select your vault and inbox folders. Pi Reads writes a Markdown note, copies its images, preserves provenance, and asks before replacing a conflicting file. After exporting notes, `/reads-obsidian-graph` builds managed library/topic/status/queue views and adds source-note links to exported syntheses; source/archive note bytes stay unchanged.
 
 You can also set the vault directly:
 
@@ -99,6 +99,7 @@ For iCloud Mail settings and CI environment overrides, see [EPUB and Kindle deli
 | `/reads-search <query>` | Search local metadata and archive/generated prose |
 | `/reads-state <article-id> [status]` | Show or update reading status |
 | `/reads-queue [status]` | List/filter the deterministic reading queue |
+| `/reads-obsidian-graph [overwrite]` | Build managed Obsidian views and synthesis backlinks |
 | `/reads-rebuild-search` | Rebuild the derived local search index |
 | `/reads-install-browser` | Install Chromium for PDF export |
 

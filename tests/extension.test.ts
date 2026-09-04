@@ -81,8 +81,8 @@ test('Pi extension registers and executes capture, generation, export, and libra
     assert.deepEqual(
       new Set(commands.keys()),
       new Set([
-        'reads', 'reads-config', 'reads-search', 'reads-state', 'reads-queue', 'reads-rebuild-search',
-        'reads-install-browser', 'reads-list',
+        'reads', 'reads-config', 'reads-search', 'reads-state', 'reads-queue', 'reads-obsidian-graph',
+        'reads-rebuild-search', 'reads-install-browser', 'reads-list',
       ]),
     );
 
@@ -333,6 +333,20 @@ test('Pi extension registers and executes capture, generation, export, and libra
       context,
     );
     assert.match(await readFile(notePath, 'utf8'), /Extension digest/);
+
+    await commands.get('reads-obsidian-graph')!.handler('', context);
+    const graphTopicsPath = path.join(vaultPath, 'Pi Reads', 'Topics.md');
+    const graphTopics = await readFile(graphTopicsPath, 'utf8');
+    assert.match(graphTopics, /"piReadsManaged": "obsidian-graph-v1"/u);
+    await commands.get('reads-obsidian-graph')!.handler('', context);
+    assert.equal(await readFile(graphTopicsPath, 'utf8'), graphTopics);
+    await writeFile(graphTopicsPath, `${graphTopics}\nManaged edit.\n`);
+    await assert.rejects(
+      () => commands.get('reads-obsidian-graph')!.handler('', context),
+      /rerun with overwrite true only after explicit approval/u,
+    );
+    await commands.get('reads-obsidian-graph')!.handler('overwrite', context);
+    assert.equal(await readFile(graphTopicsPath, 'utf8'), graphTopics);
 
     const listed = await tools.get('reads_library')!.execute(
       'list-call',

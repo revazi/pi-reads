@@ -69,6 +69,20 @@ Pi Reads scans normal Markdown images and HTML `<img src="…">` elements outsid
 
 Supported image types are AVIF, BMP, GIF, JPEG, PNG, SVG, and WebP. Each asset is limited to 20 MiB. Relative image paths require exactly one captured local-file source so their base directory is unambiguous.
 
+## Reading graph
+
+After exporting source and synthesis notes, rebuild the vault's Pi Reads navigation:
+
+```text
+/reads-obsidian-graph
+```
+
+This deterministically maintains four files under `Pi Reads/`: `Library.md`, `Topics.md`, `Reading Status.md`, and `Reading Queue.md`. They link only notes whose immutable delivered-export manifest matches the configured vault and whose current frontmatter still identifies the Pi Reads article. Topic, status, rating, priority, and queue data come from separate current reading-state records.
+
+For each exported synthesis whose captured source also has an exported archive note, the rebuild appends a managed source-note link section to the synthesis export. Obsidian consequently shows the synthesis as a backlink on that source note. Archive/source notes are never rewritten by graph generation, and immutable library artifacts remain unchanged.
+
+A repeated rebuild with unchanged exports and state writes no bytes. Differing managed targets are listed for approval; in headless use, rerun `/reads-obsidian-graph overwrite` only after reviewing those exact paths. A colliding file without the expected Pi Reads frontmatter marker is treated as unrelated vault content and is never overwritten, even with the overwrite argument. Target hashes are compared again while writing so an edit after preview fails closed.
+
 ## Conflict behavior
 
 Before writing, Pi Reads hashes every target note and asset:
@@ -77,6 +91,6 @@ Before writing, Pi Reads hashes every target note and asset:
 - identical files are left unchanged;
 - differing files are reported as conflicts.
 
-Interactive export displays the exact conflicting vault paths and asks before replacing them. Headless callers must provide `overwrite: true` only after explicit approval. Writes are limited to the configured note and asset targets; unrelated vault files are not scanned, modified, or deleted.
+Interactive export displays the exact conflicting vault paths and asks before replacing them. Headless callers must provide `overwrite: true` only after explicit approval. Writes are limited to the configured note and asset targets; unrelated vault files are not scanned, modified, or deleted. Graph generation reads only note paths recorded by Pi Reads export manifests plus its four fixed managed view paths.
 
 Vault-relative paths and existing parent symlinks are checked so a configured folder cannot escape the vault. A successful delivery creates an immutable export manifest containing the note hash, copied asset hashes, destination vault name, and note path.

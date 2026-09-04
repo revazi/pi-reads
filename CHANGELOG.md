@@ -20,6 +20,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - Capture now reuses exact canonical/content duplicates, reports changed canonical content without persistence, and creates linked immutable source/archive records only for explicitly approved recapture.
 - Private offline full-text search now covers titles, authors, URLs, archive/generated prose, and forward-compatible tag/status metadata with BM25-style ranking, filters, bounded exact locator snippets, explicit rebuild, and deterministic corruption recovery.
 - Revisioned reading state now tracks unread/reading/completed/archived status, tags, rating, priority, and due/read-later dates outside immutable records, with conflict-safe updates, deterministic queues, state-aware list/search, and portable collision-safe snapshots.
+- Obsidian graph rebuilds now maintain managed library/topic/status/queue views and add synthesis-to-source-note links for backlinks, while preserving archive notes, refusing unmanaged collisions, requiring approved managed overwrites, and failing if targets change after preview.
 
 ### Security
 

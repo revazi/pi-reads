@@ -1,4 +1,4 @@
-import { readFile, stat } from 'node:fs/promises';
+import { lstat, readFile, readdir, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type {
@@ -18,9 +18,16 @@ import {
 } from '../core/library.ts';
 import { versionedSha256 } from '../core/text.ts';
 import {
+  OBSIDIAN_GRAPH_MARKER,
+  buildObsidianGraphFiles,
+  type ObsidianGraphEntry,
+  type ObsidianGraphFile,
+} from '../core/obsidian-graph.ts';
+import {
   downloadImageAsset,
   inspectObsidianVault,
   obsidianOpenUri,
+  readObsidianVaultFile,
   validateVaultRelativePath,
   writeObsidianVault,
   type DownloadedAsset,
@@ -29,6 +36,7 @@ import {
 } from '../adapters/destinations/obsidian.ts';
 import { ExportService } from './export-service.ts';
 import { LibraryService } from './library-service.ts';
+import type { UserStateService } from './user-state-service.ts';
 
 const MAX_ASSET_BYTES = 20 * 1024 * 1024;
 const FRONTMATTER_RESERVED_KEYS = new Set([
@@ -79,6 +87,7 @@ export interface ObsidianServiceOptions {
   now?: () => Date;
   createId?: (prefix: RecordIdPrefix) => string;
   fetchAsset?: (url: string, signal?: AbortSignal) => Promise<DownloadedAsset>;
+  userState?: UserStateService;
 }
 
 export interface ObsidianExportPlan {
@@ -91,6 +100,23 @@ export interface ObsidianExportPlan {
   inspection: ObsidianVaultInspection;
   vaultFiles: ObsidianVaultFile[];
   assets: PreparedArticleAsset[];
+}
+
+export interface ObsidianGraphPlan {
+  config: ResolvedObsidianConfig;
+  entries: ObsidianGraphEntry[];
+  files: ObsidianGraphFile[];
+  vaultFiles: ObsidianVaultFile[];
+  inspection: ObsidianVaultInspection;
+  unmanagedConflicts: string[];
+  expectedExistingHashes: Record<string, string | null>;
+}
+
+export interface DeliveredObsidianGraph {
+  managedPaths: string[];
+  changedPaths: string[];
+  linkedArticleCount: number;
+  relationshipCount: number;
 }
 
 export interface DeliveredObsidianExport {
@@ -361,9 +387,82 @@ export async function prepareArticleAssets(
   return { markdown: rewritten, assets: [...resolved.values()] };
 }
 
+interface HistoricalObsidianExport {
+  record: ExportRecord & { destination: { type: 'obsidian'; vaultName: string; notePath: string } };
+  note: string;
+}
+
+function isRecordId(value: string, prefix: 'art' | 'exp'): boolean {
+  return prefix === 'art'
+    ? /^art_[a-z0-9]{16,64}$/u.test(value)
+    : /^exp_[a-z0-9]{16,64}$/u.test(value);
+}
+
+async function readRegularLibraryFile(filePath: string, label: string): Promise<Uint8Array> {
+  const info = await lstat(filePath).catch(() => undefined);
+  if (!info || info.isSymbolicLink() || !info.isFile()) throw new Error(`${label} must be a regular file`);
+  return new Uint8Array(await readFile(filePath));
+}
+
+function invalidObsidianExport(exportId: string): Error {
+  return new Error(`Obsidian export ${exportId} has an invalid manifest`);
+}
+
+function assertHistoricalExportIdentity(record: Partial<ExportRecord>, articleId: string, exportId: string): void {
+  if (
+    record.schemaVersion !== 1 || record.id !== exportId || record.articleId !== articleId ||
+    record.format !== 'markdown' || record.status !== 'delivered' || typeof record.createdAt !== 'string'
+  ) throw invalidObsidianExport(exportId);
+}
+
+function assertHistoricalExportDestination(record: Partial<ExportRecord>, exportId: string): void {
+  if (
+    !record.destination || record.destination.type !== 'obsidian' ||
+    typeof record.destination.vaultName !== 'string' || typeof record.destination.notePath !== 'string'
+  ) throw invalidObsidianExport(exportId);
+}
+
+function assertHistoricalExportArtifact(record: Partial<ExportRecord>, exportId: string): void {
+  if (
+    !record.artifact || typeof record.artifact.path !== 'string' ||
+    record.artifact.mediaType !== 'text/markdown' || typeof record.artifact.contentHash !== 'string' ||
+    !Number.isSafeInteger(record.artifact.byteLength) || record.artifact.byteLength < 0
+  ) throw invalidObsidianExport(exportId);
+}
+
+function parseHistoricalObsidianExport(value: unknown, articleId: string, exportId: string): ExportRecord | undefined {
+  if (!value || typeof value !== 'object') throw invalidObsidianExport(exportId);
+  const record = value as Partial<ExportRecord>;
+  if (record.destination && typeof record.destination === 'object' && record.destination.type !== 'obsidian') return undefined;
+  assertHistoricalExportIdentity(record, articleId, exportId);
+  assertHistoricalExportDestination(record, exportId);
+  assertHistoricalExportArtifact(record, exportId);
+  const destination = record.destination as Extract<ExportRecord['destination'], { type: 'obsidian' }>;
+  const artifact = record.artifact!;
+  validateVaultRelativePath(destination.notePath, `Obsidian export ${exportId} note path`);
+  const expectedArtifact = path.posix.join(exportDirectory(articleId, exportId), 'article.md');
+  if (artifact.path !== expectedArtifact) {
+    throw new Error(`Obsidian export ${exportId} references an unexpected artifact path`);
+  }
+  return record as ExportRecord;
+}
+
+function hasFrontmatterProperty(contents: Uint8Array | string, key: string, value: string): boolean {
+  const text = typeof contents === 'string' ? contents : Buffer.from(contents).toString('utf8');
+  if (!text.startsWith('---\n')) return false;
+  const end = text.indexOf('\n---\n', 4);
+  if (end === -1 || end > 16 * 1024) return false;
+  return text.slice(4, end).split('\n').includes(`${JSON.stringify(key)}: ${JSON.stringify(value)}`);
+}
+
+function sameInspection(left: ObsidianVaultInspection, right: ObsidianVaultInspection): boolean {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
 export class ObsidianService {
   private readonly library: LibraryService;
   private readonly exports: ExportService;
+  private readonly userState?: UserStateService;
   private readonly now: () => Date;
   private readonly createId: (prefix: RecordIdPrefix) => string;
   private readonly fetchAsset: (url: string, signal?: AbortSignal) => Promise<DownloadedAsset>;
@@ -371,9 +470,160 @@ export class ObsidianService {
   constructor(options: ObsidianServiceOptions) {
     this.library = options.library;
     this.exports = options.exports;
+    this.userState = options.userState;
     this.now = options.now ?? (() => new Date());
     this.createId = options.createId ?? ((prefix) => createRecordId(prefix));
     this.fetchAsset = options.fetchAsset ?? ((url, signal) => downloadImageAsset(url, { signal }));
+  }
+
+  private async historicalExportRecords(
+    articleId: string,
+    vaultName: string,
+    signal?: AbortSignal,
+  ): Promise<HistoricalObsidianExport['record'][]> {
+    const articleExportRoot = resolveLibraryPath(this.library.libraryDir, path.posix.join('exports', articleId));
+    let directories;
+    try {
+      directories = await readdir(articleExportRoot, { withFileTypes: true });
+    } catch (error: unknown) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return [];
+      throw error;
+    }
+    const records: HistoricalObsidianExport['record'][] = [];
+    for (const directory of directories) {
+      signal?.throwIfAborted();
+      if (!directory.isDirectory() || !isRecordId(directory.name, 'exp')) continue;
+      const manifestPath = resolveLibraryPath(
+        this.library.libraryDir,
+        path.posix.join(exportDirectory(articleId, directory.name), 'manifest.json'),
+      );
+      const bytes = await readRegularLibraryFile(manifestPath, `Obsidian export ${directory.name} manifest`);
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(Buffer.from(bytes).toString('utf8'));
+      } catch {
+        throw invalidObsidianExport(directory.name);
+      }
+      const record = parseHistoricalObsidianExport(parsed, articleId, directory.name);
+      if (record?.destination.type === 'obsidian' && record.destination.vaultName === vaultName) {
+        records.push(record as HistoricalObsidianExport['record']);
+      }
+    }
+    return records.sort((left, right) =>
+      (right.delivery?.deliveredAt ?? right.createdAt).localeCompare(left.delivery?.deliveredAt ?? left.createdAt) ||
+      right.id.localeCompare(left.id));
+  }
+
+  private async firstCurrentManagedExport(
+    articleId: string,
+    vaultPath: string,
+    records: readonly HistoricalObsidianExport['record'][],
+    signal?: AbortSignal,
+  ): Promise<HistoricalObsidianExport | undefined> {
+    for (const record of records) {
+      signal?.throwIfAborted();
+      const current = await readObsidianVaultFile(vaultPath, record.destination.notePath);
+      if (!current || !hasFrontmatterProperty(current, 'piReadsArticleId', articleId)) continue;
+      const artifactPath = resolveLibraryPath(this.library.libraryDir, record.artifact.path);
+      const artifact = await readRegularLibraryFile(artifactPath, `Obsidian export ${record.id} artifact`);
+      if (record.artifact.byteLength !== artifact.byteLength || record.artifact.contentHash !== versionedSha256(artifact)) {
+        throw new Error(`Obsidian export ${record.id} failed artifact integrity verification`);
+      }
+      return { record, note: Buffer.from(artifact).toString('utf8') };
+    }
+    return undefined;
+  }
+
+  private async latestManagedExport(
+    articleId: string,
+    config: ResolvedObsidianConfig,
+    signal?: AbortSignal,
+  ): Promise<HistoricalObsidianExport | undefined> {
+    const records = await this.historicalExportRecords(articleId, config.vaultName, signal);
+    return this.firstCurrentManagedExport(articleId, config.vaultPath, records, signal);
+  }
+
+  private async graphUnmanagedConflicts(
+    config: ResolvedObsidianConfig,
+    files: readonly ObsidianGraphFile[],
+    inspection: ObsidianVaultInspection,
+  ): Promise<string[]> {
+    const byPath = new Map(files.map((file) => [file.relativePath, file]));
+    const unmanaged: string[] = [];
+    for (const relativePath of inspection.conflicts) {
+      const file = byPath.get(relativePath)!;
+      const existing = await readObsidianVaultFile(config.vaultPath, relativePath);
+      const managed = file.kind === 'view'
+        ? existing && hasFrontmatterProperty(existing, 'piReadsManaged', OBSIDIAN_GRAPH_MARKER)
+        : existing && file.articleId && hasFrontmatterProperty(existing, 'piReadsArticleId', file.articleId);
+      if (!managed) unmanaged.push(relativePath);
+    }
+    return unmanaged;
+  }
+
+  private async graphExistingHashes(
+    config: ResolvedObsidianConfig,
+    files: readonly ObsidianGraphFile[],
+  ): Promise<Record<string, string | null>> {
+    const hashes: Record<string, string | null> = {};
+    for (const file of files) {
+      const existing = await readObsidianVaultFile(config.vaultPath, file.relativePath);
+      hashes[file.relativePath] = existing ? versionedSha256(existing) : null;
+    }
+    return hashes;
+  }
+
+  async planGraph(config: ResolvedObsidianConfig, signal?: AbortSignal): Promise<ObsidianGraphPlan> {
+    signal?.throwIfAborted();
+    if (!this.userState) throw new Error('Obsidian graph generation requires reading-state support');
+    const catalog = await this.userState.catalog(await this.library.listArticles(), {}, 'title');
+    const entries: ObsidianGraphEntry[] = [];
+    for (const item of catalog) {
+      signal?.throwIfAborted();
+      if (!isRecordId(item.article.id, 'art')) throw new Error(`Invalid article ID: ${item.article.id}`);
+      const exported = await this.latestManagedExport(item.article.id, config, signal);
+      if (!exported) continue;
+      entries.push({
+        article: item.article,
+        state: item.state,
+        noteRelativePath: exported.record.destination.notePath,
+        exportedNote: exported.note,
+      });
+    }
+    const files = buildObsidianGraphFiles(entries);
+    const vaultFiles = files.map((file) => ({ relativePath: file.relativePath, contents: file.contents }));
+    const inspection = await inspectObsidianVault(config.vaultPath, vaultFiles);
+    const unmanagedConflicts = await this.graphUnmanagedConflicts(config, files, inspection);
+    const expectedExistingHashes = await this.graphExistingHashes(config, files);
+    return { config, entries, files, vaultFiles, inspection, unmanagedConflicts, expectedExistingHashes };
+  }
+
+  async deliverGraph(
+    plan: ObsidianGraphPlan,
+    options: { overwrite?: boolean } = {},
+  ): Promise<DeliveredObsidianGraph> {
+    const currentInspection = await inspectObsidianVault(plan.config.vaultPath, plan.vaultFiles);
+    if (!sameInspection(currentInspection, plan.inspection)) {
+      throw new Error('Obsidian graph targets changed after preview; rebuild the plan and review conflicts again');
+    }
+    const unmanagedConflicts = await this.graphUnmanagedConflicts(plan.config, plan.files, currentInspection);
+    if (unmanagedConflicts.length) {
+      throw new Error(`Obsidian graph will not overwrite unmanaged files: ${unmanagedConflicts.join(', ')}`);
+    }
+    if (currentInspection.conflicts.length && !options.overwrite) {
+      throw new ObsidianConflictError(currentInspection.conflicts);
+    }
+    const write = await writeObsidianVault(plan.config.vaultPath, plan.vaultFiles, {
+      overwrite: options.overwrite,
+      expectedExistingHashes: plan.expectedExistingHashes,
+    });
+    await write.commit();
+    return {
+      managedPaths: plan.files.map((file) => file.relativePath),
+      changedPaths: write.changedPaths,
+      linkedArticleCount: plan.entries.length,
+      relationshipCount: plan.files.filter((file) => file.kind === 'relationship').length,
+    };
   }
 
   async plan(

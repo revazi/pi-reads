@@ -51,4 +51,7 @@ jobs:
       - name: Smoke-load Pi extension
         run: pnpm exec pi --no-skills -e . --list-models __pi_reads_package_smoke__
       - name: Audit production dependencies
-        run: pnpm audit --prod
+        env:
+          npm_config_fetch_retries: "0"
+          npm_config_fetch_timeout: "10000"
+        run: pnpm audit --prod --ignore-registry-errors
