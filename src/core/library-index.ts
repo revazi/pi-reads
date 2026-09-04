@@ -78,7 +78,7 @@ async function directoryStamp(directory: string): Promise<string> {
   }
 }
 
-async function catalogStamp(libraryRoot: string): Promise<LibraryCatalogStamp> {
+export async function catalogStamp(libraryRoot: string): Promise<LibraryCatalogStamp> {
   const [sources, archive, digest, synthesis] = await Promise.all([
     directoryStamp(resolveLibraryPath(libraryRoot, 'sources')),
     directoryStamp(resolveLibraryPath(libraryRoot, 'articles/archive')),

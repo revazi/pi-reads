@@ -105,6 +105,12 @@ For iCloud Mail settings and CI environment overrides, see [EPUB and Kindle deli
 
 Pi Reads also provides the `reads_ingest`, `reads_save_article`, `reads_export`, and `reads_library` tools for agent-driven workflows. `reads_ingest` reports canonical-URL changes without writing; `recapture: true` requires explicit approval and creates linked immutable versions. `reads_library` supports byte-bounded source outlines, exact heading/paragraph range reads, and lexical excerpts so the model can retrieve only the evidence it needs.
 
+## Library maintenance
+
+Verify records, rebuild derived indexes, and create portable local backups with `pnpm library:maintain` from a checkout (or the installed `scripts/maintain-library.ts`). Restore only creates a **new** library directory and never merges or overwrites an existing one. Stop library writers first; credentials and destination settings are excluded.
+
+See [verification, backup, and restore](docs/library-maintenance.md) for commands, limits, and migration steps.
+
 ## Privacy and safety
 
 - Your library stays outside the installed package and is not uploaded by Pi Reads.
@@ -138,6 +144,7 @@ The original deterministic `article:*` print workflow remains supported. Contrib
 
 ## Documentation
 
+- [Library verification, backup, and restore](docs/library-maintenance.md)
 - [Performance and token-efficiency benchmarks](docs/benchmarks.md)
 - [EPUB and Kindle delivery](docs/epub-and-kindle.md)
 - [Obsidian integration](docs/obsidian.md)

@@ -4,6 +4,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+
+- Offline `library:maintain` verification, full derived-index rebuilding, credential-free portable directory backups, and create-only restore into a new library. Bounded recovery findings cover schemas, hashes, archive fidelity, citations, lineage, state, and export references; restore preserves canonical bytes and refuses collisions, unsafe paths, symlinks, and tampered inventories.
+
 ### Changed
 
 - Archive-only `/reads` workflows now capture and export directly without invoking an active model; Obsidian overwrites and Kindle sends retain their interactive confirmation gates.

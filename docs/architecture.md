@@ -212,6 +212,12 @@ validated Article
 
 A failed delivery never deletes the prepared local artifact.
 
+### Offline library maintenance
+
+`MaintenanceService` coordinates read-only canonical verification, derived-index rebuilding, portable directory backup, and create-only restore. `library-verification.ts` scans canonical records independently of caches; core helpers validate installed versioned schemas, hashes, bounded inventories, and safe filesystem paths. The thin `scripts/maintain-library.ts` interface owns CLI/config resolution, not storage behavior.
+
+Backups include only verified manifests, referenced source/article/export files, separate user-state records, and explicitly allowlisted portable defaults. Restore reserves a nonexistent destination exclusively, copies exact bytes, rebuilds derived indexes, and verifies the result. Neither operation invokes destination adapters or reads credentials. They require stopped writers rather than claiming an atomic live snapshot. See [library maintenance](library-maintenance.md) for collision, privacy, and resource limits.
+
 ## Configuration and secrets
 
 Path resolution is defined in the product contract. Core services receive a resolved configuration object.

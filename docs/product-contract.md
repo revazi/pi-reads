@@ -103,7 +103,7 @@ Mutable article state is stored separately at `state/articles/<article-id>.json`
 
 Updates use an expected-revision compare-and-swap under a cross-process atomic lock, then atomically replace only the state record. Stale revisions fail closed. The default queue contains unread/reading articles ordered by descending priority, earliest due date, oldest article, then ID; explicit filters/sorts remain deterministic. Library list/metadata search and private full-text search can filter state without opening immutable manifests for mutation.
 
-A `user-state-snapshot` contains canonical persisted state records sorted by article ID. Restore first validates every referenced article and every collision, writes only absent records, accepts identical canonical state as unchanged, and refuses differing existing state before writing. This state snapshot is the user-state component consumed by portable library backup/restore; credentials remain out of scope.
+A `user-state-snapshot` contains canonical persisted state records sorted by article ID. Restore first validates every referenced article and every collision, writes only absent records, accepts identical canonical state as unchanged, and refuses differing existing state before writing. Full portable library backups preserve those same persisted state records byte-for-byte alongside canonical records; credentials remain out of scope.
 
 ## Article contract
 
@@ -162,6 +162,14 @@ Exports are derived and may be regenerated under new export IDs. They never beco
 The Obsidian reading graph considers only delivered Markdown exports for the configured vault whose current note retains its `piReadsArticleId` frontmatter. It deterministically derives four fixed `Pi Reads/` views for the managed library, topics, reading status, and reading queue. Exported syntheses may receive a derived source-note link section so Obsidian exposes backlinks from exported archive notes; archive notes and immutable export artifacts are never changed. Rebuilds are byte-idempotent. Differing managed targets require exact-path approval, unmanaged path collisions are never overwritten, and write-time expected hashes reject edits made after preview.
 
 Kindle delivery is an external side effect. A successful Kindle export record must contain the prepared local export ID, interactive confirmation timestamp, and delivery timestamp. Dry-runs retain an immutable local EPUB or PDF and expose its export ID and content hash with only a redacted recipient outside the confirmation dialog. A later send verifies the requested article, format, path, byte length, and hash, sends those exact prepared bytes, and records delivery evidence by reference rather than copying the attachment. SMTP credentials and full Kindle/sender addresses must come from the operating-system credential store or environment overrides and must not be written to JSON configuration, manifests, logs, article metadata, Pi tool results, or Git.
+
+## Portable library maintenance
+
+Offline verification scans canonical manifests, referenced bytes, state, citations, lineage, archive fidelity, and derived indexes without repairing records or returning prose. Findings are bounded; corrupt canonical records block backup and rebuilding, while derived-cache problems can be rebuilt explicitly.
+
+A `portable-snapshot` is a versioned directory inventory of canonical relative file paths, exact hashes, and byte lengths plus allowlisted default mode/export-format preferences. Backups include referenced raw captures, assets, and export artifacts, not credentials, external destination configuration, locks, or arbitrary adjacent files. They are private plaintext reading data, not encrypted or authenticated storage.
+
+Restore requires an absent, separate destination outside Git. It never merges, overwrites, reassigns IDs, edits archived prose, or activates destination configuration. It validates the entire inventory and canonical relationships before writing, preserves record bytes and state revisions, then rebuilds local derived indexes. Portable config is inert until explicitly adopted. Maintenance requires stopped writers; interrupted newly reserved outputs may need manual removal before retrying. See [operational details and limits](library-maintenance.md).
 
 ## Library location resolution
 
