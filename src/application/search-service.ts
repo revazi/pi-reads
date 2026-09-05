@@ -80,7 +80,7 @@ async function withSearchRebuild<T>(key: string, operation: () => Promise<T>): P
   }
 }
 
-function corpusDocument(
+export function corpusDocument(
   article: ArticleRecord,
   sources: ReadonlyMap<string, SourceRecord>,
   state?: ArticleUserState,
@@ -102,7 +102,7 @@ function corpusDocument(
   };
 }
 
-function sourceBlocks(ranges: readonly IndexedSourceRange[]): FullTextSearchBlock[] {
+export function sourceBlocks(ranges: readonly IndexedSourceRange[]): FullTextSearchBlock[] {
   return [...ranges]
     .sort((left, right) => left.startByte - right.startByte)
     .map(({ id, startByte, endByte, textHash }) => ({ locator: id, startByte, endByte, textHash }));

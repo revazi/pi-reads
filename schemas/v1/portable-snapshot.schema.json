@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/revazi/pi-reads/schemas/v1/portable-snapshot.schema.json",
+  "title": "Pi Reads portable library snapshot",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "format", "createdAt", "config", "files"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "format": { "const": "pi-reads-portable-v1" },
+    "createdAt": { "$ref": "common.schema.json#/$defs/timestamp" },
+    "config": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion"],
+      "properties": {
+        "schemaVersion": { "const": 1 },
+        "defaults": { "$ref": "config.schema.json#/properties/defaults" }
+      }
+    },
+    "files": {
+      "type": "array",
+      "maxItems": 50000,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "contentHash", "byteLength"],
+        "properties": {
+          "path": {
+            "allOf": [
+              { "$ref": "common.schema.json#/$defs/libraryRelativePath" },
+              { "type": "string", "maxLength": 240, "pattern": "^(sources|articles|exports|assets|state/articles)/" }
+            ]
+          },
+          "contentHash": { "$ref": "common.schema.json#/$defs/contentHash" },
+          "byteLength": { "type": "integer", "minimum": 0, "maximum": 67108864 }
+        }
+      }
+    }
+  }
+}
