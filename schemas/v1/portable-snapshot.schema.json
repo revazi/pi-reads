@@ -20,7 +20,7 @@
     },
     "files": {
       "type": "array",
-      "maxItems": 100000,
+      "maxItems": 50000,
       "items": {
         "type": "object",
         "additionalProperties": false,
@@ -29,11 +29,11 @@
           "path": {
             "allOf": [
               { "$ref": "common.schema.json#/$defs/libraryRelativePath" },
-              { "type": "string", "maxLength": 1024, "pattern": "^(sources|articles|exports|assets|state/articles)/" }
+              { "type": "string", "maxLength": 240, "pattern": "^(sources|articles|exports|assets|state/articles)/" }
             ]
           },
           "contentHash": { "$ref": "common.schema.json#/$defs/contentHash" },
-          "byteLength": { "type": "integer", "minimum": 0, "maximum": 268435456 }
+          "byteLength": { "type": "integer", "minimum": 0, "maximum": 67108864 }
         }
       }
     }

@@ -9,7 +9,17 @@ import { validateRecord } from '../core/record-validation.ts';
 import { versionedSha256 } from '../core/text.ts';
 import { catalogStamp } from '../core/library-index.ts';
 import { defaultArticleUserState, parsePersistedArticleUserState, type ArticleUserState } from '../core/user-state.ts';
-import { assertFileMatches, describeFile, readMaintenanceFile, walkMaintenanceFiles, MAX_FILES, MAX_TOTAL_BYTES, type MaintenanceFile } from '../core/maintenance-files.ts';
+import {
+  assertFileMatches,
+  describeFile,
+  parseMaintenanceJson,
+  readMaintenanceFile,
+  walkMaintenanceFiles,
+  MAX_FILES,
+  MAX_JSON_BYTES,
+  MAX_TOTAL_BYTES,
+  type MaintenanceFile,
+} from '../core/maintenance-files.ts';
 import { createArticleSearchBlocks, createFullTextSearchIndex, type FullTextSearchDocumentInput } from '../core/full-text-search.ts';
 import { corpusDocument, sourceBlocks } from './search-service.ts';
 
@@ -40,6 +50,7 @@ const ACTIONS = {
 class Verification {
   readonly root: string;
   readonly files = new Map<string, MaintenanceFile>();
+  private readonly fileBytes = new Map<string, Buffer>();
   readonly sources = new Map<string, SourceRecord>();
   readonly articles = new Map<string, ArticleRecord>();
   readonly exports = new Map<string, ExportRecord>();
@@ -65,13 +76,14 @@ class Verification {
     try { await operation(); } catch { this.finding(code, relative, severity); }
   }
 
-  async track(relative: string): Promise<Buffer> {
-    const bytes = await readMaintenanceFile(this.root, relative);
-    if (!this.files.has(relative)) {
-      this.totalBytes += bytes.length;
-      if (this.totalBytes > MAX_TOTAL_BYTES || this.files.size >= MAX_FILES) throw new Error('Maintenance snapshot size limit exceeded');
-      this.files.set(relative, describeFile(relative, bytes));
-    }
+  async track(relative: string, maximum?: number): Promise<Buffer> {
+    const cached = this.fileBytes.get(relative);
+    if (cached) return cached;
+    const bytes = await readMaintenanceFile(this.root, relative, maximum);
+    this.totalBytes += bytes.length;
+    if (this.totalBytes > MAX_TOTAL_BYTES || this.files.size >= MAX_FILES) throw new Error('Maintenance snapshot size limit exceeded');
+    this.files.set(relative, describeFile(relative, bytes));
+    this.fileBytes.set(relative, bytes);
     return bytes;
   }
 
@@ -80,14 +92,14 @@ class Verification {
     const bytes = await this.track(file.path);
     assertFileMatches(file, bytes);
     if (text) {
-      const content = bytes.toString('utf8');
+      const content = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
       if (analyzeMarkdown(content).textHash !== (file as StoredText).textHash) throw new Error('Text hash mismatch');
       this.contents.set(file.path, content);
     }
   }
 
   async manifest(relative: string): Promise<void> {
-    const value: unknown = JSON.parse((await this.track(relative)).toString('utf8'));
+    const value = parseMaintenanceJson(await this.track(relative, MAX_JSON_BYTES));
     if (relative.startsWith('sources/')) {
       const source = await validateRecord<SourceRecord>('source', value);
       if (relative !== `${sourceDirectory(source.id)}/manifest.json` || this.sources.has(source.id)) throw new Error('Source identity mismatch');
@@ -213,7 +225,7 @@ class Verification {
   }
 
   async state(relative: string): Promise<void> {
-    const value: unknown = JSON.parse((await this.track(relative)).toString('utf8'));
+    const value = parseMaintenanceJson(await this.track(relative, MAX_JSON_BYTES));
     await validateRecord('article-user-state', value);
     const state = parsePersistedArticleUserState(value);
     if (relative !== `state/articles/${state.articleId}.json` || !this.articles.has(state.articleId)) throw new Error('Orphan user state');
@@ -224,20 +236,31 @@ class Verification {
     for (const source of this.sources.values()) {
       const relative = sourceStructureIndexPath(source.id);
       await this.check('index', relative, async () => {
-        const value = JSON.parse((await readMaintenanceFile(this.root, relative)).toString('utf8'));
-        verifySourceContentIndex(source, this.contents.get(source.content.path)!, value);
+        const value = parseMaintenanceJson(await readMaintenanceFile(this.root, relative));
+        verifySourceContentIndex(source, this.contents.get(source.content.path)!, value as SourceContentIndex);
       }, 'warning');
     }
     await this.check('index', 'indexes/library.json', async () => {
-      const value = JSON.parse((await readMaintenanceFile(this.root, 'indexes/library.json')).toString('utf8'));
+      const parsed = parseMaintenanceJson(await readMaintenanceFile(this.root, 'indexes/library.json'));
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('Invalid library index');
+      const value = parsed as { schemaVersion?: unknown; revision?: unknown; sources?: unknown; articles?: unknown; catalog?: unknown };
       const byId = (records: Array<{ id: string }>) => JSON.stringify([...records].sort((a, b) => a.id.localeCompare(b.id)));
-      if (value.schemaVersion !== 1 || !Number.isSafeInteger(value.revision) || value.revision < 1 || byId(value.sources) !== byId([...this.sources.values()]) || byId(value.articles) !== byId([...this.articles.values()])) throw new Error('Stale library index');
+      if (
+        value.schemaVersion !== 1
+        || typeof value.revision !== 'number'
+        || !Number.isSafeInteger(value.revision)
+        || value.revision < 1
+        || !Array.isArray(value.sources)
+        || !Array.isArray(value.articles)
+        || byId(value.sources) !== byId([...this.sources.values()])
+        || byId(value.articles) !== byId([...this.articles.values()])
+      ) throw new Error('Stale library index');
       if (JSON.stringify(value.catalog) !== JSON.stringify(await catalogStamp(this.root))) throw new Error('Stale catalog stamps');
       const dirty = await walkMaintenanceFiles(this.root, 'indexes/dirty');
       if (dirty.length) throw new Error('Dirty library index');
     }, 'warning');
     await this.check('index', 'indexes/search-v1.json', async () => {
-      const value = JSON.parse((await readMaintenanceFile(this.root, 'indexes/search-v1.json')).toString('utf8'));
+      const value = parseMaintenanceJson(await readMaintenanceFile(this.root, 'indexes/search-v1.json'));
       const inputs: FullTextSearchDocumentInput[] = [...this.articles.values()].sort((a, b) => b.createdAt.localeCompare(a.createdAt) || a.id.localeCompare(b.id)).map((article) => {
         const content = this.contents.get(article.body.path)!;
         const index = this.indexes.get(article.sourceIds[0]!);
@@ -289,8 +312,11 @@ class Verification {
       if (!(await lstat(this.root)).isDirectory()) throw new Error('Library root must exist');
     });
     if (!this.report.ok) return { report: this.report, files: [], sources: this.sources };
-    for (const root of ROOTS) await this.check('inventory', root, async () => { inventory.push(...await walkMaintenanceFiles(this.root, root)); });
-    if (inventory.length > MAX_FILES) this.finding('inventory', '.');
+    for (const root of ROOTS) await this.check('inventory', root, async () => {
+      const files = await walkMaintenanceFiles(this.root, root);
+      if (inventory.length + files.length > MAX_FILES) throw new Error('Maintenance file count exceeded');
+      inventory.push(...files);
+    });
     await this.canonicalRecords(inventory);
     await this.userState(inventory);
     this.untracked(inventory);

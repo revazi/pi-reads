@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises';
+import { link, mkdtemp, mkdir, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -10,10 +10,21 @@ import { LibraryService } from '../src/application/library-service.ts';
 import { ExportService } from '../src/application/export-service.ts';
 import { UserStateService } from '../src/application/user-state-service.ts';
 import { inspectLibrary } from '../src/application/library-verification.ts';
-import { walkMaintenanceFiles } from '../src/core/maintenance-files.ts';
+import { PortablePaths, walkMaintenanceFiles } from '../src/core/maintenance-files.ts';
 import { versionedSha256 } from '../src/core/text.ts';
 import { analyzeMarkdown } from '../src/core/ingest/text.ts';
 import type { ArticleRecord, ExportRecord } from '../src/core/domain.ts';
+
+test('portable paths retain Unicode names and reject file/directory aliases in either order', () => {
+  for (const [first, second] of [
+    ['assets/file', 'assets/file/child'], ['assets/file/child', 'assets/file'],
+    ['assets/Folder/a', 'assets/folder/b'], ['assets/café/a', 'assets/cafe\u0301/b'],
+  ]) {
+    const paths = new PortablePaths(); paths.add(first!);
+    assert.throws(() => paths.add(second!), /collision/u);
+  }
+  new PortablePaths().add('assets/ფოტო 1.png');
+});
 
 async function fixture(t: test.TestContext) {
   const parent = await realpath(await mkdtemp(path.join(os.tmpdir(), 'pi-reads-maintenance-')));
@@ -44,7 +55,7 @@ async function diskSnapshot(root: string): Promise<Record<string, string>> {
 test('maintenance round trip preserves all canonical bytes, citations, raw input, exports, assets and state; excludes secrets', async (t) => {
   const f = await fixture(t);
   // Add a manifest-referenced binary asset, never an arbitrary directory copy.
-  const assetPath = `sources/${f.capture.source.id}/assets/fixture.bin`;
+  const assetPath = `sources/${f.capture.source.id}/assets/ფოტო 1.bin`;
   const asset = Buffer.from([0, 1, 2, 255]);
   await mkdir(path.dirname(path.join(f.root, assetPath)), { recursive: true });
   await writeFile(path.join(f.root, assetPath), asset);
@@ -90,6 +101,9 @@ test('verification reports corruption without repairing indexes; rebuild repairs
   await writeFile(path.join(f.root, 'indexes/search-v1.json'), '{}');
   await writeFile(path.join(f.root, `indexes/sources/${f.capture.source.id}/structure-v1.json`), '{}');
   await writeFile(path.join(f.root, 'indexes/dirty'), 'interrupted');
+  const orphanIndex = path.join(f.root, 'indexes/sources/src_0000000000000000/structure-v1.json');
+  await mkdir(path.dirname(orphanIndex), { recursive: true });
+  await writeFile(orphanIndex, '{}');
   const before = await diskSnapshot(f.root);
   const report = await f.service.verify();
   assert.equal(report.ok, true);
@@ -99,6 +113,7 @@ test('verification reports corruption without repairing indexes; rebuild repairs
   assert.equal(rebuilt.sourceIndexes, 1);
   assert.equal(rebuilt.searchDocuments, 2);
   assert.equal((await f.service.verify()).warningCount, 0);
+  assert.equal(await readFile(orphanIndex, 'utf8'), '{}', 'rebuild preserves unrelated or historical cache files');
   for (const [name, bytes] of originals) assert.deepEqual(await readFile(path.join(f.root, name)), bytes);
 });
 
@@ -123,6 +138,23 @@ test('tampered prose and invalid schemas fail verification and backup closed wit
   assert.doesNotMatch(JSON.stringify(bounded), /do-not-echo|Changed immutable/u);
 });
 
+test('verification rejects invalid UTF-8 and excessive JSON nesting without exposing record bytes', async (t) => {
+  const f = await fixture(t);
+  const original = await readFile(f.capture.sourceManifestPath);
+  await writeFile(f.capture.sourceManifestPath, Buffer.from([0xff, 0xfe, 0xfd]));
+  const invalidUtf8 = await f.service.verify();
+  assert.equal(invalidUtf8.ok, false);
+  assert.ok(invalidUtf8.findings.some((finding) => finding.code === 'manifest'));
+  assert.doesNotMatch(JSON.stringify(invalidUtf8), /���/u);
+
+  await writeFile(f.capture.sourceManifestPath, `${'['.repeat(33)}0${']'.repeat(33)}`);
+  const nested = await f.service.verify();
+  assert.equal(nested.ok, false);
+  assert.ok(nested.findings.some((finding) => finding.code === 'manifest'));
+  await writeFile(f.capture.sourceManifestPath, original);
+  assert.equal((await f.service.verify()).ok, true);
+});
+
 test('restore rejects tampered inventories, path traversal, duplicate paths and extra files before creating a destination', async (t) => {
   const f = await fixture(t);
   const backup = path.join(f.parent, 'backup'); await f.service.backup(backup);
@@ -133,6 +165,14 @@ test('restore rejects tampered inventories, path traversal, duplicate paths and 
   for (const change of [
     (value: typeof manifest) => { value.files[0].path = '../escape'; },
     (value: typeof manifest) => { value.files.push(value.files[0]); },
+    (value: typeof manifest) => {
+      value.files[0].path = 'sources/collision';
+      value.files[1].path = 'sources/collision/child';
+    },
+    (value: typeof manifest) => {
+      const parent = value.files[0].path.split('/').slice(0, -1).join('/');
+      value.files[1].path = `${parent.toUpperCase()}/different`;
+    },
     (value: typeof manifest) => { value.files[0].contentHash = `sha256:${'0'.repeat(64)}`; },
     (value: typeof manifest) => { value.config.kindle = { smtp: { password: 'do-not-restore' } }; },
   ]) {
@@ -161,6 +201,14 @@ test('maintenance rejects symlink reads/writes, nested destinations, missing roo
   await symlink(outside, path.join(f.root, 'indexes'), 'dir');
   await assert.rejects(() => f.service.rebuild(), /Symbolic links/u);
   assert.deepEqual(await diskSnapshot(outside), {});
+  const rawPath = path.join(f.root, f.capture.source.rawCapture!.path);
+  const external = path.join(f.parent, 'hard-linked-copy');
+  await writeFile(external, await readFile(rawPath));
+  await rm(rawPath);
+  await link(external, rawPath);
+  assert.equal((await f.service.verify()).ok, false);
+  await assert.rejects(() => f.service.backup(path.join(f.parent, 'hard-link-backup')), /verification failed/u);
+  await rm(rawPath);
   await rm(f.capture.sourceContentPath);
   await symlink(path.join(f.parent, 'secret'), f.capture.sourceContentPath);
   assert.equal((await f.service.verify()).ok, false);

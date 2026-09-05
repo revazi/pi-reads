@@ -2,7 +2,20 @@ import { mkdir, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { PiReadsConfig } from '../core/domain.ts';
 import { resolveLibraryPath, assertSafeLibraryRoot } from '../core/library.ts';
-import { assertFileMatches, describeFile, readMaintenanceFile, safeMaintenanceTarget, walkMaintenanceFiles, MAX_FILES, MAX_TOTAL_BYTES, MAX_FILE_BYTES, type MaintenanceFile } from '../core/maintenance-files.ts';
+import {
+  assertFileMatches,
+  describeFile,
+  parseMaintenanceJson,
+  PortablePaths,
+  readMaintenanceFile,
+  safeMaintenanceTarget,
+  walkMaintenanceFiles,
+  MAX_FILES,
+  MAX_TOTAL_BYTES,
+  MAX_FILE_BYTES,
+  MAX_JSON_BYTES,
+  type MaintenanceFile,
+} from '../core/maintenance-files.ts';
 import { validateRecord } from '../core/record-validation.ts';
 import { inspectLibrary, type VerificationReport, type VerifiedLibrary } from './library-verification.ts';
 import { LibraryService } from './library-service.ts';
@@ -72,20 +85,7 @@ function snapshotFile(value: unknown): MaintenanceFile {
     (value.byteLength as number) <= MAX_FILE_BYTES,
   ];
   if (!checks.every(Boolean)) throw new Error('Invalid snapshot file');
-  const file = value as unknown as MaintenanceFile;
-  assertPortablePath(file.path);
-  return file;
-}
-
-function assertPortablePath(relative: string): void {
-  resolveLibraryPath('/portable', relative);
-  const valid = [
-    relative.length <= 1024,
-    /^(sources|articles|exports|assets|state\/articles)\//u.test(relative),
-    !/[\x00-\x1f\x7f<>:"|?*]/u.test(relative),
-    !relative.split('/').some((part) => /[. ]$/u.test(part) || /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/iu.test(part)),
-  ];
-  if (!valid.every(Boolean)) throw new Error('Non-portable snapshot path');
+  return value as unknown as MaintenanceFile;
 }
 
 async function parseSnapshot(value: unknown): Promise<PortableSnapshot> {
@@ -94,14 +94,13 @@ async function parseSnapshot(value: unknown): Promise<PortableSnapshot> {
   objectKeys(value.config, ['schemaVersion', 'defaults']);
   await validateRecord('config', value.config);
   if (!Array.isArray(value.files) || value.files.length > MAX_FILES) throw new Error('Invalid snapshot file count');
-  const seen = new Set<string>();
+  const paths = new PortablePaths();
   let total = 0;
   for (const input of value.files) {
     const file = snapshotFile(input);
-    const folded = file.path.normalize('NFC').toLowerCase();
-    if (seen.has(folded)) throw new Error('Snapshot path collision');
-    seen.add(folded); total += file.byteLength as number;
-    if (total > MAX_TOTAL_BYTES) throw new Error('Snapshot exceeds 2 GiB');
+    paths.add(file.path);
+    total += file.byteLength;
+    if (total > MAX_TOTAL_BYTES) throw new Error('Snapshot exceeds the maintenance byte limit');
   }
   return value as unknown as PortableSnapshot;
 }
@@ -148,6 +147,8 @@ export class MaintenanceService {
       config: await portableConfig(config), files: verified.files,
     };
     await parseSnapshot(snapshot);
+    const snapshotBytes = Buffer.from(`${JSON.stringify(snapshot, null, 2)}\n`);
+    if (snapshotBytes.length > MAX_JSON_BYTES) throw new Error('Snapshot metadata exceeds the maintenance JSON limit');
     // mkdir is an exclusive reservation, unlike rename which can replace an empty directory.
     await mkdir(target, { mode: 0o700 });
     try {
@@ -157,7 +158,7 @@ export class MaintenanceService {
       const after = await inspectLibrary(this.libraryDir, false);
       requireHealthy(after);
       if (JSON.stringify(after.files) !== JSON.stringify(snapshot.files)) throw new Error('Library changed during backup; stop writers and retry');
-      await writePrivate(target, 'snapshot.json', `${JSON.stringify(snapshot, null, 2)}\n`);
+      await writePrivate(target, 'snapshot.json', snapshotBytes);
       await checkSnapshotFiles(target, snapshot);
     } catch (error) { await rm(target, { recursive: true, force: true }); throw error; }
     return {
@@ -170,8 +171,8 @@ export class MaintenanceService {
   async restore(backupDir: string): Promise<{ libraryDir: string; fileCount: number; portableConfigPath: string; verification: VerificationReport }> {
     const target = await safeMaintenanceTarget(this.libraryDir);
     assertDisjoint(target, backupDir);
-    const manifestBytes = await readMaintenanceFile(backupDir, 'snapshot.json');
-    const snapshot = await parseSnapshot(JSON.parse(manifestBytes.toString('utf8')));
+    const manifestBytes = await readMaintenanceFile(backupDir, 'snapshot.json', MAX_JSON_BYTES);
+    const snapshot = await parseSnapshot(parseMaintenanceJson(manifestBytes));
     await checkSnapshotFiles(backupDir, snapshot);
     await mkdir(target, { mode: 0o700 }); // Any existing directory, file, or symlink fails closed.
     try {
