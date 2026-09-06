@@ -45,20 +45,23 @@ type ExistingSourceWorkflowSelection = {
 };
 
 type CollectionWorkflowSelection = { collectionKind: 'feed' | 'newsletter'; value: string };
+type ReadingPackWorkflowSelection = { articleIds: string[]; title: string };
 type ClipboardWorkflowSelection = Omit<CaptureWorkflowSelection, 'kind' | 'value'> & {
   clipboardContent: string;
   clipboardFormat: 'text' | 'markdown';
 };
-type WorkflowSelection = CaptureWorkflowSelection | ExistingSourceWorkflowSelection | CollectionWorkflowSelection | ClipboardWorkflowSelection;
+type WorkflowSelection = CaptureWorkflowSelection | ExistingSourceWorkflowSelection | CollectionWorkflowSelection | ReadingPackWorkflowSelection | ClipboardWorkflowSelection;
 
 const SOURCE_ID_PATTERN = /^src_[a-z0-9]{16,64}$/u;
 const CAPTURED_SOURCES_CHOICE = 'Captured sources — ordered multi-source synthesis';
+const READING_PACK_CHOICE = 'Reading pack — ordered multi-article EPUB';
 const FEED_CHOICE = 'RSS/Atom feed — preview entries before capture';
 const NEWSLETTER_CHOICE = 'Newsletter .eml — preview before capture';
 const CLIPBOARD_CHOICE = 'Clipboard — read once after confirmation';
 const TRANSCRIPT_CHOICE = 'Transcript — local .srt or .vtt';
 const FINISH_SOURCE_SELECTION = 'Done — use sources in this order';
 const FINISH_ENTRY_SELECTION = 'Done — capture selected entries';
+const FINISH_ARTICLE_SELECTION = 'Done — prepare articles in this order';
 const READING_STATUS_ARGUMENTS = ['unread', 'reading', 'completed', 'archived'] as const;
 
 type ReadingStatusArgument = (typeof READING_STATUS_ARGUMENTS)[number];
@@ -423,6 +426,60 @@ async function selectCapturedSources(ctx: ExtensionCommandContext): Promise<stri
   return selected.length >= 2 ? selected : undefined;
 }
 
+async function selectReadingPackArticles(ctx: ExtensionCommandContext): Promise<string[] | undefined> {
+  const services = await openReadsServices(ctx.cwd);
+  const candidates = (await services.library.listArticles()).slice(-50).reverse();
+  if (candidates.length < 2) {
+    ctx.ui.notify('Save at least two articles before preparing a reading pack.', 'error');
+    return undefined;
+  }
+  const remaining = candidates.map((article) => ({
+    articleId: article.id,
+    label: `${boundedLabel(article.title)} (${article.mode}, ${article.id})`,
+  }));
+  const selected: string[] = [];
+  while (selected.length < 50 && remaining.length > 0) {
+    const options = [...remaining.map(({ label }) => label), ...(selected.length >= 2 ? [FINISH_ARTICLE_SELECTION] : [])];
+    const choice = await ctx.ui.select(`Reading-pack article #${selected.length + 1} — order is preserved`, options);
+    if (!choice) return undefined;
+    if (choice === FINISH_ARTICLE_SELECTION) return selected;
+    const index = remaining.findIndex(({ label }) => label === choice);
+    if (index < 0) return undefined;
+    selected.push(remaining[index]!.articleId);
+    remaining.splice(index, 1);
+  }
+  return selected.length >= 2 ? selected : undefined;
+}
+
+async function promptForReadingPackWorkflow(ctx: ExtensionCommandContext): Promise<ReadingPackWorkflowSelection | undefined> {
+  const articleIds = await selectReadingPackArticles(ctx);
+  if (!articleIds) return undefined;
+  const title = await ctx.ui.input('Reading pack title', 'Weekly reading');
+  return title?.trim() ? { articleIds, title } : undefined;
+}
+
+async function executeReadingPackWorkflow(selection: ReadingPackWorkflowSelection, ctx: ExtensionCommandContext): Promise<void> {
+  const services = await openReadsServices(ctx.cwd);
+  ctx.ui.setStatus('pi-reads', 'Preparing local reading-pack EPUB…');
+  try {
+    const preparer = await services.getDigestPreparation();
+    const prepared = await withFileMutationQueue(services.libraryDir, () => preparer.prepare({
+      title: selection.title,
+      articleIds: selection.articleIds,
+      trigger: 'interactive',
+    }, ctx.signal));
+    ctx.ui.notify([
+      `Prepared collection ${prepared.collection.collection.id} with ${selection.articleIds.length} ordered articles.`,
+      `Local EPUB: ${prepared.epub.artifactPath}`,
+      `Prepared export: ${prepared.epub.record.id}`,
+      `Content hash: ${prepared.epub.record.artifact.contentHash}`,
+      'No email was sent. A later Kindle send must reuse this collection ID and exact prepared export ID, then confirm interactively.',
+    ].join('\n'), 'info');
+  } finally {
+    ctx.ui.setStatus('pi-reads', undefined);
+  }
+}
+
 async function selectExportFormat(ctx: ExtensionCommandContext): Promise<RequestedFormat | undefined> {
   return (await ctx.ui.select('Export destination/format', [
     'markdown', 'html', 'pdf', 'epub', 'obsidian', 'kindle-epub', 'kindle-pdf',
@@ -501,10 +558,11 @@ async function promptForWorkflow(pi: ExtensionAPI, ctx: ExtensionCommandContext)
   }
   const selectedKind = await ctx.ui.select('Source type', [
     'URL', 'Text', 'Markdown', 'File', TRANSCRIPT_CHOICE, CLIPBOARD_CHOICE,
-    FEED_CHOICE, NEWSLETTER_CHOICE, CAPTURED_SOURCES_CHOICE,
+    FEED_CHOICE, NEWSLETTER_CHOICE, CAPTURED_SOURCES_CHOICE, READING_PACK_CHOICE,
   ]);
   if (!selectedKind) return undefined;
   if (selectedKind === CAPTURED_SOURCES_CHOICE) return promptForExistingSourceWorkflow(ctx);
+  if (selectedKind === READING_PACK_CHOICE) return promptForReadingPackWorkflow(ctx);
   if (selectedKind === CLIPBOARD_CHOICE) return promptForClipboardWorkflow(pi, ctx);
   if (selectedKind === TRANSCRIPT_CHOICE) return promptForNewSourceWorkflow('Transcript', ctx);
   const collectionKind = selectedCollectionKind(selectedKind);
@@ -565,6 +623,7 @@ async function executeSelectedWorkflow(
   ctx: ExtensionCommandContext,
 ): Promise<void> {
   if ('clipboardContent' in selection) return executeClipboardSelection(pi, selection, ctx);
+  if ('articleIds' in selection) return executeReadingPackWorkflow(selection, ctx);
   if ('collectionKind' in selection) return executeCollectionWorkflow(selection, ctx);
   if ('sourceIds' in selection) {
     const services = await openReadsServices(ctx.cwd);
@@ -582,7 +641,7 @@ async function executeSelectedWorkflow(
 
 export function registerReadsCommands(pi: ExtensionAPI): void {
   pi.registerCommand('reads', {
-    description: 'Capture/export one source or create an ordered synthesis from captured sources',
+    description: 'Capture/export sources, create an ordered synthesis, or prepare a multi-article reading pack',
     handler: async (args, ctx) => {
       const value = args.trim();
       const selection = value

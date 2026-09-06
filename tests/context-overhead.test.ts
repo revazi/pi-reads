@@ -43,6 +43,7 @@ test('persistent Pi Reads tool prompt stays compact while retaining mandatory sa
   assert.match(contract, /\[\^cite_id\].*captured sources/u);
   assert.match(contract, /explicit approval before Obsidian overwrite or Kindle send/u);
   assert.match(contract, /exact preparedExportId the user reviewed/u);
+  assert.match(contract, /collectionId/u);
   assert.match(contract, /user-selected indexes.*exact previewToken.*never choose/u);
 });
 
@@ -57,4 +58,5 @@ test('Pi Reads skill remains concise and preserves authoritative workflow safegu
   assert.match(skill, /never choose them.*exact `previewToken`/u);
   assert.match(skill, /Clipboard is read only.*confirmation—never in background/u);
   assert.match(skill, /transcript.*timestamp headings\/stable locators/u);
+  assert.match(skill, /Scheduled `kindle:digest:prepare` cannot send/u);
 });

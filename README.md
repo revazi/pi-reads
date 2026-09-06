@@ -45,7 +45,7 @@ Digests use verified complete-source coverage. Focused syntheses may use targete
 
 For an ordered synthesis from several existing captures, run `/reads`, choose **Captured sources**, and select 2–20 sources in order. Pi Reads plans bounded retrieval for each source and requires a no-write review that reports citation distribution and unused selected sources before the exact draft can be persisted. Generation templates provide versioned brief, deep-dive, tutorial, comparison, and research-note structures with deterministic length/citation warnings. See [multi-source cited synthesis](docs/multi-source-synthesis.md) and [generation templates](docs/generation-templates.md).
 
-Then choose an output such as Markdown, PDF, EPUB, Obsidian, or Kindle.
+Then choose an output such as Markdown, PDF, EPUB, Obsidian, or Kindle. To combine 2–50 saved articles, run `/reads` and choose **Reading pack**; Pi Reads prepares a validated ordered multi-chapter EPUB locally. See [reading packs and scheduled Kindle preparation](docs/reading-packs.md).
 
 For the first PDF export, install Chromium once:
 
@@ -87,7 +87,7 @@ See [Obsidian integration](docs/obsidian.md).
 
 Run `/reads-config`, choose **Kindle delivery**, then choose **System credential store — configure once**. The wizard saves your Kindle and SMTP credentials in macOS Keychain, Windows Credential Manager, or Linux Secret Service. The password is masked and credentials are not written to `pi-reads.json`.
 
-A Kindle export starts as a dry run, showing the recipient and retaining an immutable EPUB or PDF without sending it. Ask Pi to send that prepared export when ready; Pi verifies and reuses the exact previewed bytes, displays the full recipient, and requires confirmation before email delivery.
+A Kindle export starts as a dry run, showing the recipient and retaining an immutable EPUB or PDF without sending it. Ask Pi to send that prepared export when ready; Pi verifies and reuses the exact previewed bytes, displays the full recipient, and requires confirmation before email delivery. The scheduler-safe `pnpm kindle:digest:prepare` command can build collection EPUBs locally, but has no unattended send capability.
 
 For iCloud Mail settings and CI environment overrides, see [EPUB and Kindle delivery](docs/epub-and-kindle.md).
 
@@ -95,7 +95,7 @@ For iCloud Mail settings and CI environment overrides, see [EPUB and Kindle deli
 
 | Command | Purpose |
 |---|---|
-| `/reads` | Capture/export an article, clipboard, transcript, feed, or newsletter |
+| `/reads` | Capture/export content, synthesize sources, or prepare an ordered reading pack |
 | `/reads-config` | Configure the library, Obsidian, or Kindle |
 | `/reads-list` | Browse saved articles |
 | `/reads-search <query>` | Search local metadata and archive/generated prose |
@@ -150,6 +150,7 @@ The original deterministic `article:*` print workflow remains supported. Contrib
 - [Transactional batch ingestion](docs/batch-ingestion.md)
 - [RSS, Atom, and local newsletter ingestion](docs/feed-and-newsletter-ingestion.md)
 - [Explicit clipboard and timestamped transcript ingestion](docs/clipboard-and-transcripts.md)
+- [Multi-article reading packs and scheduled Kindle preparation](docs/reading-packs.md)
 - [Multi-source cited synthesis](docs/multi-source-synthesis.md)
 - [Generation templates and budgets](docs/generation-templates.md)
 - [Performance and token-efficiency benchmarks](docs/benchmarks.md)

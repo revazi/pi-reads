@@ -44,7 +44,7 @@ function assertPortablePath(relative: string): void {
   const segments = relative.split('/');
   const valid = [
     segments.length <= MAX_DEPTH,
-    /^(sources|articles|exports|assets|state\/articles)\//u.test(relative),
+    /^(sources|articles|collections|exports|assets|state\/articles)\//u.test(relative),
     segments.every((segment) =>
       !/[\x00-\x1f\x7f<>:"|?*]/u.test(segment)
       && !/[. ]$/u.test(segment)
@@ -148,7 +148,7 @@ export function assertFileMatches(file: MaintenanceFile, bytes: Buffer): void {
 }
 
 function assertRecordManifest(directory: string, entries: readonly Dirent[]): void {
-  const recordDirectory = /^(?:sources\/[^/]+|articles\/(?:archive|digest|synthesis)\/[^/]+|exports\/[^/]+\/[^/]+)$/u.test(directory);
+  const recordDirectory = /^(?:sources\/[^/]+|collections\/[^/]+|articles\/(?:archive|digest|synthesis)\/[^/]+|exports\/[^/]+\/[^/]+)$/u.test(directory);
   if (recordDirectory && !entries.some((entry) => entry.name === 'manifest.json' && entry.isFile())) {
     throw new Error('Record directory is missing its canonical manifest');
   }

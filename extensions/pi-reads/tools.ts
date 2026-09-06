@@ -9,7 +9,11 @@ import type {
 import type { SourceCoverageInput } from '../../src/core/source-coverage.ts';
 import type { MultiSourceSynthesisReview } from '../../src/core/synthesis-review.ts';
 import { resolveGenerationTemplate } from '../../src/core/generation-templates.ts';
-import { executeReadsExport, resolveReadsExportRequest } from './export-handlers.ts';
+import {
+  executeReadsExport,
+  resolveReadsExportRequest,
+  type ReadsExportParams,
+} from './export-handlers.ts';
 import {
   executeReadsLibrary,
   MAX_SOURCE_RESULT_MAX_BYTES,
@@ -327,13 +331,14 @@ export function registerReadsTools(pi: ExtensionAPI): void {
   pi.registerTool({
     name: 'reads_export',
     label: 'Reads Export',
-    description: 'Export an article locally (Markdown/HTML/PDF/EPUB), to Obsidian (Markdown), or to Kindle (EPUB/PDF dry-run or send). Archive fidelity is verified.',
-    promptSnippet: 'Export an article',
+    description: 'Export article or collection EPUB locally, to Obsidian, or Kindle; verify archive fidelity.',
+    promptSnippet: 'Export a reading item',
     promptGuidelines: [
       'reads_export requires explicit approval before Obsidian overwrite or Kindle send; a send must reuse the exact preparedExportId the user reviewed.',
     ],
     parameters: Type.Object({
-      articleId: Type.String(),
+      articleId: Type.Optional(Type.String({ pattern: '^art_[a-z0-9]{16,64}$' })),
+      collectionId: Type.Optional(Type.String({ pattern: '^col_[a-z0-9]{16,64}$' })),
       format: Type.Optional(ExportFormat),
       destination: Type.Optional(ExportDestination),
       overwrite: Type.Optional(Type.Boolean({ description: 'Obsidian conflict approval' })),
@@ -343,7 +348,7 @@ export function registerReadsTools(pi: ExtensionAPI): void {
     }),
     async execute(_toolCallId, params, signal, onUpdate, ctx) {
       const services = await openReadsServices(ctx.cwd);
-      const request = resolveReadsExportRequest(params, services);
+      const request = resolveReadsExportRequest(params as ReadsExportParams, services);
       onUpdate?.({
         content: [{ type: 'text', text: `Preparing ${request.destination} ${request.format} export…` }],
         details: {},

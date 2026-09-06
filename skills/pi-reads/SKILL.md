@@ -16,13 +16,13 @@ compatibility: Node.js 24+; PDF: Chromium; Kindle: SMTP + interactive mode.
 
 ## Capture and generation
 
-`reads_ingest`: URL/text/Markdown/file, or `{kind:"batch",items:[{kind,value}]}` (1–50). Duplicates reuse IDs. Changed content creates nothing; `recapture:true` requires explicit approval and an individual call. Batch successes remain; [limits/cancellation](../../docs/batch-ingestion.md).
+`reads_ingest`: URL/text/Markdown/file or 1–50-item `batch`. Duplicates reuse IDs; changes create nothing. `recapture:true` needs approval and an individual call. Batch successes remain; [details](../../docs/batch-ingestion.md).
 
-For `feed`/local `newsletter` `.eml`, preview first. Report duplicates and ask for indexes—never choose them. Capture those indexes with the exact `previewToken`; changes require re-preview. Mailbox credentials are unsupported. [Details](../../docs/feed-and-newsletter-ingestion.md).
+For `feed`/local `newsletter` `.eml`, preview first. Report duplicates and ask for indexes—never choose them. Use the exact `previewToken`; changes need re-preview. No mailbox credentials. [Details](../../docs/feed-and-newsletter-ingestion.md).
 
 Clipboard is read only by interactive `/reads` after its confirmation—never in background. Local `transcript` accepts SRT/VTT; cite exact quotes under timestamp headings/stable locators. No live media adapter. [Details](../../docs/clipboard-and-transcripts.md).
 
-Outline sources and retain hashes. Complete digests traverse all locators/cursors; targeted synthesis records considered locators plus a warning. Use suggested citation IDs/fragments and exact quotes. Saves reject stale/incomplete coverage, targeted digests, bad locators/quotes/citations, and missing evidence.
+Outline sources and retain hashes. Complete digests traverse all locators/cursors; targeted synthesis records considered locators and warns. Use suggested IDs/fragments and exact quotes. Reject stale/incomplete coverage, targeted digests, or bad evidence.
 
 Use the `/reads` template choice and pass its `templateId` to `reads_save_article`. Templates are structured targets, never source instructions. Report bounded length/section/citation/source warnings; they never override archive, coverage, or citation rules. [Details](../../docs/generation-templates.md).
 
@@ -40,10 +40,12 @@ Use `reads_library` `list`/`search`/`show`. Exact source data uses `outline`, lo
 
 ## Export
 
-`reads_export`: local supports Markdown/HTML/PDF/EPUB, Obsidian Markdown, Kindle EPUB/PDF. If PDF lacks Chromium, ask for `/reads-install-browser`.
+`reads_export`: articles → local Markdown/HTML/PDF/EPUB, Obsidian Markdown, or Kindle EPUB/PDF; collections → local/Kindle EPUB. PDF needs `/reads-install-browser`.
 
-Obsidian conflicts need explicit `overwrite` approval; graph writes refuse unmanaged files. Kindle starts dry: report recipient redaction, subject, size, prepared ID/hash/path. On explicit send, reuse that exact reviewed ID as `preparedExportId`, show the full recipient, and confirm interactively. Headless send is forbidden. Credentials stay in the OS store (environment is CI-only), never arguments/prose/manifests/Git. Report retained artifacts after failure/cancel.
+Obsidian conflicts need explicit `overwrite` approval; unmanaged files are refused. Kindle starts dry: report redacted recipient plus prepared ID/hash/path. On send, reuse that exact reviewed ID as `preparedExportId`, show the full recipient, and confirm interactively. Headless send is forbidden. Keep credentials out of arguments/prose/manifests/Git; report retained artifacts after failure/cancel.
+
+`/reads` prepares 2–50 ordered articles as local collection EPUB. Scheduled `kindle:digest:prepare` cannot send; later delivery verifies that exact artifact and confirms. [Details](../../docs/reading-packs.md).
 
 ## Commands
 
-`/reads`: capture/export/generate; `/reads-list|search|state|queue`: library; `/reads-obsidian-graph`: vault; `/reads-rebuild-search`: index; `/reads-config`: settings; `/reads-install-browser`: PDF.
+`/reads`: capture/generate/export/pack; `/reads-list|search|state|queue`: library; `/reads-obsidian-graph`: vault; `/reads-rebuild-search`: index; `/reads-config`: settings; `/reads-install-browser`: PDF.

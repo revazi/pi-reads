@@ -1,11 +1,13 @@
 import { resolveConfiguration } from '../../src/core/config.ts';
 import { errorMessage } from '../../src/core/errors.ts';
 import type { SystemKindleCredentialStore } from '../../src/adapters/credentials/keyring.ts';
+import type { DigestPreparationService } from '../../src/application/digest-preparation-service.ts';
 import type { EpubService } from '../../src/application/epub-service.ts';
 import type { ExportService } from '../../src/application/export-service.ts';
 import type { KindleService } from '../../src/application/kindle-service.ts';
 import type { LibraryService } from '../../src/application/library-service.ts';
 import type { ObsidianService } from '../../src/application/obsidian-service.ts';
+import type { ReadingCollectionService } from '../../src/application/reading-collection-service.ts';
 import type { SearchService } from '../../src/application/search-service.ts';
 import type { UserStateService } from '../../src/application/user-state-service.ts';
 
@@ -23,7 +25,9 @@ export interface ReadsServices {
   kindleConfig: ResolvedConfiguration['kindle'];
   obsidianConfig: ResolvedConfiguration['obsidian'];
   getExports(): Promise<ExportService>;
+  getCollections(): Promise<ReadingCollectionService>;
   getEpub(): Promise<EpubService>;
+  getDigestPreparation(): Promise<DigestPreparationService>;
   getKindle(): Promise<KindleService>;
   getKindleCredentialStore(): Promise<SystemKindleCredentialStore>;
   getObsidian(): Promise<ObsidianService | undefined>;
@@ -36,7 +40,9 @@ export async function openReadsServices(cwd: string): Promise<ReadsServices> {
   const { LibraryService } = await import('../../src/application/library-service.ts');
   const library = new LibraryService({ libraryDir: configuration.libraryDir });
   let exportsPromise: Promise<ExportService> | undefined;
+  let collectionsPromise: Promise<ReadingCollectionService> | undefined;
   let epubPromise: Promise<EpubService> | undefined;
+  let digestPreparationPromise: Promise<DigestPreparationService> | undefined;
   let kindlePromise: Promise<KindleService> | undefined;
   let credentialStorePromise: Promise<SystemKindleCredentialStore> | undefined;
   let obsidianPromise: Promise<ObsidianService | undefined> | undefined;
@@ -49,11 +55,28 @@ export async function openReadsServices(cwd: string): Promise<ReadsServices> {
       .catch((error: unknown) => { throw capabilityError('Local export support', error); });
     return exportsPromise;
   };
+  const getCollections = (): Promise<ReadingCollectionService> => {
+    collectionsPromise ??= import('../../src/application/reading-collection-service.ts')
+      .then(({ ReadingCollectionService }) => new ReadingCollectionService({ library }))
+      .catch((error: unknown) => { throw capabilityError('Reading collection support', error); });
+    return collectionsPromise;
+  };
   const getEpub = (): Promise<EpubService> => {
-    epubPromise ??= import('../../src/application/epub-service.ts')
-      .then(({ EpubService }) => new EpubService({ library }))
+    epubPromise ??= Promise.all([
+      import('../../src/application/epub-service.ts'),
+      getCollections(),
+    ]).then(([{ EpubService }, collections]) => new EpubService({ library, collections }))
       .catch((error: unknown) => { throw capabilityError('EPUB export support', error); });
     return epubPromise;
+  };
+  const getDigestPreparation = (): Promise<DigestPreparationService> => {
+    digestPreparationPromise ??= Promise.all([
+      import('../../src/application/digest-preparation-service.ts'),
+      getCollections(),
+      getEpub(),
+    ]).then(([{ DigestPreparationService }, collections, epub]) => new DigestPreparationService({ collections, epub }))
+      .catch((error: unknown) => { throw capabilityError('Reading digest preparation', error); });
+    return digestPreparationPromise;
   };
   const getKindleCredentialStore = (): Promise<SystemKindleCredentialStore> => {
     credentialStorePromise ??= import('../../src/adapters/credentials/keyring.ts')
@@ -67,8 +90,10 @@ export async function openReadsServices(cwd: string): Promise<ReadsServices> {
       getExports(),
       getEpub(),
       getKindleCredentialStore(),
-    ]).then(([{ KindleService }, exports, epub, credentialStore]) => new KindleService({
+      getCollections(),
+    ]).then(([{ KindleService }, exports, epub, credentialStore, collections]) => new KindleService({
       library,
+      collections,
       exports,
       epub,
       ...(configuration.kindle ? { config: configuration.kindle } : {}),
@@ -109,7 +134,9 @@ export async function openReadsServices(cwd: string): Promise<ReadsServices> {
     kindleConfig: configuration.kindle,
     obsidianConfig: configuration.obsidian,
     getExports,
+    getCollections,
     getEpub,
+    getDigestPreparation,
     getKindle,
     getKindleCredentialStore,
     getObsidian,

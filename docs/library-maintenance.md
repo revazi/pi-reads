@@ -23,11 +23,11 @@ For an installed package, invoke `node /absolute/path/to/pi-reads/scripts/mainta
 
 Checks cover:
 
-- Strict versioned source/article/export/state schemas, record identity and expected storage paths, duplicate IDs, missing manifests, and unsafe filesystem entries.
+- Strict versioned source/article/collection/export/state schemas, record identity and expected storage paths, duplicate IDs, missing manifests, and unsafe filesystem entries.
 - Exact SHA-256 hashes and byte lengths for prose, raw captures, assets, and export artifacts; normalized visible-text hashes and cross-record archive fidelity.
-- Source/article references and lineage cycles, inline citation/metadata agreement, exact quotes and source locators, persisted citation diagnostics, and coverage-summary consistency.
+- Source/article/collection references and lineage, ordered collection provenance snapshots, inline citation/metadata agreement, exact quotes and source locators, persisted citation diagnostics, and coverage-summary consistency.
 - State-to-article references and revisioned state validation.
-- Local export references, including Kindle delivery manifests sharing a verified prepared artifact. Verification does not inspect the live Obsidian vault or re-send historical deliveries.
+- Local article/collection export references, including Kindle delivery manifests sharing a verified prepared artifact. Verification does not inspect the live Obsidian vault or re-send historical deliveries.
 - Source structure indexes, the canonical records represented in the library catalog, and a freshly derived state-aware search index.
 
 Canonical failures return a nonzero CLI exit status and block backup/rebuild. Missing or stale derived indexes are warnings with a rebuild action, not evidence that source prose is lost. Unreferenced files under scanned data directories are reported as excluded from backup; unrelated root files, such as `.env`, are not opened.
@@ -36,7 +36,7 @@ Historical generated articles without newer optional coverage/diagnostic metadat
 
 ## Index rebuilding
 
-`rebuild` verifies canonical records first and replaces only the derived catalog, every current source structure index, and the local full-text search index. Existing unsafe index symlinks fail closed. Article/source/export bytes and reading-state records remain unchanged. It does not modify managed Obsidian views; rebuild those explicitly through `/reads-obsidian-graph` after configuring the new machine.
+`rebuild` verifies canonical records first and replaces only the derived catalog, every current source structure index, and the local full-text search index. Existing unsafe index symlinks fail closed. Article/source/collection/export bytes and reading-state records remain unchanged. It does not modify managed Obsidian views; rebuild those explicitly through `/reads-obsidian-graph` after configuring the new machine.
 
 Index writes use the existing atomic cache writers. An interrupted rebuild can be retried; it is not an all-index atomic transaction.
 
