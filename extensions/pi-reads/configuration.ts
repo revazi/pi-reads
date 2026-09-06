@@ -1,11 +1,21 @@
 import type { ExtensionCommandContext } from '@earendil-works/pi-coding-agent';
 import { CURSOR_MARKER, Key, matchesKey, truncateToWidth } from '@earendil-works/pi-tui';
-import { updateKindleConfig, updateLibraryDir, updateObsidianConfig } from '../../src/application/config-service.ts';
+import {
+  updateGenerationTemplates,
+  updateKindleConfig,
+  updateLibraryDir,
+  updateObsidianConfig,
+} from '../../src/application/config-service.ts';
 import type { KindleCredentialStore, KindleSmtpCredentials } from '../../src/application/kindle-credentials.ts';
 import { parseConfig } from '../../src/core/config.ts';
 import { resolveKindleConfig } from '../../src/core/config/kindle.ts';
 import { resolveObsidianConfig } from '../../src/core/config/obsidian.ts';
-import type { KindleConfig, ObsidianConfig } from '../../src/core/domain.ts';
+import type { GenerationTemplateMode, KindleConfig, ObsidianConfig } from '../../src/core/domain.ts';
+import {
+  availableGenerationTemplates,
+  defaultGenerationTemplateId,
+  resolveGenerationTemplate,
+} from '../../src/core/generation-templates.ts';
 import type { ReadsServices } from './runtime.ts';
 
 export interface KindlePreferenceInput {
@@ -356,6 +366,54 @@ async function configureObsidian(
   ctx.ui.notify(`Obsidian vault: ${config.vaultPath}\nConfig: ${configPath}`, 'info');
 }
 
+async function chooseTemplateDefault(
+  mode: GenerationTemplateMode,
+  services: ReadsServices,
+  ctx: ExtensionCommandContext,
+): Promise<string | undefined> {
+  const templates = availableGenerationTemplates(services.config, mode);
+  const current = defaultGenerationTemplateId(services.config, mode);
+  const labels = templates.map((template) =>
+    `${template.id === current ? 'current — ' : ''}${template.label} (${template.id})`,
+  );
+  const selected = await ctx.ui.select(`Default ${mode} template`, labels);
+  const index = selected ? labels.indexOf(selected) : -1;
+  return index < 0 ? undefined : templates[index]!.id;
+}
+
+async function configureGenerationTemplates(
+  args: string,
+  services: ReadsServices,
+  ctx: ExtensionCommandContext,
+): Promise<void> {
+  let digestTemplateId: string | undefined;
+  let synthesisTemplateId: string | undefined;
+  if (args) {
+    const ids = args.split(/\s+/u).filter(Boolean);
+    if (ids.length !== 2) {
+      ctx.ui.notify('Usage: /reads-config templates <digest-template-id> <synthesis-template-id>', 'error');
+      return;
+    }
+    [digestTemplateId, synthesisTemplateId] = ids;
+  } else if (ctx.hasUI) {
+    digestTemplateId = await chooseTemplateDefault('digest', services, ctx);
+    if (!digestTemplateId) return;
+    synthesisTemplateId = await chooseTemplateDefault('synthesis', services, ctx);
+    if (!synthesisTemplateId) return;
+  } else {
+    ctx.ui.notify('Usage: /reads-config templates <digest-template-id> <synthesis-template-id>', 'error');
+    return;
+  }
+  resolveGenerationTemplate(services.config, digestTemplateId, 'digest');
+  resolveGenerationTemplate(services.config, synthesisTemplateId, 'synthesis');
+  await updateGenerationTemplates(
+    services.configPath,
+    { digestTemplateId, synthesisTemplateId },
+    services.config.generationTemplates,
+  );
+  ctx.ui.notify(`Generation template defaults saved: digest=${digestTemplateId}, synthesis=${synthesisTemplateId}.`, 'info');
+}
+
 async function configureLibraryPath(
   value: string,
   services: ReadsServices,
@@ -373,7 +431,7 @@ async function configureLibraryPath(
     return;
   }
   if (!ctx.hasUI) {
-    ctx.ui.notify('Usage: /reads-config library <path>, /reads-config obsidian <vault-path>, or /reads-config kindle <smtp-host>', 'error');
+    ctx.ui.notify('Usage: /reads-config library <path>, templates <digest-id> <synthesis-id>, obsidian <vault>, or kindle <smtp-host>', 'error');
     return;
   }
   const libraryDir = await ctx.ui.input('Pi Reads library directory', services.libraryDir);
@@ -390,7 +448,7 @@ async function configureInteractiveTarget(
   ctx: ExtensionCommandContext,
 ): Promise<void> {
   const target = await ctx.ui.select('Configure Pi Reads', [
-    'Library directory', 'Obsidian destination', 'Kindle delivery',
+    'Library directory', 'Generation templates', 'Obsidian destination', 'Kindle delivery',
   ]);
   if (target === 'Kindle delivery') {
     await configureKindle(
@@ -399,6 +457,10 @@ async function configureInteractiveTarget(
       await services.getKindleCredentialStore(),
       ctx,
     );
+    return;
+  }
+  if (target === 'Generation templates') {
+    await configureGenerationTemplates('', services, ctx);
     return;
   }
   if (target === 'Obsidian destination') {
@@ -414,6 +476,10 @@ export async function executeReadsConfiguration(
   ctx: ExtensionCommandContext,
 ): Promise<void> {
   const value = args.trim();
+  if (/^templates(?:\s|$)/iu.test(value)) {
+    await configureGenerationTemplates(value.replace(/^templates\s*/iu, '').trim(), services, ctx);
+    return;
+  }
   if (/^kindle(?:\s|$)/iu.test(value)) {
     const host = value.replace(/^kindle\s*/iu, '').trim();
     if (!host && !ctx.hasUI) {

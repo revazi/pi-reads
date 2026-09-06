@@ -114,6 +114,41 @@ export interface SourceCoverageSummary {
   }>;
 }
 
+export type GenerationTemplateMode = 'digest' | 'synthesis';
+export type GenerationSectionRole =
+  | 'summary' | 'key-points' | 'context' | 'question' | 'overview' | 'prerequisites'
+  | 'steps' | 'examples' | 'comparison' | 'evidence' | 'findings' | 'limitations' | 'conclusion';
+
+export interface GenerationTemplateDefinition {
+  id: string;
+  version: 1;
+  label: string;
+  mode: GenerationTemplateMode;
+  targetWords: { minimum: number; maximum: number };
+  sectionRoles: GenerationSectionRole[];
+  coveragePolicy: SourceCoveragePolicy;
+  citationBudget: { minimumPerSection: number; minimumSources: number };
+}
+
+export interface GenerationTemplateSnapshot extends GenerationTemplateDefinition {
+  origin: 'built-in' | 'user';
+}
+
+export interface GenerationTemplateDiagnostics {
+  algorithm: 'generation-template-budget-v1';
+  templateId: string;
+  templateVersion: 1;
+  wordCount: number;
+  targetWords: { minimum: number; maximum: number };
+  requiredSectionCount: number;
+  presentSectionCount: number;
+  minimumCitationsPerSection: number;
+  minimumSources: number;
+  usedSourceCount: number;
+  warnings: string[];
+  warningsTruncated: boolean;
+}
+
 export interface GeneratedBy {
   provider: string;
   model: string;
@@ -144,6 +179,8 @@ export interface ArticleRecord {
   generatedBy?: GeneratedBy;
   sourceCoverage?: SourceCoverageSummary;
   citationDiagnostics?: CitationGroundingDiagnostics;
+  generationTemplate?: GenerationTemplateSnapshot;
+  templateDiagnostics?: GenerationTemplateDiagnostics;
   presentation?: {
     sourceFontStyle?: 'serif' | 'sans-serif';
     bodyFontSizeAdjustment?: -1;
@@ -211,7 +248,10 @@ export interface PiReadsConfig {
   defaults?: {
     mode?: ArticleMode;
     exportFormat?: ExportFormat;
+    digestTemplateId?: string;
+    synthesisTemplateId?: string;
   };
+  generationTemplates?: GenerationTemplateDefinition[];
   obsidian?: ObsidianConfig;
   kindle?: KindleConfig;
 }

@@ -18,6 +18,7 @@ function capabilityError(capability: string, error: unknown): Error {
 export interface ReadsServices {
   configPath: string;
   libraryDir: string;
+  config: ResolvedConfiguration['config'];
   library: LibraryService;
   kindleConfig: ResolvedConfiguration['kindle'];
   obsidianConfig: ResolvedConfiguration['obsidian'];
@@ -103,6 +104,7 @@ export async function openReadsServices(cwd: string): Promise<ReadsServices> {
   return {
     configPath: configuration.configPath,
     libraryDir: configuration.libraryDir,
+    config: configuration.config,
     library,
     kindleConfig: configuration.kindle,
     obsidianConfig: configuration.obsidian,

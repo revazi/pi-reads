@@ -208,6 +208,12 @@
     "citationDiagnostics": {
       "$ref": "citation-diagnostics.schema.json"
     },
+    "generationTemplate": {
+      "$ref": "generation-template.schema.json#/$defs/snapshot"
+    },
+    "templateDiagnostics": {
+      "$ref": "generation-template.schema.json#/$defs/diagnostics"
+    },
     "presentation": {
       "type": "object",
       "additionalProperties": false,
@@ -267,6 +273,16 @@
           {
             "not": {
               "required": ["citationDiagnostics"]
+            }
+          },
+          {
+            "not": {
+              "required": ["generationTemplate"]
+            }
+          },
+          {
+            "not": {
+              "required": ["templateDiagnostics"]
             }
           }
         ]

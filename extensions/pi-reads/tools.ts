@@ -1,6 +1,6 @@
 import { StringEnum, Type } from '@earendil-works/pi-ai';
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
-import type { Citation, Sha256Digest } from '../../src/core/domain.ts';
+import type { Citation, PiReadsConfig, Sha256Digest } from '../../src/core/domain.ts';
 import type {
   CaptureResult,
   SaveGeneratedArticleInput,
@@ -8,6 +8,7 @@ import type {
 } from '../../src/application/library-service.ts';
 import type { SourceCoverageInput } from '../../src/core/source-coverage.ts';
 import type { MultiSourceSynthesisReview } from '../../src/core/synthesis-review.ts';
+import { resolveGenerationTemplate } from '../../src/core/generation-templates.ts';
 import { executeReadsExport, resolveReadsExportRequest } from './export-handlers.ts';
 import {
   executeReadsLibrary,
@@ -77,9 +78,14 @@ interface GeneratedToolParams {
   citations: Citation[];
   coverage: SourceCoverageInput;
   reviewToken?: string;
+  templateId?: string;
 }
 
-function generatedArticleInput(params: GeneratedToolParams, ctx: ExtensionContext): SaveGeneratedArticleInput {
+function generatedArticleInput(
+  params: GeneratedToolParams,
+  ctx: ExtensionContext,
+  config: PiReadsConfig,
+): SaveGeneratedArticleInput {
   if (!ctx.model) throw new Error('An active Pi model is required to record generation provenance');
   return {
     mode: params.mode,
@@ -90,6 +96,7 @@ function generatedArticleInput(params: GeneratedToolParams, ctx: ExtensionContex
     sourceIds: params.sourceIds,
     citations: params.citations,
     coverage: params.coverage,
+    ...(params.templateId ? { generationTemplate: resolveGenerationTemplate(config, params.templateId, params.mode) } : {}),
     generatedBy: {
       provider: ctx.model.provider,
       model: ctx.model.id,
@@ -113,6 +120,7 @@ function multiSourceReviewResult(review: MultiSourceSynthesisReview, libraryDir:
         `Citation distribution: ${distribution}.`,
         `Unused selected sources: ${review.unusedSourceIds.join(', ') || 'none'}.`,
         `All ${review.articleSectionCount} non-empty article sections contain registered citation markers.`,
+        ...(review.templateDiagnostics?.warnings.map((warning) => `Template warning: ${warning}`) ?? []),
         'Review these diagnostics, then rerun the exact reads_save_article request with reviewToken.',
         `reviewToken: ${review.reviewToken}`,
       ].join('\n'),
@@ -129,6 +137,7 @@ function storedGeneratedResult(result: StoredArticle, libraryDir: string) {
         `Saved ${result.article.id} (${result.article.mode}, ${result.article.sourceCoverage!.policy}).`,
         `Grounding: ${result.article.citationDiagnostics!.locatedCitationCount}/${result.article.citationDiagnostics!.citationCount} located; ${result.article.citationDiagnostics!.uncitedArticleSectionCount}/${result.article.citationDiagnostics!.articleSectionCount} article sections uncited.`,
         ...(result.article.sourceCoverage?.warning ? [`Warning: ${result.article.sourceCoverage.warning}`] : []),
+        ...(result.article.templateDiagnostics?.warnings.map((warning) => `Template warning: ${warning}`) ?? []),
       ].join('\n'),
     }],
     details: {
@@ -140,6 +149,8 @@ function storedGeneratedResult(result: StoredArticle, libraryDir: string) {
       manifestPath: result.manifestPath,
       sourceCoverage: result.article.sourceCoverage,
       citationDiagnostics: result.article.citationDiagnostics,
+      generationTemplate: result.article.generationTemplate,
+      templateDiagnostics: result.article.templateDiagnostics,
     },
   };
 }
@@ -214,7 +225,7 @@ export function registerReadsTools(pi: ExtensionAPI): void {
   pi.registerTool({
     name: 'reads_save_article',
     label: 'Reads Save Article',
-    description: 'Review/persist generated work after citation and coverage checks. Multi-source synthesis previews unused sources first, then requires its reviewToken.',
+    description: 'Review/persist cited work; multi-source synthesis previews unused sources, then requires reviewToken.',
     promptSnippet: 'Save a cited generated article',
     promptGuidelines: [
       'reads_save_article requires nearby [^cite_id] markers backed by captured sources; digests require complete coverage and targeted coverage is synthesis-only.',
@@ -232,6 +243,7 @@ export function registerReadsTools(pi: ExtensionAPI): void {
         sources: Type.Array(CoverageEvidenceSchema, { minItems: 1 }),
       }),
       reviewToken: Type.Optional(Type.String({ pattern: '^sha256:[0-9a-f]{64}$' })),
+      templateId: Type.Optional(Type.String({ pattern: '^[a-z][a-z0-9-]{1,63}$' })),
     }),
     async execute(_toolCallId, params, _signal, onUpdate, ctx) {
       const services = await openReadsServices(ctx.cwd);
@@ -241,7 +253,7 @@ export function registerReadsTools(pi: ExtensionAPI): void {
         content: [{ type: 'text', text: `${needsReview ? 'Reviewing' : 'Saving'} ${toolParams.mode} article…` }],
         details: {},
       });
-      const input = generatedArticleInput(toolParams, ctx);
+      const input = generatedArticleInput(toolParams, ctx, services.config);
       if (needsReview) {
         const review = await withFileMutationQueue(services.libraryDir, () =>
           services.library.reviewMultiSourceSynthesis(input),

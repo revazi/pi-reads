@@ -116,6 +116,7 @@ A `user-state-snapshot` contains canonical persisted state records sorted by art
 An article records:
 
 - mode, title, slug, and source IDs;
+- an optional immutable versioned generation-template snapshot and bounded budget diagnostics;
 - immutable Markdown body and hashes;
 - citations;
 - creation time;
@@ -126,6 +127,8 @@ An article records:
 `archiveVerification` is mutually exclusive with `generatedBy` and `sourceCoverage`.
 
 Generated articles record the active provider, model, generation time, and—when available—the Pi session ID and thinking level. Prompts and credentials are not persisted in the article manifest.
+
+Generation templates are structured metadata, not executable prompt text. Version 1 definitions select a digest/synthesis mode, 100–10,000 target-word range, 1–10 allowlisted section roles, complete/targeted coverage, and citation minima of 1–20 per section/from selected sources. User templates use `custom-` IDs, safe display labels, and a maximum of ten definitions. Unknown fields—including free-form instructions—fail closed. Built-in and user choices resolve by mode, snapshot origin/version into generated provenance, and produce bounded deterministic warnings for length, missing sections, citation density, and source use. Mode or coverage mismatch blocks persistence; warnings never bypass existing source, archive, coverage, or citation rules. See [generation templates](generation-templates.md).
 
 The existing presentation behavior maps into `article.presentation`:
 

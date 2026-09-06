@@ -43,7 +43,7 @@ Choose a mode:
 
 Digests use verified complete-source coverage. Focused syntheses may use targeted coverage, which records omitted sections and carries a non-comprehensive warning. Long sources are traversed through bounded continuation cursors rather than one unbounded model-context load. Before saving generated work, Pi Reads resolves citation locators, verifies quoted text against immutable sources, and reports bounded uncited-section diagnostics.
 
-For an ordered synthesis from several existing captures, run `/reads`, choose **Captured sources**, and select 2–20 sources in order. Pi Reads plans bounded retrieval for each source and requires a no-write review that reports citation distribution and unused selected sources before the exact draft can be persisted. See [multi-source cited synthesis](docs/multi-source-synthesis.md).
+For an ordered synthesis from several existing captures, run `/reads`, choose **Captured sources**, and select 2–20 sources in order. Pi Reads plans bounded retrieval for each source and requires a no-write review that reports citation distribution and unused selected sources before the exact draft can be persisted. Generation templates provide versioned brief, deep-dive, tutorial, comparison, and research-note structures with deterministic length/citation warnings. See [multi-source cited synthesis](docs/multi-source-synthesis.md) and [generation templates](docs/generation-templates.md).
 
 Then choose an output such as Markdown, PDF, EPUB, Obsidian, or Kindle.
 
@@ -149,6 +149,7 @@ The original deterministic `article:*` print workflow remains supported. Contrib
 - [Library verification, backup, and restore](docs/library-maintenance.md)
 - [Transactional batch ingestion](docs/batch-ingestion.md)
 - [Multi-source cited synthesis](docs/multi-source-synthesis.md)
+- [Generation templates and budgets](docs/generation-templates.md)
 - [Performance and token-efficiency benchmarks](docs/benchmarks.md)
 - [EPUB and Kindle delivery](docs/epub-and-kindle.md)
 - [Obsidian integration](docs/obsidian.md)
