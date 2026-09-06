@@ -10,6 +10,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - Mixed `reads_ingest` batches of 1–50 URL/file/text/Markdown inputs with bounded concurrency, ordered compact outcomes, duplicate reuse, and abort propagation. Per-item compensation removes only newly created source/archive/index records on ordinary publication failures, while retaining successful siblings; batch recapture remains forbidden.
 - Ordered 2–20-source `/reads` synthesis planning with hash-bound bounded retrieval, section-level citation enforcement, and a mandatory no-write citation-distribution/unused-source review before exact-token persistence with active Pi provenance.
 - Versioned built-in and safe structured user generation templates for brief, deep-dive, tutorial, comparison, and research-note output, with configurable defaults, immutable article snapshots, and bounded length/section/citation/source-budget diagnostics.
+- RSS/Atom and local newsletter `.eml` adapters with duplicate-aware no-write previews, exact hash-bound selection tokens, and explicit selected-entry batch capture through the canonical source-draft pipeline.
 
 ### Changed
 
@@ -33,6 +34,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 - Local source-file ingestion now rejects non-regular files and files above 10 MiB, bounds reads against concurrent growth, and checks cancellation. Immutable directory writes refuse existing empty targets as well as populated records.
 - Article and image downloads now share a public-network URL policy that rejects credentials and private/non-routable IPv4 and IPv6 targets; article redirects are validated individually and HTML fetches enforce redirect, timeout, and 10 MiB response limits.
+- Feed downloads apply the same public-network and per-redirect checks with a 2 MiB streamed limit, feed-only media types, and timeout; newsletter ingestion accepts only bounded regular local `.eml` files and never requests mailbox credentials.
 
 ## [1.1.1] - 2026-08-20
 

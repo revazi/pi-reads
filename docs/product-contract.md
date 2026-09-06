@@ -14,7 +14,7 @@ Pi Reads captures source material, creates optional AI-authored reading document
 
 The product has four persistent domain records:
 
-- **Source** — an immutable capture of a URL, pasted text, Markdown, or local file.
+- **Source** — an immutable capture of a URL, feed entry, exported newsletter, pasted text, Markdown, or local file.
 - **Article** — a reading document in `archive`, `digest`, or `synthesis` mode.
 - **Citation** — a reference from generated prose to a captured source.
 - **Export** — a reproducible artifact prepared for local, Obsidian, or Kindle delivery.
@@ -89,11 +89,15 @@ Each source may have a deterministic `markdown-blocks-v1` structure index derive
 
 Local file paths may be retained in a local source manifest but must not be presented as public citations. URL citations use the source's canonical URL.
 
+Feed and newsletter adapters produce the same canonical draft contract before persistence. Feed entries retain cleaned canonical entry URLs and embedded entry payload evidence. Local newsletter sources retain the original `.eml` envelope as `message/rfc822` evidence while readable MIME body content passes through deterministic cleanup. Remote mailbox access and credentials are not part of source capture.
+
 ## Batch capture
 
 Batch capture accepts at most 50 independent inputs and preserves input order in its bounded outcome list. Every newly captured item gets a separate immutable source/archive pair and structure index; duplicates reuse verified IDs, while changed canonical content creates nothing and requires individual user-approved recapture. Batch capture never performs generation or delivery.
 
 Successful siblings remain after another item fails or is cancelled. Ordinary publication failures compensate only that item's new directories, including catalog-publication failures, and never overwrite/delete existing collisions. Cancellation propagates to active HTTP requests and is checked before publishing; a committed capture must not be reported as cancelled. Failed compensation is explicit and stops pending work. Cross-directory crash atomicity and unsynchronized external writers are not supported. Limits and error semantics are specified in [batch ingestion](batch-ingestion.md).
+
+Feed/newsletter collection capture adds a mandatory no-write preview. Bounded metadata clearly distinguishes library duplicates, changed canonical content, and duplicate/changed entries within the preview. The exact collection bytes and ordered entry identities are hash-bound to a preview token. Only explicit, unique selected indexes submitted with that token reach batch persistence; changed collections fail before writing, and recapture remains forbidden. See [feed and newsletter ingestion](feed-and-newsletter-ingestion.md).
 
 ## Private full-text search
 

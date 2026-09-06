@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/">
+  <channel>
+    <title>Synthetic Reading Feed</title>
+    <link>https://feed.example.test/</link>
+    <item>
+      <title>Deterministic entry one</title>
+      <link>https://articles.example.test/one?utm_source=fixture</link>
+      <guid>entry-one</guid>
+      <pubDate>Tue, 01 Apr 2025 10:00:00 GMT</pubDate>
+      <author>Fixture Author</author>
+      <content:encoded><![CDATA[<p>First synthetic feed paragraph.</p><script>not evidence</script>]]></content:encoded>
+    </item>
+    <item>
+      <title>Duplicate entry one</title>
+      <link>https://articles.example.test/one</link>
+      <description><![CDATA[<p>First synthetic feed paragraph.</p><script>not evidence</script>]]></description>
+    </item>
+    <item>
+      <title>Changed entry one</title>
+      <link>https://articles.example.test/one</link>
+      <description><![CDATA[<p>Changed synthetic feed paragraph.</p>]]></description>
+    </item>
+    <item>
+      <title>Deterministic entry two</title>
+      <link>https://articles.example.test/two</link>
+      <description>Second synthetic feed paragraph.</description>
+    </item>
+  </channel>
+</rss>

@@ -1,4 +1,5 @@
 import { CaptureRecoveryError } from '../core/record-group.ts';
+import type { IngestedSourceDraft } from '../core/domain.ts';
 import type { SourceInput, IngestSourceDependencies } from '../core/ingest/index.ts';
 import type { CaptureResult, LibraryService } from './library-service.ts';
 
@@ -68,13 +69,18 @@ function validInput(input: SourceInput): boolean {
   return validLabel(input) && validFileCwd(input);
 }
 
-function validateBatch(inputs: readonly SourceInput[], concurrency: number): void {
-  if (!Array.isArray(inputs) || inputs.length < 1 || inputs.length > MAX_BATCH_ITEMS) {
+function validateBatchSize(count: number, concurrency: number): void {
+  if (count < 1 || count > MAX_BATCH_ITEMS) {
     throw new Error('Batch capture requires 1–50 inputs; split larger collections before capture');
   }
   if (!Number.isInteger(concurrency) || concurrency < 1 || concurrency > 4) {
     throw new Error('Batch concurrency must be an integer from 1 to 4');
   }
+}
+
+function validateBatch(inputs: readonly SourceInput[], concurrency: number): void {
+  if (!Array.isArray(inputs)) throw new Error('Batch capture inputs must be an array');
+  validateBatchSize(inputs.length, concurrency);
   if (inputs.reduce((total, input) => total + inputBytes(input), 0) > MAX_BATCH_INPUT_BYTES) {
     throw new Error('Batch input exceeds 1 MiB; split the request or use local files');
   }
@@ -114,19 +120,32 @@ export class BatchIngestionService {
     }
   }
 
-  async capture(inputs: readonly SourceInput[], options: BatchCaptureOptions = {}): Promise<BatchCaptureResult> {
-    const concurrency = options.concurrency ?? 3;
-    validateBatch(inputs, concurrency);
-    // Snapshot caller-owned descriptors before awaiting network or filesystem work.
-    const pending = inputs.map((input) => input && { ...input });
+  private async captureDraftOne(draft: IngestedSourceDraft, index: number, signal?: AbortSignal): Promise<BatchCaptureOutcome> {
+    if (signal?.aborted) return { index, status: 'cancelled', error: 'cancelled' };
+    try {
+      return captureOutcome(index, await this.library.captureDraft(draft, signal));
+    } catch (error) {
+      if (error instanceof CaptureRecoveryError) return { index, status: 'failed', error: 'recovery-required' };
+      return signal?.aborted
+        ? { index, status: 'cancelled', error: 'cancelled' }
+        : { index, status: 'failed', error: 'capture-failed' };
+    }
+  }
+
+  private async run<T>(
+    pending: readonly T[],
+    concurrency: number,
+    capture: (item: T, index: number, signal: AbortSignal) => Promise<BatchCaptureOutcome>,
+    callerSignal?: AbortSignal,
+  ): Promise<BatchCaptureResult> {
     const recoveryAbort = new AbortController();
-    const signal = options.signal ? AbortSignal.any([options.signal, recoveryAbort.signal]) : recoveryAbort.signal;
+    const signal = callerSignal ? AbortSignal.any([callerSignal, recoveryAbort.signal]) : recoveryAbort.signal;
     const outcomes: BatchCaptureOutcome[] = new Array(pending.length);
     let next = 0;
     const worker = async (): Promise<void> => {
       while (next < pending.length) {
         const index = next++;
-        const outcome = await this.captureOne(pending[index]!, index, signal);
+        const outcome = await capture(pending[index]!, index, signal);
         outcomes[index] = outcome;
         if ('error' in outcome && outcome.error === 'recovery-required') recoveryAbort.abort();
       }
@@ -137,5 +156,25 @@ export class BatchIngestionService {
     };
     for (const outcome of outcomes) counts[outcome.status]++;
     return { total: outcomes.length, counts, outcomes };
+  }
+
+  async capture(inputs: readonly SourceInput[], options: BatchCaptureOptions = {}): Promise<BatchCaptureResult> {
+    const concurrency = options.concurrency ?? 3;
+    validateBatch(inputs, concurrency);
+    // Snapshot caller-owned descriptors before awaiting network or filesystem work.
+    const pending = inputs.map((input) => input && { ...input });
+    return this.run(pending, concurrency, (input, index, signal) => this.captureOne(input, index, signal), options.signal);
+  }
+
+  async captureDrafts(drafts: readonly IngestedSourceDraft[], options: BatchCaptureOptions = {}): Promise<BatchCaptureResult> {
+    const concurrency = options.concurrency ?? 3;
+    if (!Array.isArray(drafts)) throw new Error('Batch capture drafts must be an array');
+    validateBatchSize(drafts.length, concurrency);
+    const pending = drafts.map((draft) => ({
+      ...draft,
+      ...(draft.authors ? { authors: [...draft.authors] } : {}),
+      capture: { ...draft.capture },
+    }));
+    return this.run(pending, concurrency, (draft, index, signal) => this.captureDraftOne(draft, index, signal), options.signal);
   }
 }

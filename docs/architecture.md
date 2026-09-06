@@ -188,6 +188,12 @@ No model-authored prose enters this path.
 
 Each `LibraryService.capture` prepares the source/archive pair and derived source index before publication. `ImmutableRecordGroup` compensates only directories that operation created; an optional catalog-transaction rollback runs under the same queue if index publication fails. Duplicate matching stays serialized. Cancellation aborts network work and pending publication, but an item already publishing finishes or compensates. This is per-item compensation, not a whole-batch or crash-atomic filesystem transaction. See [batch ingestion](batch-ingestion.md).
 
+### Feed and newsletter collections
+
+`parseFeed` and `ingestNewsletterFile` are deterministic adapters that return canonical `IngestedSourceDraft` values. Remote feeds pass through the public-network/redirect/media-type/byte/timeout policy; newsletters are bounded local `.eml` files parsed without mailbox credentials. Embedded HTML uses the existing cleanup and Markdown pipeline, while raw entry or email evidence remains separate.
+
+`CollectionIngestionService` resolves a collection, asks `LibraryService` for read-only duplicate matches, and returns bounded metadata plus a hash-bound token. It retains no server-side preview state. Capture re-resolves the collection, verifies that token, validates explicit unique indexes, and passes only those drafts to `BatchIngestionService`/`LibraryService.captureDraft`. The Pi tool and `/reads` are thin preview/selection adapters; no record is created before selection. See [feed and newsletter ingestion](feed-and-newsletter-ingestion.md).
+
 ### Digest or synthesis
 
 ```text

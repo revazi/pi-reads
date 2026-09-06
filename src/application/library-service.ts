@@ -82,6 +82,12 @@ export interface CaptureOptions {
   recapture?: boolean;
 }
 
+export interface CaptureDraftPreview {
+  status: 'new' | CaptureMatch['status'];
+  matchedBy?: CaptureMatch['matchedBy'];
+  existingSourceId?: string;
+}
+
 export interface CaptureResult {
   status: CaptureStatus;
   persisted: boolean;
@@ -176,9 +182,43 @@ function rawCaptureName(mediaType: string | undefined): string {
       return 'source.html';
     case 'text/plain':
       return 'source.txt';
+    case 'message/rfc822':
+      return 'source.eml';
     default:
       return 'source.bin';
   }
+}
+
+function sourceDescriptiveMetadata(draft: IngestedSourceDraft): Partial<SourceRecord> {
+  return {
+    ...(draft.title ? { title: draft.title } : {}),
+    ...(draft.description ? { description: draft.description } : {}),
+    ...(draft.authors ? { authors: draft.authors } : {}),
+    ...(draft.publishedAt ? { publishedAt: draft.publishedAt } : {}),
+  };
+}
+
+function sourceOrigin(draft: IngestedSourceDraft): SourceRecord['origin'] {
+  return { locator: draft.locator, ...(draft.canonicalUrl ? { canonicalUrl: draft.canonicalUrl } : {}) };
+}
+
+function sourceRawCapture(
+  draft: IngestedSourceDraft,
+  directory: string,
+): Pick<SourceRecord, 'rawCapture'> | Record<string, never> {
+  if (draft.rawContent === undefined) return {};
+  return {
+    rawCapture: {
+      path: path.posix.join(directory, 'raw', rawCaptureName(draft.rawMediaType)),
+      mediaType: draft.rawMediaType ?? 'application/octet-stream',
+      contentHash: versionedSha256(draft.rawContent),
+      byteLength: Buffer.byteLength(draft.rawContent),
+    },
+  };
+}
+
+function optionalSourceMetadata(draft: IngestedSourceDraft, directory: string): Partial<SourceRecord> {
+  return { ...sourceDescriptiveMetadata(draft), ...sourceRawCapture(draft, directory) };
 }
 
 function withSourceLineage(
@@ -209,6 +249,14 @@ function assertStoredTextIntegrity(content: string, stored: StoredText, label: s
   if (Buffer.byteLength(content) !== stored.byteLength) {
     throw new Error(`${label} byte length mismatch`);
   }
+}
+
+function assertDraftIntegrity(draft: IngestedSourceDraft): void {
+  const analysis = analyzeMarkdown(draft.content);
+  if (analysis.contentHash !== draft.contentHash || analysis.textHash !== draft.textHash) {
+    throw new Error('Ingested source draft hashes do not match its Markdown content');
+  }
+  if (!draft.locator.trim()) throw new Error('Ingested source draft locator is required');
 }
 
 function citationMarkers(markdown: string): Set<string> {
@@ -303,6 +351,18 @@ export class LibraryService {
     };
   }
 
+  async previewCaptureDrafts(drafts: readonly IngestedSourceDraft[]): Promise<CaptureDraftPreview[]> {
+    await this.ensureLibrary();
+    const index = await this.index.read();
+    return drafts.map((draft) => {
+      assertDraftIntegrity(draft);
+      const match = detectCaptureMatch(draft, index.sources);
+      return match
+        ? { status: match.status, matchedBy: match.matchedBy, existingSourceId: match.source.id }
+        : { status: 'new' };
+    });
+  }
+
   async capture(
     input: SourceInput,
     dependencies: IngestSourceDependencies = {},
@@ -312,7 +372,17 @@ export class LibraryService {
     signal?.throwIfAborted();
     await this.ensureLibrary();
     const draft = await ingestSource(input, dependencies, signal);
+    return this.captureDraft(draft, signal, options);
+  }
+
+  async captureDraft(
+    draft: IngestedSourceDraft,
+    signal?: AbortSignal,
+    options: CaptureOptions = {},
+  ): Promise<CaptureResult> {
     signal?.throwIfAborted();
+    await this.ensureLibrary();
+    assertDraftIntegrity(draft);
     return this.index.transaction(async (index) => {
       signal?.throwIfAborted();
       let match = detectCaptureMatch(draft, index.sources);
@@ -360,22 +430,15 @@ export class LibraryService {
     const directory = sourceDirectory(id);
     const contentPath = sourceContentPath(id);
     const capturedAt = this.now().toISOString();
-    const rawName = draft.rawContent === undefined ? undefined : rawCaptureName(draft.rawMediaType);
-    const rawPath = rawName ? path.posix.join(directory, 'raw', rawName) : undefined;
+    const metadata = optionalSourceMetadata(draft, directory);
 
     const source = withSourceLineage({
       schemaVersion: 1,
       id,
       kind: draft.kind,
-      ...(draft.title ? { title: draft.title } : {}),
-      ...(draft.description ? { description: draft.description } : {}),
-      ...(draft.authors ? { authors: draft.authors } : {}),
-      ...(draft.publishedAt ? { publishedAt: draft.publishedAt } : {}),
+      ...metadata,
       capturedAt,
-      origin: {
-        locator: draft.locator,
-        ...(draft.canonicalUrl ? { canonicalUrl: draft.canonicalUrl } : {}),
-      },
+      origin: sourceOrigin(draft),
       content: {
         path: contentPath,
         mediaType: 'text/markdown',
@@ -383,16 +446,6 @@ export class LibraryService {
         textHash: draft.textHash,
         byteLength: Buffer.byteLength(draft.content),
       },
-      ...(rawPath && draft.rawContent !== undefined
-        ? {
-            rawCapture: {
-              path: rawPath,
-              mediaType: draft.rawMediaType ?? 'application/octet-stream',
-              contentHash: versionedSha256(draft.rawContent),
-              byteLength: Buffer.byteLength(draft.rawContent),
-            },
-          }
-        : {}),
       capture: draft.capture,
     }, lineage);
     assertSourceLineage(source);

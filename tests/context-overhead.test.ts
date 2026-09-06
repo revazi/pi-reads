@@ -33,8 +33,8 @@ test('persistent Pi Reads tool prompt stays compact while retaining mandatory sa
   })));
   const guidance = tools.flatMap((tool) => [tool.promptSnippet ?? '', ...(tool.promptGuidelines ?? [])]).join('\n');
   assert.equal(tools.length, 4);
-  // Batch adds one bounded item-array schema, not another persistent tool.
-  assert.ok([...schema].length <= 5_800, `tool contract grew to ${estimatedTokens(schema)} estimated tokens`);
+  // Batch and collection preview/selection extend one ingestion schema, not the four-tool surface.
+  assert.ok([...schema].length <= 6_200, `tool contract grew to ${estimatedTokens(schema)} estimated tokens`);
   assert.ok([...guidance].length <= 900, `tool guidance grew to ${estimatedTokens(guidance)} estimated tokens`);
 
   const contract = `${schema}\n${guidance}`;
@@ -43,6 +43,7 @@ test('persistent Pi Reads tool prompt stays compact while retaining mandatory sa
   assert.match(contract, /\[\^cite_id\].*captured sources/u);
   assert.match(contract, /explicit approval before Obsidian overwrite or Kindle send/u);
   assert.match(contract, /exact preparedExportId the user reviewed/u);
+  assert.match(contract, /user-selected indexes.*exact previewToken.*never choose/u);
 });
 
 test('Pi Reads skill remains concise and preserves authoritative workflow safeguards', async () => {
@@ -53,4 +54,5 @@ test('Pi Reads skill remains concise and preserves authoritative workflow safegu
   assert.match(skill, /Generated prose is a separate.*\[\^cite_id\]/u);
   assert.match(skill, /Obsidian overwrite and Kindle send require explicit user approval/u);
   assert.match(skill, /reuse that exact reviewed ID/u);
+  assert.match(skill, /never choose them.*exact `previewToken`/u);
 });

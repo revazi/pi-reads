@@ -1,5 +1,5 @@
 export type ArticleMode = 'archive' | 'digest' | 'synthesis';
-export type SourceKind = 'url' | 'text' | 'markdown' | 'file';
+export type SourceKind = 'url' | 'text' | 'markdown' | 'file' | 'feed' | 'newsletter';
 export type ExportFormat = 'markdown' | 'html' | 'pdf' | 'epub';
 export type ExportStatus = 'prepared' | 'delivered' | 'failed';
 export type Sha256Digest = `sha256:${string}`;

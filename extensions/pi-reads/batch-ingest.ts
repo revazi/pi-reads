@@ -1,8 +1,7 @@
-import type { SourceKind } from '../../src/core/domain.ts';
 import type { LibraryService } from '../../src/application/library-service.ts';
 import { sourceInput } from './operations.ts';
 
-export interface BatchToolItem { kind: SourceKind; value: string; label?: string }
+export interface BatchToolItem { kind: 'url' | 'text' | 'markdown' | 'file'; value: string; label?: string }
 
 export async function executeBatchIngest(
   items: readonly BatchToolItem[], library: LibraryService, cwd: string, signal?: AbortSignal,

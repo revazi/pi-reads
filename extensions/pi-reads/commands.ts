@@ -2,6 +2,7 @@ import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 import type { ExtensionAPI, ExtensionCommandContext } from '@earendil-works/pi-coding-agent';
+import type { CollectionPreview } from '../../src/application/collection-ingestion-service.ts';
 import type { CaptureResult, MultiSourceSynthesisPlan } from '../../src/application/library-service.ts';
 import { MAX_MULTI_SOURCE_SYNTHESIS_SOURCES } from '../../src/core/synthesis-review.ts';
 import type { GenerationTemplateSnapshot } from '../../src/core/domain.ts';
@@ -41,11 +42,15 @@ type ExistingSourceWorkflowSelection = {
   template: GenerationTemplateSnapshot;
 };
 
-type WorkflowSelection = CaptureWorkflowSelection | ExistingSourceWorkflowSelection;
+type CollectionWorkflowSelection = { collectionKind: 'feed' | 'newsletter'; value: string };
+type WorkflowSelection = CaptureWorkflowSelection | ExistingSourceWorkflowSelection | CollectionWorkflowSelection;
 
 const SOURCE_ID_PATTERN = /^src_[a-z0-9]{16,64}$/u;
 const CAPTURED_SOURCES_CHOICE = 'Captured sources — ordered multi-source synthesis';
+const FEED_CHOICE = 'RSS/Atom feed — preview entries before capture';
+const NEWSLETTER_CHOICE = 'Newsletter .eml — preview before capture';
 const FINISH_SOURCE_SELECTION = 'Done — use sources in this order';
+const FINISH_ENTRY_SELECTION = 'Done — capture selected entries';
 const READING_STATUS_ARGUMENTS = ['unread', 'reading', 'completed', 'archived'] as const;
 
 type ReadingStatusArgument = (typeof READING_STATUS_ARGUMENTS)[number];
@@ -192,6 +197,61 @@ function workflowPrompt(
 function boundedLabel(value: string | undefined): string {
   const normalized = value?.replace(/\s+/gu, ' ').trim() || '(untitled)';
   return [...normalized].slice(0, 100).join('');
+}
+
+async function selectCollectionEntries(
+  preview: CollectionPreview,
+  ctx: ExtensionCommandContext,
+): Promise<number[] | undefined> {
+  const remaining = preview.entries.map((entry) => ({
+    index: entry.index,
+    label: `${entry.index}: ${boundedLabel(entry.title)} [${entry.status}]`,
+  }));
+  const selected: number[] = [];
+  while (remaining.length > 0) {
+    const options = [...remaining.map((entry) => entry.label), ...(selected.length ? [FINISH_ENTRY_SELECTION] : [])];
+    const choice = await ctx.ui.select(`Select entry #${selected.length + 1}; nothing is captured until Done`, options);
+    if (!choice) return undefined;
+    if (choice === FINISH_ENTRY_SELECTION) return selected;
+    const index = remaining.findIndex((entry) => entry.label === choice);
+    if (index < 0) return undefined;
+    selected.push(remaining[index]!.index);
+    remaining.splice(index, 1);
+  }
+  return selected;
+}
+
+async function executeCollectionWorkflow(
+  selection: CollectionWorkflowSelection,
+  ctx: ExtensionCommandContext,
+): Promise<void> {
+  const services = await openReadsServices(ctx.cwd);
+  const { CollectionIngestionService } = await import('../../src/application/collection-ingestion-service.ts');
+  const input = selection.collectionKind === 'feed'
+    ? { kind: 'feed' as const, url: selection.value }
+    : { kind: 'newsletter' as const, path: selection.value, cwd: ctx.cwd };
+  ctx.ui.setStatus('pi-reads', `Previewing ${selection.collectionKind}…`);
+  try {
+    const service = new CollectionIngestionService(services.library);
+    const preview = await service.preview(input, ctx.signal);
+    ctx.ui.setStatus('pi-reads', undefined);
+    ctx.ui.notify([
+      `${preview.title ?? selection.collectionKind}: ${preview.entryCount}/${preview.totalEntryCount} entries available.`,
+      `Duplicates: ${preview.entries.filter((entry) => entry.status !== 'new').length}. No records created.`,
+      ...(preview.entriesTruncated ? ['Preview is limited to the first 50 entries.'] : []),
+    ].join('\n'), 'info');
+    const indexes = await selectCollectionEntries(preview, ctx);
+    if (!indexes?.length) return;
+    ctx.ui.setStatus('pi-reads', `Capturing ${indexes.length} selected entries…`);
+    const result = await withFileMutationQueue(services.libraryDir, () =>
+      service.capture(input, indexes, preview.previewToken, ctx.signal));
+    ctx.ui.notify(
+      `Selected ${indexes.join(', ')}. Captured ${result.counts.captured}; exact duplicates ${result.counts['exact-duplicate']}; changed ${result.counts['changed-content']}; failed ${result.counts.failed}; cancelled ${result.counts.cancelled}.`,
+      result.counts.failed || result.counts.cancelled ? 'warning' : 'info',
+    );
+  } finally {
+    ctx.ui.setStatus('pi-reads', undefined);
+  }
 }
 
 function selectedSourceArguments(value: string): string[] | undefined {
@@ -350,18 +410,33 @@ async function promptForNewSourceWorkflow(
   return format ? { kind, value, mode, format, ...(template ? { template } : {}) } : undefined;
 }
 
+function selectedCollectionKind(selected: string): 'feed' | 'newsletter' | undefined {
+  if (selected === FEED_CHOICE) return 'feed';
+  if (selected === NEWSLETTER_CHOICE) return 'newsletter';
+  return undefined;
+}
+
+async function promptForCollectionWorkflow(
+  collectionKind: 'feed' | 'newsletter',
+  ctx: ExtensionCommandContext,
+): Promise<CollectionWorkflowSelection | undefined> {
+  const value = await ctx.ui.input(collectionKind === 'feed' ? 'RSS/Atom feed URL' : 'Local .eml file path', '');
+  return value?.trim() ? { collectionKind, value } : undefined;
+}
+
 async function promptForWorkflow(ctx: ExtensionCommandContext): Promise<WorkflowSelection | undefined> {
   if (!ctx.hasUI) {
     ctx.ui.notify('/reads requires arguments in non-interactive mode', 'error');
     return undefined;
   }
   const selectedKind = await ctx.ui.select('Source type', [
-    'URL', 'Text', 'Markdown', 'File', CAPTURED_SOURCES_CHOICE,
+    'URL', 'Text', 'Markdown', 'File', FEED_CHOICE, NEWSLETTER_CHOICE, CAPTURED_SOURCES_CHOICE,
   ]);
   if (!selectedKind) return undefined;
-  return selectedKind === CAPTURED_SOURCES_CHOICE
-    ? promptForExistingSourceWorkflow(ctx)
-    : promptForNewSourceWorkflow(selectedKind, ctx);
+  if (selectedKind === CAPTURED_SOURCES_CHOICE) return promptForExistingSourceWorkflow(ctx);
+  const collectionKind = selectedCollectionKind(selectedKind);
+  if (collectionKind) return promptForCollectionWorkflow(collectionKind, ctx);
+  return promptForNewSourceWorkflow(selectedKind, ctx);
 }
 
 async function argumentExistingSourceSelection(
@@ -406,6 +481,10 @@ export function registerReadsCommands(pi: ExtensionAPI): void {
         : await promptForWorkflow(ctx);
 
       if (!selection) return;
+      if ('collectionKind' in selection) {
+        await executeCollectionWorkflow(selection, ctx);
+        return;
+      }
       if ('sourceIds' in selection) {
         const services = await openReadsServices(ctx.cwd);
         const plan = await services.library.planMultiSourceSynthesis(selection.sourceIds);
