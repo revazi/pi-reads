@@ -55,4 +55,6 @@ test('Pi Reads skill remains concise and preserves authoritative workflow safegu
   assert.match(skill, /Obsidian overwrite and Kindle send require explicit user approval/u);
   assert.match(skill, /reuse that exact reviewed ID/u);
   assert.match(skill, /never choose them.*exact `previewToken`/u);
+  assert.match(skill, /Clipboard is read only.*confirmation—never in background/u);
+  assert.match(skill, /transcript.*timestamp headings\/stable locators/u);
 });

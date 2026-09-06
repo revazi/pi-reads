@@ -14,7 +14,7 @@ Pi Reads captures source material, creates optional AI-authored reading document
 
 The product has four persistent domain records:
 
-- **Source** — an immutable capture of a URL, feed entry, exported newsletter, pasted text, Markdown, or local file.
+- **Source** — an immutable URL/feed/newsletter/clipboard/transcript/text/Markdown/file capture.
 - **Article** — a reading document in `archive`, `digest`, or `synthesis` mode.
 - **Citation** — a reference from generated prose to a captured source.
 - **Export** — a reproducible artifact prepared for local, Obsidian, or Kindle delivery.
@@ -90,6 +90,8 @@ Each source may have a deterministic `markdown-blocks-v1` structure index derive
 Local file paths may be retained in a local source manifest but must not be presented as public citations. URL citations use the source's canonical URL.
 
 Feed and newsletter adapters produce the same canonical draft contract before persistence. Feed entries retain cleaned canonical entry URLs and embedded entry payload evidence. Local newsletter sources retain the original `.eml` envelope as `message/rfc822` evidence while readable MIME body content passes through deterministic cleanup. Remote mailbox access and credentials are not part of source capture.
+
+Clipboard access is an interactive extension concern: core accepts only caller-supplied bytes, and `/reads` must obtain a separate confirmation immediately before one platform clipboard read. It must never poll or read in the background. Transcript sources are bounded local SRT/WebVTT files transformed into immutable Markdown sections headed by normalized start/end timestamps plus a deterministic segment ordinal. Timestamp headings and their stable source-index locators resolve exact citation ranges; raw subtitle bytes remain evidence. Live media/provider access is out of scope. See [clipboard and transcripts](clipboard-and-transcripts.md).
 
 ## Batch capture
 

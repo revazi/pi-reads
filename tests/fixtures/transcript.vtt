@@ -1,0 +1,14 @@
+WEBVTT Synthetic fixture
+
+NOTE This note is not a cue.
+It must not enter source prose.
+
+intro
+00:00:00.500 --> 00:00:02.000 align:start
+WebVTT opening segment.
+
+STYLE
+::cue { color: lime; }
+
+00:00:03.000 --> 00:00:06.750
+Second WebVTT segment &amp; evidence.

@@ -13,7 +13,7 @@
 }
 ```
 
-Each item accepts `url`, `file`, `text`, or `markdown`, a `value`, and an optional `label` for text/Markdown (URL/file titles come from extraction/the filename). Relative files resolve against Pi's working directory; a leading `@` is stripped. Single-source calls retain their original `kind`, `value`, `label`, and optional `recapture` shape. Do not mix single-source fields with `items`.
+Each item accepts `url`, `file`, `text`, `markdown`, or local `transcript`, a `value`, and an optional `label` for text/Markdown (URL/file/transcript titles come from extraction/the filename). Relative files resolve against Pi's working directory; a leading `@` is stripped. Single-source calls retain their original `kind`, `value`, `label`, and optional `recapture` shape. Do not mix single-source fields with `items`.
 
 ## Partial success and duplicate behavior
 
@@ -39,7 +39,7 @@ An unsafe or failed compensation is reported as `failed` with `recovery-required
 
 - 1–50 items per request; split larger collections before invoking the tool. Every accepted item gets an outcome, without hidden truncation.
 - At most 1 MiB of inline values/labels in a batch, with text/Markdown values at most 256 KiB each; URL/file locators at most 8192 bytes and labels at most 200 bytes.
-- Local files must be regular UTF-8 `.txt`, `.md`, or `.markdown` files no larger than 10 MiB. File reads are size-bounded and cancellation-aware. These file safety limits also apply to individual ingestion.
+- Local files must be regular UTF-8 `.txt`, `.md`, `.markdown`, `.srt`, or `.vtt` files no larger than 10 MiB. File reads are size-bounded and cancellation-aware. These file safety limits also apply to individual ingestion.
 - URL capture retains the shared public-network policy, redirect limits, 10 MiB HTML bound, and timeout; batch does not bypass network protections.
 - Three concurrent acquisitions by default. The application API accepts `concurrency` from 1–4; the tool uses the default. Duplicate decisions and record publication remain serialized.
 - Model-visible tool results stay below 32 KiB for the maximum accepted batch. The extension still registers four tools; there is no extra persistent batch tool.
@@ -54,7 +54,7 @@ Cancellation is checked again after waiting for the catalog queue and immediatel
 
 ## Application API and scope
 
-`src/application/batch-ingestion-service.ts` exports `BatchIngestionService`. Construct it with `LibraryService` and optional fixture ingestion dependencies, then call `capture(SourceInput[], {concurrency?, signal?})`. Native application `SourceInput` descriptors use `url`, `path`, `text`, or `markdown` fields; the Pi adapter converts the compact tool `kind`/`value` form.
+`src/application/batch-ingestion-service.ts` exports `BatchIngestionService`. Construct it with `LibraryService` and optional fixture ingestion dependencies, then call `capture(SourceInput[], {concurrency?, signal?})`. Native application `SourceInput` descriptors use `url`, `path`, `text`, `content`, or `markdown` fields; the Pi adapter converts the compact tool `kind`/`value` form.
 
 The batch service does not import Pi APIs or invoke a model. The thin extension handler uses Pi's file-mutation queue around the workflow and lazy-loads the service. Deterministic tests use injected HTML and abortable fixture fetches, not live internet.
 

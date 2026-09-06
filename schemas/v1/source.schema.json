@@ -22,7 +22,7 @@
       "pattern": "^src_[a-z0-9]{16,64}$"
     },
     "kind": {
-      "enum": ["url", "text", "markdown", "file", "feed", "newsletter"]
+      "enum": ["url", "text", "markdown", "file", "feed", "newsletter", "clipboard", "transcript"]
     },
     "title": {
       "type": "string",

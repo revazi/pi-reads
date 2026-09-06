@@ -11,7 +11,7 @@ export async function withReadsMutationQueue<T>(key: string, operation: () => Pr
 }
 
 export function sourceInput(
-  kind: 'url' | 'text' | 'markdown' | 'file',
+  kind: 'url' | 'text' | 'markdown' | 'file' | 'transcript',
   value: string,
   label: string | undefined,
   cwd: string,
@@ -24,6 +24,7 @@ export function sourceInput(
     case 'markdown':
       return { kind, markdown: value, ...(label ? { label } : {}) };
     case 'file':
+    case 'transcript':
       return { kind, path: value.replace(/^@/, ''), cwd };
   }
 }

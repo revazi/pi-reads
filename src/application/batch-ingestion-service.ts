@@ -8,6 +8,7 @@ export const MAX_BATCH_INPUT_BYTES = 1024 * 1024;
 export const MAX_BATCH_ITEM_BYTES = 256 * 1024;
 const MAX_LOCATOR_BYTES = 8192;
 const MAX_LABEL_BYTES = 200;
+const LOCATOR_INPUT_KINDS = new Set<SourceInput['kind']>(['url', 'file', 'transcript']);
 
 export type BatchCaptureStatus = 'captured' | 'exact-duplicate' | 'changed-content' | 'failed' | 'cancelled';
 export type BatchCaptureOutcome = {
@@ -39,6 +40,8 @@ function inputValue(input: SourceInput): string {
     case 'file': return input.path;
     case 'text': return input.text;
     case 'markdown': return input.markdown;
+    case 'clipboard': return input.content;
+    case 'transcript': return input.path;
   }
 }
 
@@ -64,7 +67,7 @@ function validInput(input: SourceInput): boolean {
   if (!input || typeof input !== 'object') return false;
   const value = inputValue(input);
   if (typeof value !== 'string' || !value.trim()) return false;
-  const maximum = input.kind === 'url' || input.kind === 'file' ? MAX_LOCATOR_BYTES : MAX_BATCH_ITEM_BYTES;
+  const maximum = LOCATOR_INPUT_KINDS.has(input.kind) ? MAX_LOCATOR_BYTES : MAX_BATCH_ITEM_BYTES;
   if (Buffer.byteLength(value) > maximum) return false;
   return validLabel(input) && validFileCwd(input);
 }
