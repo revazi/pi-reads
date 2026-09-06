@@ -394,7 +394,11 @@ test('Pi extension registers and executes capture, generation, export, and libra
     assert.match(sourceSearch.content[0]?.text ?? '', /Evidence\./u);
     assert.equal(sourceSearch.details?.sourceId, sourceId);
 
-    const readsSelections = ['digest — shorter cited AI summary of the source', 'obsidian'];
+    const readsSelections = [
+      'digest — shorter cited AI summary of the source',
+      'default — Brief (brief, 300-700 words)',
+      'obsidian',
+    ];
     const displayedModeChoices: string[] = [];
     await commands.get('reads')!.handler('https://example.test/obsidian', {
       ...context,
@@ -415,8 +419,13 @@ test('Pi extension registers and executes capture, generation, export, and libra
     assert.equal(sentMessages.length, 1);
     assert.match(sentMessages[0], /reads_ingest/);
     assert.match(sentMessages[0], /reads_export to Obsidian as Markdown/u);
-    assert.ok(Buffer.byteLength(sentMessages[0]) < 600);
-    const kindleSelections = ['synthesis', 'kindle-epub'];
+    assert.match(sentMessages[0], /Template brief@1/u);
+    assert.ok(Buffer.byteLength(sentMessages[0]) < 900);
+    const kindleSelections = [
+      'synthesis',
+      'default — Research note (research-note, 800-1800 words)',
+      'kindle-epub',
+    ];
     await commands.get('reads')!.handler('https://example.test/kindle', {
       ...context,
       hasUI: true,
@@ -474,6 +483,15 @@ test('Pi extension registers and executes capture, generation, export, and libra
     assert.equal(configuredKindle.kindle.smtp.host, 'smtp.example.test');
     assert.equal(configuredKindle.kindle.smtp.passwordEnv, 'TEST_SMTP_PASSWORD');
     assert.doesNotMatch(JSON.stringify(configuredKindle.kindle), /@kindle\.com|test-only-password/);
+
+    await commands.get('reads-config')!.handler('templates brief research-note', context);
+    const templateConfig = JSON.parse(await readFile(process.env.PI_READS_CONFIG, 'utf8')) as {
+      defaults: { digestTemplateId: string; synthesisTemplateId: string };
+    };
+    assert.deepEqual(templateConfig.defaults, {
+      digestTemplateId: 'brief',
+      synthesisTemplateId: 'research-note',
+    });
 
     const alternateLibrary = path.join(libraryDir, 'alternate');
     await commands.get('reads-config')!.handler(alternateLibrary, context);
@@ -618,7 +636,7 @@ test('archive-only /reads executes directly without a model and preserves destin
     assert.equal(confirmCalls, 2);
     assert.equal(sentMessages.length, 0);
 
-    const digestSelections = ['digest', 'markdown'];
+    const digestSelections = ['digest', 'default — Brief (brief, 300-700 words)', 'markdown'];
     await commands.get('reads')!.handler(sourcePath, {
       ...baseContext,
       hasUI: true,

@@ -32,7 +32,7 @@ The first `reads_save_article` call for a multi-source synthesis must omit `revi
 
 As a conservative deterministic claim-citation gate, every non-empty Markdown section in a multi-source synthesis must contain at least one registered citation marker. Pi Reads cannot infer the truth or semantics of arbitrary prose; section-level enforcement prevents an uncited section from being silently persisted without claiming semantic fact-checking.
 
-If the exact draft and diagnostics are intended, repeat the same `reads_save_article` request with the returned `reviewToken`. The token binds mode, title, body, ordered sources, citations, coverage, and active provider/model/thinking/session identity. Any change requires a new review. Generation time is recorded when the final immutable article is saved.
+If the exact draft and diagnostics are intended, repeat the same `reads_save_article` request with the returned `reviewToken`. The token binds mode, title, body, ordered sources, citations, coverage, the versioned generation template, and active provider/model/thinking/session identity. Any change requires a new review. Generation time is recorded when the final immutable article is saved.
 
 The review token is a workflow integrity check, not an external-delivery confirmation. Existing Obsidian overwrite and Kindle send confirmations still apply independently.
 

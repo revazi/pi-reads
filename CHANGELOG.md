@@ -9,6 +9,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - Offline `library:maintain` verification, full derived-index rebuilding, credential-free portable directory backups, and create-only restore into a new library. Bounded recovery findings cover schemas, hashes, archive fidelity, citations, lineage, state, and export references; restore preserves canonical bytes and refuses collisions, unsafe paths, symlinks, and tampered inventories.
 - Mixed `reads_ingest` batches of 1–50 URL/file/text/Markdown inputs with bounded concurrency, ordered compact outcomes, duplicate reuse, and abort propagation. Per-item compensation removes only newly created source/archive/index records on ordinary publication failures, while retaining successful siblings; batch recapture remains forbidden.
 - Ordered 2–20-source `/reads` synthesis planning with hash-bound bounded retrieval, section-level citation enforcement, and a mandatory no-write citation-distribution/unused-source review before exact-token persistence with active Pi provenance.
+- Versioned built-in and safe structured user generation templates for brief, deep-dive, tutorial, comparison, and research-note output, with configurable defaults, immutable article snapshots, and bounded length/section/citation/source-budget diagnostics.
 
 ### Changed
 

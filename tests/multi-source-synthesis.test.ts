@@ -182,7 +182,8 @@ test('/reads selects and orders captured sources while reads_save_article review
     assert.equal(sentMessages.length, 1);
     assert.ok(sentMessages[0]!.indexOf(gamma.source.id) < sentMessages[0]!.indexOf(alpha.source.id));
     assert.match(sentMessages[0]!, new RegExp(gamma.source.content.contentHash, 'u'));
-    assert.match(sentMessages[0]!, /Call reads_save_article without reviewToken first/u);
+    assert.match(sentMessages[0]!, /without reviewToken first/u);
+    assert.match(sentMessages[0]!, /Template research-note@1/u);
     assert.match(sentMessages[0]!, /changed drafts require a new review/u);
 
     let sourceSelection = 0;
@@ -200,6 +201,7 @@ test('/reads selects and orders captured sources while reads_save_article review
             if (sourceSelection === 2) return options.find((option) => option.includes(gamma.source.id));
             return options.find((option) => option.startsWith('Done'));
           }
+          if (title === 'Generation template') return options.find((option) => option.includes('research-note'));
           if (title === 'Export destination/format') return 'epub';
           return undefined;
         },
@@ -220,7 +222,8 @@ test('/reads selects and orders captured sources while reads_save_article review
         { id: 'cite_beta', sourceId: beta.source.id, locator: { paragraph: 1 }, quote: 'Exact beta evidence.' },
         { id: 'cite_gamma', sourceId: gamma.source.id, locator: { paragraph: 1 }, quote: 'Exact gamma evidence.' },
       ],
-      coverage: await completeCoverage(library, sourceIds),
+      coverage: { ...(await completeCoverage(library, sourceIds)), policy: 'targeted' },
+      templateId: 'research-note',
     };
     const before = (await library.listArticles()).length;
     const preview = await tools.get('reads_save_article')!.execute(
@@ -230,6 +233,7 @@ test('/reads selects and orders captured sources while reads_save_article review
     assert.equal(preview.details?.reviewRequired, true);
     assert.match(preview.content[0]?.text ?? '', /no article was persisted/u);
     assert.match(preview.content[0]?.text ?? '', /Unused selected sources: none/u);
+    assert.match(preview.content[0]?.text ?? '', /Template warning:/u);
     const reviewToken = String((preview.details?.review as { reviewToken: string }).reviewToken);
     assert.match(reviewToken, /^sha256:[0-9a-f]{64}$/u);
     assert.equal((await library.listArticles()).length, before);
@@ -240,12 +244,20 @@ test('/reads selects and orders captured sources while reads_save_article review
       ),
       /changed after review/u,
     );
+    await assert.rejects(
+      () => tools.get('reads_save_article')!.execute(
+        'changed-template-call', { ...request, templateId: 'deep-dive', reviewToken }, signal, undefined, context,
+      ),
+      /changed after review/u,
+    );
     const saved = await tools.get('reads_save_article')!.execute(
       'save-call', { ...request, reviewToken }, signal, undefined, context,
     );
     const manifest = JSON.parse(await readFile(String(saved.details?.manifestPath), 'utf8')) as {
       sourceIds: string[];
       generatedBy: { provider: string; model: string; thinkingLevel: string; sessionId: string; generatedAt: string };
+      generationTemplate: { id: string; version: number; origin: string };
+      templateDiagnostics: { templateId: string; warnings: string[] };
     };
     assert.deepEqual(manifest.sourceIds, sourceIds);
     assert.equal(manifest.generatedBy.provider, 'active-provider');
@@ -253,6 +265,19 @@ test('/reads selects and orders captured sources while reads_save_article review
     assert.equal(manifest.generatedBy.thinkingLevel, 'xhigh');
     assert.equal(manifest.generatedBy.sessionId, 'active-session');
     assert.match(manifest.generatedBy.generatedAt, /^\d{4}-\d{2}-\d{2}T/u);
+    assert.deepEqual(manifest.generationTemplate, {
+      id: 'research-note',
+      version: 1,
+      label: 'Research note',
+      mode: 'synthesis',
+      targetWords: { minimum: 800, maximum: 1800 },
+      sectionRoles: ['question', 'evidence', 'findings', 'limitations', 'conclusion'],
+      coveragePolicy: 'targeted',
+      citationBudget: { minimumPerSection: 1, minimumSources: 1 },
+      origin: 'built-in',
+    });
+    assert.equal(manifest.templateDiagnostics.templateId, 'research-note');
+    assert.ok(manifest.templateDiagnostics.warnings.length > 0);
   } finally {
     if (previousLibraryDir === undefined) delete process.env.PI_READS_LIBRARY_DIR;
     else process.env.PI_READS_LIBRARY_DIR = previousLibraryDir;

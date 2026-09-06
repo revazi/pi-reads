@@ -10,6 +10,7 @@ import { ExportService } from '../application/export-service.ts';
 import { KindleService, type KindleEnvironment, type KindlePreview } from '../application/kindle-service.ts';
 import { LibraryService } from '../application/library-service.ts';
 import type { ResolvedKindleConfig } from '../core/config.ts';
+import { resolveGenerationTemplate } from '../core/generation-templates.ts';
 import type { RecordIdPrefix } from '../core/library.ts';
 import type { SourceCoverageInput } from '../core/source-coverage.ts';
 import { createBenchmarkFixtures } from './fixtures.ts';
@@ -360,6 +361,7 @@ export async function runBenchmarkSuite(options: BenchmarkSuiteOptions = {}): Pr
         citations: [{ id: 'cite_long', sourceId: captured.source.id, quote: 'deterministic reading-library behavior' }],
         coverage: await completeCoverage(library, [captured.source.id]),
         generatedBy: { provider: 'benchmark', model: 'deterministic-fixture', generatedAt: now().toISOString() },
+        generationTemplate: resolveGenerationTemplate({ schemaVersion: 1 }, 'brief', 'digest'),
       });
       digestArticleId = digest.article.id;
     });
@@ -386,8 +388,12 @@ export async function runBenchmarkSuite(options: BenchmarkSuiteOptions = {}): Pr
           body,
           sourceIds: captures.map((capture) => capture.source.id),
           citations,
-          coverage: await completeCoverage(library, captures.map((capture) => capture.source.id)),
+          coverage: {
+            ...(await completeCoverage(library, captures.map((capture) => capture.source.id))),
+            policy: 'targeted' as const,
+          },
           generatedBy: { provider: 'benchmark', model: 'deterministic-fixture', generatedAt: now().toISOString() },
+          generationTemplate: resolveGenerationTemplate({ schemaVersion: 1 }, 'research-note', 'synthesis'),
         };
         const review = await library.reviewMultiSourceSynthesis(synthesisInput);
         await library.saveGenerated(synthesisInput, { reviewToken: review.reviewToken });

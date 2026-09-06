@@ -22,7 +22,22 @@
         },
         "exportFormat": {
           "enum": ["markdown", "html", "pdf", "epub"]
+        },
+        "digestTemplateId": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{1,63}$"
+        },
+        "synthesisTemplateId": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{1,63}$"
         }
+      }
+    },
+    "generationTemplates": {
+      "type": "array",
+      "maxItems": 10,
+      "items": {
+        "$ref": "generation-template.schema.json#/$defs/definition"
       }
     },
     "kindle": {

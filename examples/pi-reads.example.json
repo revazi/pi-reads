@@ -3,8 +3,22 @@
   "libraryDir": "~/Documents/pi-reads",
   "defaults": {
     "mode": "archive",
-    "exportFormat": "pdf"
+    "exportFormat": "pdf",
+    "digestTemplateId": "brief",
+    "synthesisTemplateId": "research-note"
   },
+  "generationTemplates": [
+    {
+      "id": "custom-team-note",
+      "version": 1,
+      "label": "Team note",
+      "mode": "synthesis",
+      "targetWords": { "minimum": 600, "maximum": 1200 },
+      "sectionRoles": ["context", "findings", "limitations", "conclusion"],
+      "coveragePolicy": "targeted",
+      "citationBudget": { "minimumPerSection": 1, "minimumSources": 1 }
+    }
+  ],
   "obsidian": {
     "vaultPath": "~/Documents/MyVault",
     "vaultName": "MyVault",

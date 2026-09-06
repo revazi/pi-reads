@@ -99,6 +99,10 @@ function markdownWithCitationDefinitions(
         `sources: ${JSON.stringify(article.sourceIds)}`,
         ...(article.sourceCoverage ? [`coveragePolicy: ${JSON.stringify(article.sourceCoverage.policy)}`] : []),
         ...(article.sourceCoverage?.warning ? [`coverageWarning: ${JSON.stringify(article.sourceCoverage.warning)}`] : []),
+        ...(article.generationTemplate ? [`generationTemplate: ${JSON.stringify(`${article.generationTemplate.id}@${article.generationTemplate.version}`)}`] : []),
+        ...(article.templateDiagnostics?.warnings.length
+          ? [`templateWarnings: ${JSON.stringify(article.templateDiagnostics.warnings)}`]
+          : []),
         '---',
         '',
       ].join('\n')

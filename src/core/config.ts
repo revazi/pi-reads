@@ -15,6 +15,7 @@ import {
   type ResolvedObsidianConfig,
 } from './config/obsidian.ts';
 import { assertJsonObject, assertKnownKeys, assertOptionalString } from './config/shared.ts';
+import { parseGenerationTemplates, resolveGenerationTemplate } from './generation-templates.ts';
 
 export type { ResolvedKindleConfig } from './config/kindle.ts';
 export type { ResolvedObsidianConfig } from './config/obsidian.ts';
@@ -70,16 +71,20 @@ export function resolveConfigPath(options: ResolveConfigurationOptions = {}): st
 
 export function parseConfig(value: unknown): PiReadsConfig {
   assertJsonObject(value, 'pi-reads.json');
-  assertKnownKeys(value, new Set(['schemaVersion', 'libraryDir', 'defaults', 'obsidian', 'kindle']), 'pi-reads.json');
+  assertKnownKeys(value, new Set(['schemaVersion', 'libraryDir', 'defaults', 'generationTemplates', 'obsidian', 'kindle']), 'pi-reads.json');
   if (value.schemaVersion !== 1) throw new Error('pi-reads.json must use schemaVersion 1');
   assertOptionalString(value.libraryDir, 'libraryDir');
-  return {
+  const config: PiReadsConfig = {
     schemaVersion: 1,
     ...(value.libraryDir === undefined ? {} : { libraryDir: value.libraryDir }),
     ...(value.defaults === undefined ? {} : { defaults: parseDefaultConfig(value.defaults) }),
+    ...(value.generationTemplates === undefined ? {} : { generationTemplates: parseGenerationTemplates(value.generationTemplates) }),
     ...(value.obsidian === undefined ? {} : { obsidian: parseObsidianConfig(value.obsidian) }),
     ...(value.kindle === undefined ? {} : { kindle: parseKindleConfig(value.kindle) }),
   };
+  if (config.defaults?.digestTemplateId) resolveGenerationTemplate(config, config.defaults.digestTemplateId, 'digest');
+  if (config.defaults?.synthesisTemplateId) resolveGenerationTemplate(config, config.defaults.synthesisTemplateId, 'synthesis');
+  return config;
 }
 
 export async function readConfig(configPath: string): Promise<PiReadsConfig> {

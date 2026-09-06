@@ -2,6 +2,8 @@ import type {
   Citation,
   CitationGroundingDiagnostics,
   GeneratedBy,
+  GenerationTemplateDiagnostics,
+  GenerationTemplateSnapshot,
   Sha256Digest,
 } from './domain.ts';
 import type { SourceCoverageInput } from './source-coverage.ts';
@@ -20,6 +22,7 @@ export interface MultiSourceSynthesisReviewInput {
   citations: Citation[];
   coverage: SourceCoverageInput;
   generatedBy: GeneratedBy;
+  generationTemplate?: GenerationTemplateSnapshot;
 }
 
 export interface MultiSourceSynthesisReview {
@@ -32,6 +35,7 @@ export interface MultiSourceSynthesisReview {
   citationCount: number;
   articleSectionCount: number;
   uncitedArticleSectionCount: number;
+  templateDiagnostics?: GenerationTemplateDiagnostics;
 }
 
 export function assertOrderedSourceSelection(
@@ -90,6 +94,7 @@ function reviewToken(input: MultiSourceSynthesisReviewInput): Sha256Digest {
         consideredLocators: source.consideredLocators,
       })),
     },
+    ...(input.generationTemplate ? { generationTemplate: input.generationTemplate } : {}),
     generatedBy: generationIdentity,
   }));
 }
@@ -97,6 +102,7 @@ function reviewToken(input: MultiSourceSynthesisReviewInput): Sha256Digest {
 export function createMultiSourceSynthesisReview(
   input: MultiSourceSynthesisReviewInput,
   diagnostics: CitationGroundingDiagnostics,
+  templateDiagnostics?: GenerationTemplateDiagnostics,
 ): MultiSourceSynthesisReview {
   const selectedSourceIds = assertOrderedSourceSelection(input.sourceIds, {
     minimum: MIN_MULTI_SOURCE_SYNTHESIS_SOURCES,
@@ -129,5 +135,6 @@ export function createMultiSourceSynthesisReview(
     citationCount: diagnostics.citationCount,
     articleSectionCount: diagnostics.articleSectionCount,
     uncitedArticleSectionCount: diagnostics.uncitedArticleSectionCount,
+    ...(templateDiagnostics ? { templateDiagnostics } : {}),
   };
 }

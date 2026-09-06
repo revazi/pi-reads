@@ -356,8 +356,26 @@ function assertGeneratedCitations(article: ArticleRecord): void {
   }
 }
 
+function assertGenerationTemplate(article: ArticleRecord): void {
+  const template = article.generationTemplate;
+  const diagnostics = article.templateDiagnostics;
+  if (Boolean(template) !== Boolean(diagnostics)) {
+    throw new Error(`${article.mode} article template metadata and diagnostics must appear together`);
+  }
+  if (!template || !diagnostics) return;
+  if (
+    template.mode !== article.mode || diagnostics.templateId !== template.id ||
+    diagnostics.templateVersion !== template.version || diagnostics.warnings.length > 20
+  ) {
+    throw new Error(`${article.mode} article generation template diagnostics are inconsistent`);
+  }
+}
+
 function hasArchiveGenerationMetadata(article: ArticleRecord): boolean {
-  return Boolean(article.generatedBy || article.sourceCoverage || article.citationDiagnostics);
+  return Boolean(
+    article.generatedBy || article.sourceCoverage || article.citationDiagnostics ||
+    article.generationTemplate || article.templateDiagnostics,
+  );
 }
 
 export function assertArticleInvariants(article: ArticleRecord, sources: ReadonlyMap<string, SourceRecord>): void {
@@ -402,4 +420,5 @@ export function assertArticleInvariants(article: ArticleRecord, sources: Readonl
   assertGeneratedCoverage(article, sources);
   assertGeneratedCitations(article);
   assertCitationDiagnostics(article);
+  assertGenerationTemplate(article);
 }

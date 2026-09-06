@@ -6,6 +6,8 @@ import type {
   Citation,
   CitationGroundingDiagnostics,
   GeneratedBy,
+  GenerationTemplateDiagnostics,
+  GenerationTemplateSnapshot,
   IngestedSourceDraft,
   Sha256Digest,
   SourceCoverageSummary,
@@ -60,6 +62,7 @@ import {
   createMultiSourceSynthesisReview,
   type MultiSourceSynthesisReview,
 } from '../core/synthesis-review.ts';
+import { evaluateGenerationTemplate } from '../core/generation-templates.ts';
 import { versionedSha256 } from '../core/text.ts';
 
 const ARTICLE_MODES: readonly ArticleMode[] = ['archive', 'digest', 'synthesis'];
@@ -109,6 +112,7 @@ export interface SaveGeneratedArticleInput {
   citations: Citation[];
   generatedBy: GeneratedBy;
   coverage: SourceCoverageInput;
+  generationTemplate?: GenerationTemplateSnapshot;
 }
 
 export interface StoredArticle {
@@ -151,6 +155,7 @@ interface PreparedGeneratedArticle {
   sources: Map<string, SourceRecord>;
   sourceCoverage: SourceCoverageSummary;
   citationDiagnostics: CitationGroundingDiagnostics;
+  templateDiagnostics?: GenerationTemplateDiagnostics;
   synthesisReview?: MultiSourceSynthesisReview;
 }
 
@@ -496,10 +501,24 @@ export class LibraryService {
       }] as const)),
     );
     const sourceCoverage = verifySourceCoverage(input.mode, sourceIds, sourceIndexes, input.coverage);
-    const synthesisReview = isMultiSourceSynthesis
-      ? createMultiSourceSynthesisReview({ ...input, mode: 'synthesis', sourceIds }, citationDiagnostics)
+    if (input.generationTemplate && input.generationTemplate.mode !== input.mode) {
+      throw new Error(`Template ${input.generationTemplate.id} is incompatible with ${input.mode} mode`);
+    }
+    const templateDiagnostics = input.generationTemplate
+      ? evaluateGenerationTemplate(input.body, sourceCoverage.policy, citationDiagnostics, input.generationTemplate)
       : undefined;
-    return { analysis, sourceIds, sources, sourceCoverage, citationDiagnostics, synthesisReview };
+    const synthesisReview = isMultiSourceSynthesis
+      ? createMultiSourceSynthesisReview(
+          { ...input, mode: 'synthesis', sourceIds },
+          citationDiagnostics,
+          templateDiagnostics,
+        )
+      : undefined;
+    return {
+      analysis, sourceIds, sources, sourceCoverage, citationDiagnostics,
+      ...(templateDiagnostics ? { templateDiagnostics } : {}),
+      synthesisReview,
+    };
   }
 
   async reviewMultiSourceSynthesis(input: SaveGeneratedArticleInput): Promise<MultiSourceSynthesisReview> {
@@ -526,7 +545,7 @@ export class LibraryService {
       throw new Error('A synthesis review token is valid only for a synthesis with at least two sources');
     }
 
-    const { analysis, sourceIds, sources, sourceCoverage, citationDiagnostics } = prepared;
+    const { analysis, sourceIds, sources, sourceCoverage, citationDiagnostics, templateDiagnostics } = prepared;
     return this.index.transaction(async (index) => {
       const slug = input.slug
         ? assertSafeSlug(input.slug)
@@ -558,6 +577,8 @@ export class LibraryService {
         generatedBy: input.generatedBy,
         sourceCoverage,
         citationDiagnostics,
+        ...(input.generationTemplate ? { generationTemplate: input.generationTemplate } : {}),
+        ...(templateDiagnostics ? { templateDiagnostics } : {}),
       };
       assertArticleInvariants(article, sources);
 

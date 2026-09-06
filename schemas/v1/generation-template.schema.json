@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/revazi/pi-reads/schemas/v1/generation-template.schema.json",
+  "$ref": "#/$defs/definition",
+  "$defs": {
+    "mode": { "enum": ["digest", "synthesis"] },
+    "coveragePolicy": { "enum": ["complete", "targeted"] },
+    "sectionRole": {
+      "enum": ["summary", "key-points", "context", "question", "overview", "prerequisites", "steps", "examples", "comparison", "evidence", "findings", "limitations", "conclusion"]
+    },
+    "targetWords": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["minimum", "maximum"],
+      "properties": {
+        "minimum": { "type": "integer", "minimum": 100, "maximum": 10000 },
+        "maximum": { "type": "integer", "minimum": 100, "maximum": 10000 }
+      }
+    },
+    "citationBudget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["minimumPerSection", "minimumSources"],
+      "properties": {
+        "minimumPerSection": { "type": "integer", "minimum": 1, "maximum": 20 },
+        "minimumSources": { "type": "integer", "minimum": 1, "maximum": 20 }
+      }
+    },
+    "definition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "version", "label", "mode", "targetWords", "sectionRoles", "coveragePolicy", "citationBudget"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^custom-[a-z0-9][a-z0-9-]{0,56}$" },
+        "version": { "const": 1 },
+        "label": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "mode": { "$ref": "#/$defs/mode" },
+        "targetWords": { "$ref": "#/$defs/targetWords" },
+        "sectionRoles": { "type": "array", "minItems": 1, "maxItems": 10, "uniqueItems": true, "items": { "$ref": "#/$defs/sectionRole" } },
+        "coveragePolicy": { "$ref": "#/$defs/coveragePolicy" },
+        "citationBudget": { "$ref": "#/$defs/citationBudget" }
+      }
+    },
+    "snapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "version", "label", "mode", "targetWords", "sectionRoles", "coveragePolicy", "citationBudget", "origin"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]{1,63}$" },
+        "version": { "const": 1 },
+        "label": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "mode": { "$ref": "#/$defs/mode" },
+        "targetWords": { "$ref": "#/$defs/targetWords" },
+        "sectionRoles": { "type": "array", "minItems": 1, "maxItems": 10, "uniqueItems": true, "items": { "$ref": "#/$defs/sectionRole" } },
+        "coveragePolicy": { "$ref": "#/$defs/coveragePolicy" },
+        "citationBudget": { "$ref": "#/$defs/citationBudget" },
+        "origin": { "enum": ["built-in", "user"] }
+      }
+    },
+    "diagnostics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["algorithm", "templateId", "templateVersion", "wordCount", "targetWords", "requiredSectionCount", "presentSectionCount", "minimumCitationsPerSection", "minimumSources", "usedSourceCount", "warnings", "warningsTruncated"],
+      "properties": {
+        "algorithm": { "const": "generation-template-budget-v1" },
+        "templateId": { "type": "string", "pattern": "^[a-z][a-z0-9-]{1,63}$" },
+        "templateVersion": { "const": 1 },
+        "wordCount": { "type": "integer", "minimum": 0 },
+        "targetWords": { "$ref": "#/$defs/targetWords" },
+        "requiredSectionCount": { "type": "integer", "minimum": 1, "maximum": 10 },
+        "presentSectionCount": { "type": "integer", "minimum": 0, "maximum": 10 },
+        "minimumCitationsPerSection": { "type": "integer", "minimum": 1, "maximum": 20 },
+        "minimumSources": { "type": "integer", "minimum": 1, "maximum": 20 },
+        "usedSourceCount": { "type": "integer", "minimum": 0 },
+        "warnings": { "type": "array", "maxItems": 20, "items": { "type": "string", "minLength": 1 } },
+        "warningsTruncated": { "type": "boolean" }
+      }
+    }
+  }
+}
