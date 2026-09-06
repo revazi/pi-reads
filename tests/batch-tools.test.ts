@@ -37,6 +37,9 @@ test('reads_ingest batch returns bounded complete outcomes, resolves relative @f
     const bytes = await readFile(path.join(root, 'library', outcome.sourceContentPath));
     assert.ok(bytes.length > 0);
   }
+  const transcript = await invoke({ kind: 'transcript', value: path.resolve('tests/fixtures/transcript.vtt') });
+  assert.equal(transcript.details.status, 'captured');
+  assert.match(String(transcript.details.sourceContentPath), /sources\/src_/u);
   const reused = await invoke({ kind: 'batch', items });
   assert.equal((JSON.parse(reused.content[0]!.text) as BatchCaptureResult).counts['exact-duplicate'], 2);
   await assert.rejects(() => invoke({ kind: 'batch', items, recapture: true }), /recapture is individual/u);

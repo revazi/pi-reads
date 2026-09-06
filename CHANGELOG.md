@@ -11,6 +11,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - Ordered 2–20-source `/reads` synthesis planning with hash-bound bounded retrieval, section-level citation enforcement, and a mandatory no-write citation-distribution/unused-source review before exact-token persistence with active Pi provenance.
 - Versioned built-in and safe structured user generation templates for brief, deep-dive, tutorial, comparison, and research-note output, with configurable defaults, immutable article snapshots, and bounded length/section/citation/source-budget diagnostics.
 - RSS/Atom and local newsletter `.eml` adapters with duplicate-aware no-write previews, exact hash-bound selection tokens, and explicit selected-entry batch capture through the canonical source-draft pipeline.
+- Explicit one-shot interactive clipboard capture and bounded local SRT/WebVTT transcript ingestion with deterministic timestamp headings that resolve through existing exact citation grounding.
 
 ### Changed
 

@@ -20,7 +20,7 @@ import { openReadsServices } from './runtime.ts';
 import { executeBatchIngest, type BatchToolItem } from './batch-ingest.ts';
 import { executeCollectionIngest } from './collection-ingest.ts';
 
-const SourceKind = StringEnum(['url', 'text', 'markdown', 'file'] as const);
+const SourceKind = StringEnum(['url', 'text', 'markdown', 'file', 'transcript'] as const);
 const GeneratedMode = StringEnum(['digest', 'synthesis'] as const);
 const CoveragePolicy = StringEnum(['complete', 'targeted'] as const);
 const ExportFormat = StringEnum(['markdown', 'html', 'pdf', 'epub'] as const);
@@ -157,7 +157,7 @@ function storedGeneratedResult(result: StoredArticle, libraryDir: string) {
 }
 
 interface IngestToolParams {
-  kind: 'url' | 'text' | 'markdown' | 'file' | 'batch' | 'feed' | 'newsletter';
+  kind: 'url' | 'text' | 'markdown' | 'file' | 'transcript' | 'batch' | 'feed' | 'newsletter';
   value?: string;
   label?: string;
   recapture?: boolean;
@@ -213,7 +213,7 @@ async function executeSingleSourceRequest(
   if (typeof params.value !== 'string' || params.items !== undefined || params.selection !== undefined || params.previewToken !== undefined) {
     throw new Error('Single-source ingest requires value without items, selection, or previewToken');
   }
-  const sourceKind = params.kind as 'url' | 'text' | 'markdown' | 'file';
+  const sourceKind = params.kind as 'url' | 'text' | 'markdown' | 'file' | 'transcript';
   const input = sourceInput(sourceKind, params.value, params.label, ctx.cwd);
   const services = await openReadsServices(ctx.cwd);
   onUpdate?.({ content: [{ type: 'text', text: `Capturing ${params.kind} source…` }], details: {} });
@@ -253,14 +253,14 @@ export function registerReadsTools(pi: ExtensionAPI): void {
   pi.registerTool({
     name: 'reads_ingest',
     label: 'Reads Ingest',
-    description: 'Capture URL/text/Markdown/file/batch, or preview then explicitly select RSS/Atom/local .eml entries. Duplicates reuse IDs; collection and batch capture never recapture.',
+    description: 'Capture URL/text/Markdown/file/transcript/batch, or preview then explicitly select RSS/Atom/local .eml entries. Duplicates reuse IDs; collection and batch capture never recapture.',
     promptSnippet: 'Capture, or preview/select feed and newsletter entries',
     promptGuidelines: [
       'reads_ingest creates immutable archive prose; never rewrite or overwrite it, and set recapture true only after explicit user approval.',
       'For feed/newsletter, preview first; only capture user-selected indexes with the exact previewToken—never choose them.',
     ],
     parameters: Type.Object({
-      kind: StringEnum(['url', 'text', 'markdown', 'file', 'batch', 'feed', 'newsletter'] as const),
+      kind: StringEnum(['url', 'text', 'markdown', 'file', 'transcript', 'batch', 'feed', 'newsletter'] as const),
       value: Type.Optional(Type.String()),
       label: Type.Optional(Type.String()),
       recapture: Type.Optional(Type.Boolean()),

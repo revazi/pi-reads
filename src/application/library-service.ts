@@ -184,6 +184,10 @@ function rawCaptureName(mediaType: string | undefined): string {
       return 'source.txt';
     case 'message/rfc822':
       return 'source.eml';
+    case 'application/x-subrip':
+      return 'source.srt';
+    case 'text/vtt':
+      return 'source.vtt';
     default:
       return 'source.bin';
   }

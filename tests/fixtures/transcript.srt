@@ -1,0 +1,11 @@
+1
+00:00:01,250 --> 00:00:04,500
+First synthetic transcript segment.
+
+2
+00:00:05,000 --> 00:00:08,125
+<v Fixture Speaker>Second <i>timestamped</i> segment.</v>
+
+3
+00:01:02,000 --> 00:01:05,000
+Final segment with exact citation evidence.

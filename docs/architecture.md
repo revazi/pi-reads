@@ -194,6 +194,10 @@ Each `LibraryService.capture` prepares the source/archive pair and derived sourc
 
 `CollectionIngestionService` resolves a collection, asks `LibraryService` for read-only duplicate matches, and returns bounded metadata plus a hash-bound token. It retains no server-side preview state. Capture re-resolves the collection, verifies that token, validates explicit unique indexes, and passes only those drafts to `BatchIngestionService`/`LibraryService.captureDraft`. The Pi tool and `/reads` are thin preview/selection adapters; no record is created before selection. See [feed and newsletter ingestion](feed-and-newsletter-ingestion.md).
 
+### Clipboard and transcripts
+
+The core clipboard adapter receives content but has no OS access. Only interactive `/reads`, after a dedicated confirmation, executes one platform clipboard read; generated workflows capture first and refer to the immutable source through bounded retrieval. The transcript adapter parses bounded local SRT/WebVTT into deterministic timestamp-heading/segment paragraphs, so the existing source index and citation-grounding pipeline resolve exact timestamp sections without a parallel locator system. Raw subtitle bytes remain separate evidence. See [clipboard and transcripts](clipboard-and-transcripts.md).
+
 ### Digest or synthesis
 
 ```text
