@@ -4,8 +4,11 @@ import type {
   ArticleMode,
   ArticleRecord,
   Citation,
+  CitationGroundingDiagnostics,
   GeneratedBy,
   IngestedSourceDraft,
+  Sha256Digest,
+  SourceCoverageSummary,
   SourceRecord,
   StoredText,
 } from '../core/domain.ts';
@@ -37,6 +40,7 @@ import {
   type RecordIdPrefix,
 } from '../core/library.ts';
 import { LibraryIndexStore, type LibraryIndexStats } from '../core/library-index.ts';
+import { ImmutableRecordGroup } from '../core/record-group.ts';
 import { assertSafeSlug } from '../core/slugs.ts';
 import {
   createSourceContentIndex,
@@ -51,6 +55,11 @@ import {
   type SourceRangeRead,
   type SourceSearchMatch,
 } from '../core/source-retrieval.ts';
+import {
+  assertOrderedSourceSelection,
+  createMultiSourceSynthesisReview,
+  type MultiSourceSynthesisReview,
+} from '../core/synthesis-review.ts';
 import { versionedSha256 } from '../core/text.ts';
 
 const ARTICLE_MODES: readonly ArticleMode[] = ['archive', 'digest', 'synthesis'];
@@ -121,6 +130,30 @@ export interface StoredSourceIndex {
   indexPath: string;
 }
 
+export interface SaveGeneratedArticleOptions {
+  reviewToken?: Sha256Digest;
+}
+
+export interface MultiSourceSynthesisPlan {
+  algorithm: 'multi-source-synthesis-plan-v1';
+  sources: Array<{
+    order: number;
+    sourceId: string;
+    title?: string;
+    sourceContentHash: Sha256Digest;
+    totalLocatorCount: number;
+  }>;
+}
+
+interface PreparedGeneratedArticle {
+  analysis: ReturnType<typeof analyzeMarkdown>;
+  sourceIds: string[];
+  sources: Map<string, SourceRecord>;
+  sourceCoverage: SourceCoverageSummary;
+  citationDiagnostics: CitationGroundingDiagnostics;
+  synthesisReview?: MultiSourceSynthesisReview;
+}
+
 function json(value: unknown): string {
   return `${JSON.stringify(value, null, 2)}\n`;
 }
@@ -179,6 +212,32 @@ function citationMarkers(markdown: string): Set<string> {
   }
 
   return new Set([...markdown.matchAll(/\[\^(cite_[a-z0-9][a-z0-9_-]{0,63})\](?!:)/giu)].map((match) => match[1]));
+}
+
+function validateGeneratedCitationMarkers(markdown: string, citations: readonly Citation[]): void {
+  const markers = citationMarkers(markdown);
+  const citationIds = new Set<string>();
+  for (const citation of citations) {
+    if (!CITATION_ID_PATTERN.test(citation.id)) throw new Error(`Invalid citation ID: ${citation.id}`);
+    if (citationIds.has(citation.id)) throw new Error(`Duplicate citation ID ${citation.id}`);
+    citationIds.add(citation.id);
+    if (!markers.has(citation.id)) throw new Error(`Article body does not reference citation ${citation.id}`);
+  }
+  for (const marker of markers) {
+    if (!citationIds.has(marker)) throw new Error(`Article body references unknown citation ${marker}`);
+  }
+}
+
+function orderedGeneratedSourceIds(input: SaveGeneratedArticleInput): string[] {
+  if (input.sourceIds.length === 0) throw new Error('Generated article requires at least one source');
+  if (new Set(input.sourceIds).size !== input.sourceIds.length) {
+    throw new Error('Generated article source order must not repeat a source ID');
+  }
+  const sourceIds = [...input.sourceIds];
+  if (input.mode === 'synthesis' && sourceIds.length >= 2) {
+    assertOrderedSourceSelection(sourceIds, { minimum: 2 });
+  }
+  return sourceIds;
 }
 
 export class LibraryService {
@@ -245,10 +304,12 @@ export class LibraryService {
     signal?: AbortSignal,
     options: CaptureOptions = {},
   ): Promise<CaptureResult> {
+    signal?.throwIfAborted();
     await this.ensureLibrary();
     const draft = await ingestSource(input, dependencies, signal);
     signal?.throwIfAborted();
     return this.index.transaction(async (index) => {
+      signal?.throwIfAborted();
       let match = detectCaptureMatch(draft, index.sources);
       let predecessorArchive: ArticleRecord | undefined;
       if (match) {
@@ -273,10 +334,11 @@ export class LibraryService {
         };
       }
 
-      const source = await this.storeSource(draft, match ? sourceLineage(match) : undefined);
-      const archiveArticle = await this.storeArchive(source, draft, index.articles, predecessorArchive);
-      await this.writeSourceIndex(source, draft.content);
+      const source = this.createSourceRecord(draft, match ? sourceLineage(match) : undefined);
+      const archiveArticle = this.createArchiveRecord(source, draft, index.articles, predecessorArchive);
+      const group = await this.publishCapture(source, archiveArticle, draft, signal);
       return {
+        rollback: () => group.rollback(),
         value: this.captureResult(match ? 'recaptured' : 'captured', true, source, archiveArticle, draft, match),
         sources: [...index.sources, source],
         articles: [...index.articles, archiveArticle],
@@ -284,10 +346,10 @@ export class LibraryService {
     });
   }
 
-  private async storeSource(
+  private createSourceRecord(
     draft: IngestedSourceDraft,
     lineage?: NonNullable<SourceRecord['lineage']>,
-  ): Promise<SourceRecord> {
+  ): SourceRecord {
     const id = this.createId('src');
     assertRecordId(id, 'src');
     const directory = sourceDirectory(id);
@@ -330,28 +392,15 @@ export class LibraryService {
     }, lineage);
     assertSourceLineage(source);
 
-    await createImmutableRecordDirectory(
-      this.libraryDir,
-      directory,
-      [
-        { path: 'content.md', contents: draft.content },
-        ...(rawName && draft.rawContent !== undefined
-          ? [{ path: path.posix.join('raw', rawName), contents: draft.rawContent }]
-          : []),
-        { path: 'manifest.json', contents: json(source) },
-      ],
-      { allowGitWorkingTree: this.allowGitWorkingTree },
-    );
-
     return source;
   }
 
-  private async storeArchive(
+  private createArchiveRecord(
     source: SourceRecord,
     draft: IngestedSourceDraft,
     existingArticles: readonly ArticleRecord[],
     predecessor?: ArticleRecord,
-  ): Promise<ArticleRecord> {
+  ): ArticleRecord {
     const id = this.createId('art');
     assertRecordId(id, 'art');
     const slug = chooseAvailableSlug(source.title ?? 'article', existingArticles.map((item) => item.slug));
@@ -383,50 +432,54 @@ export class LibraryService {
     };
     assertArticleInvariants(article, new Map([[source.id, source]]));
 
-    const directory = articleDirectory('archive', id);
-    await createImmutableRecordDirectory(
-      this.libraryDir,
-      directory,
-      [
-        { path: 'content.md', contents: draft.content },
-        { path: 'manifest.json', contents: json(article) },
-      ],
-      { allowGitWorkingTree: this.allowGitWorkingTree },
-    );
     return article;
   }
 
-  async saveGenerated(input: SaveGeneratedArticleInput): Promise<StoredArticle> {
+  private async publishCapture(
+    source: SourceRecord,
+    article: ArticleRecord,
+    draft: IngestedSourceDraft,
+    signal?: AbortSignal,
+  ): Promise<ImmutableRecordGroup> {
+    const index = createSourceContentIndex(source, draft.content);
+    verifySourceContentIndex(source, draft.content, index);
+    const group = new ImmutableRecordGroup(this.libraryDir, this.allowGitWorkingTree);
+    const sourceRoot = sourceDirectory(source.id);
+    // Cancellation is checked before publication. Once started, finish or compensate the item.
+    signal?.throwIfAborted();
+    await group.create([
+      {
+        directory: sourceRoot,
+        files: [
+          { path: 'manifest.json', contents: json(source) },
+          { path: 'content.md', contents: draft.content },
+          ...(source.rawCapture && draft.rawContent !== undefined
+            ? [{ path: path.posix.relative(sourceRoot, source.rawCapture.path), contents: draft.rawContent }]
+            : []),
+        ],
+      },
+      {
+        directory: articleDirectory('archive', article.id),
+        files: [{ path: 'manifest.json', contents: json(article) }, { path: 'content.md', contents: draft.content }],
+      },
+      {
+        directory: path.posix.dirname(sourceStructureIndexPath(source.id)),
+        files: [{ path: 'structure-v1.json', contents: json(index) }],
+      },
+    ]);
+    return group;
+  }
+
+  private async prepareGenerated(input: SaveGeneratedArticleInput): Promise<PreparedGeneratedArticle> {
     await this.ensureLibrary();
     if (!input.title.trim()) {
       throw new Error('Generated article title is required');
     }
-    if (input.sourceIds.length === 0) {
-      throw new Error('Generated article requires at least one source');
-    }
-
+    const sourceIds = orderedGeneratedSourceIds(input);
+    const isMultiSourceSynthesis = input.mode === 'synthesis' && sourceIds.length >= 2;
     const analysis = analyzeMarkdown(input.body);
-    const markers = citationMarkers(input.body);
-    const citationIds = new Set<string>();
-    for (const citation of input.citations) {
-      if (!CITATION_ID_PATTERN.test(citation.id)) {
-        throw new Error(`Invalid citation ID: ${citation.id}`);
-      }
-      if (citationIds.has(citation.id)) {
-        throw new Error(`Duplicate citation ID ${citation.id}`);
-      }
-      citationIds.add(citation.id);
-      if (!markers.has(citation.id)) {
-        throw new Error(`Article body does not reference citation ${citation.id}`);
-      }
-    }
-    for (const marker of markers) {
-      if (!citationIds.has(marker)) {
-        throw new Error(`Article body references unknown citation ${marker}`);
-      }
-    }
+    validateGeneratedCitationMarkers(input.body, input.citations);
 
-    const sourceIds = [...new Set(input.sourceIds)];
     const storedSources = await Promise.all(sourceIds.map((sourceId) => this.loadSource(sourceId)));
     const sources = new Map(storedSources.map((stored) => [stored.source.id, stored.source] as const));
     const sourceIndexes = new Map(await Promise.all(storedSources.map(async (stored) => [
@@ -443,6 +496,37 @@ export class LibraryService {
       }] as const)),
     );
     const sourceCoverage = verifySourceCoverage(input.mode, sourceIds, sourceIndexes, input.coverage);
+    const synthesisReview = isMultiSourceSynthesis
+      ? createMultiSourceSynthesisReview({ ...input, mode: 'synthesis', sourceIds }, citationDiagnostics)
+      : undefined;
+    return { analysis, sourceIds, sources, sourceCoverage, citationDiagnostics, synthesisReview };
+  }
+
+  async reviewMultiSourceSynthesis(input: SaveGeneratedArticleInput): Promise<MultiSourceSynthesisReview> {
+    const prepared = await this.prepareGenerated(input);
+    if (!prepared.synthesisReview) {
+      throw new Error('Pre-persistence review applies only to syntheses with at least two sources');
+    }
+    return prepared.synthesisReview;
+  }
+
+  async saveGenerated(
+    input: SaveGeneratedArticleInput,
+    options: SaveGeneratedArticleOptions = {},
+  ): Promise<StoredArticle> {
+    const prepared = await this.prepareGenerated(input);
+    if (prepared.synthesisReview) {
+      if (!options.reviewToken) {
+        throw new Error('Multi-source synthesis requires pre-persistence review');
+      }
+      if (options.reviewToken !== prepared.synthesisReview.reviewToken) {
+        throw new Error('Multi-source synthesis changed after review; review the exact draft again before persistence');
+      }
+    } else if (options.reviewToken) {
+      throw new Error('A synthesis review token is valid only for a synthesis with at least two sources');
+    }
+
+    const { analysis, sourceIds, sources, sourceCoverage, citationDiagnostics } = prepared;
     return this.index.transaction(async (index) => {
       const slug = input.slug
         ? assertSafeSlug(input.slug)
@@ -509,6 +593,22 @@ export class LibraryService {
   async listSources(): Promise<SourceRecord[]> {
     await this.ensureLibrary();
     return [...(await this.index.read()).sources];
+  }
+
+  async planMultiSourceSynthesis(sourceIds: readonly string[]): Promise<MultiSourceSynthesisPlan> {
+    const orderedSourceIds = assertOrderedSourceSelection(sourceIds, { minimum: 2 });
+    const sources = await Promise.all(orderedSourceIds.map(async (sourceId, index) => {
+      const stored = await this.loadSource(sourceId);
+      const sourceIndex = (await this.ensureSourceIndex(stored)).index;
+      return {
+        order: index + 1,
+        sourceId,
+        ...(stored.source.title ? { title: stored.source.title } : {}),
+        sourceContentHash: sourceIndex.sourceContentHash,
+        totalLocatorCount: sourceIndex.headings.length + sourceIndex.paragraphs.length,
+      };
+    }));
+    return { algorithm: 'multi-source-synthesis-plan-v1', sources };
   }
 
   async searchArticles(query: string, limit = 50): Promise<ArticleRecord[]> {

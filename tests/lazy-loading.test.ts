@@ -117,6 +117,10 @@ const listed = await tools.get('reads_library').execute(
   undefined,
   context,
 );
+const batch = await tools.get('reads_ingest').execute(
+  'lazy-batch', { kind: 'batch', items: [{ kind: 'text', value: 'Batch-only lazy fixture.' }] },
+  signal, undefined, context,
+);
 const { openReadsServices } = await import(process.argv[1].replace('/index.ts', '/runtime.ts'));
 const services = await openReadsServices(process.cwd());
 let optionalError = '';
@@ -130,6 +134,7 @@ process.stdout.write(JSON.stringify({
   commandCount: commands.size,
   sourceId: capture.details.sourceId,
   listed: listed.details.articles.length,
+  batchTotal: batch.details.total,
   optionalError,
 }));
 `;
@@ -148,11 +153,13 @@ process.stdout.write(JSON.stringify({
       commandCount: number;
       sourceId: string;
       listed: number;
+      batchTotal: number;
       optionalError: string;
     };
     assert.equal(result.toolCount, 4);
     assert.equal(result.commandCount, 9);
     assert.equal(result.listed, 1);
+    assert.equal(result.batchTotal, 1);
     assert.match(result.sourceId, /^src_/u);
     assert.match(result.optionalError, /Local export support could not be loaded\. Reinstall or update Pi Reads/u);
   } finally {

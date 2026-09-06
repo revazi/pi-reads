@@ -7,6 +7,8 @@ All notable changes to this project are documented here. The format follows [Kee
 ### Added
 
 - Offline `library:maintain` verification, full derived-index rebuilding, credential-free portable directory backups, and create-only restore into a new library. Bounded recovery findings cover schemas, hashes, archive fidelity, citations, lineage, state, and export references; restore preserves canonical bytes and refuses collisions, unsafe paths, symlinks, and tampered inventories.
+- Mixed `reads_ingest` batches of 1–50 URL/file/text/Markdown inputs with bounded concurrency, ordered compact outcomes, duplicate reuse, and abort propagation. Per-item compensation removes only newly created source/archive/index records on ordinary publication failures, while retaining successful siblings; batch recapture remains forbidden.
+- Ordered 2–20-source `/reads` synthesis planning with hash-bound bounded retrieval, section-level citation enforcement, and a mandatory no-write citation-distribution/unused-source review before exact-token persistence with active Pi provenance.
 
 ### Changed
 
@@ -28,6 +30,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Security
 
+- Local source-file ingestion now rejects non-regular files and files above 10 MiB, bounds reads against concurrent growth, and checks cancellation. Immutable directory writes refuse existing empty targets as well as populated records.
 - Article and image downloads now share a public-network URL policy that rejects credentials and private/non-routable IPv4 and IPv6 targets; article redirects are validated individually and HTML fetches enforce redirect, timeout, and 10 MiB response limits.
 
 ## [1.1.1] - 2026-08-20

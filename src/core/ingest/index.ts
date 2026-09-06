@@ -19,6 +19,7 @@ export async function ingestSource(
   dependencies: IngestSourceDependencies = {},
   signal?: AbortSignal,
 ): Promise<IngestedSourceDraft> {
+  signal?.throwIfAborted();
   switch (input.kind) {
     case 'url': {
       const article = await ingestUrl(input.url, dependencies.url, signal);
@@ -48,7 +49,7 @@ export async function ingestSource(
     case 'markdown':
       return ingestMarkdown(input.markdown, input.label);
     case 'file':
-      return ingestFile(input.path, input.cwd);
+      return ingestFile(input.path, input.cwd, signal);
     default:
       throw new Error(`Unsupported source input kind: ${String((input as { kind?: unknown }).kind)}`);
   }

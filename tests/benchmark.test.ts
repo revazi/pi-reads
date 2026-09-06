@@ -50,7 +50,7 @@ test('non-browser benchmark reports workflow, model-context, storage, and option
       measurements.get('digest-long')?.metrics.piTokenUsage,
       { inputTokens: 120, outputTokens: 30, totalTokens: 150 },
     );
-    assert.equal(measurements.get('synthesis-five-source')?.metrics.toolCalls, 6);
+    assert.equal(measurements.get('synthesis-five-source')?.metrics.toolCalls, 7);
     assert.equal(measurements.get('pdf-export')?.status, 'skipped');
     assert.match(measurements.get('pdf-export')?.skipReason ?? '', /opt-in/u);
     assert.equal(measurements.get('kindle-preview')?.status, 'measured');

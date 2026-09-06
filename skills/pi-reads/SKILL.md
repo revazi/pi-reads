@@ -16,9 +16,11 @@ compatibility: Node.js 24+; PDF needs Playwright Chromium; Kindle send needs SMT
 
 ## Capture and generation
 
-`reads_ingest` accepts URL, text, Markdown, or file input. Exact duplicates reuse IDs. Changed canonical content creates nothing; only explicit approval permits `recapture: true` and linked immutable versions.
+`reads_ingest`: URL/text/Markdown/file, or `{kind:"batch",items:[{kind,value}]}` (1–50). Duplicates reuse IDs. Changed content creates nothing; `recapture:true` requires explicit approval and an individual call. Batch successes remain; [limits/cancellation](../../docs/batch-ingestion.md).
 
-For generated work: outline each source and retain its hash; complete digests read all locators through continuation cursors, while targeted synthesis records only considered locators and carries a warning. Write nearby citations using suggested IDs/fragments and exact quotes. Then `reads_save_article` with `{policy, sources:[{sourceId, sourceContentHash, consideredLocators}]}` and review its grounding summary. Saving rejects incomplete/stale coverage, targeted digests, invalid locators, fabricated quotes, unsupported citations, and missing evidence; diagnostics never rewrite prose.
+Outline each source and retain its hash. Complete digests traverse all locators/cursors; targeted synthesis records considered locators and a warning. Use suggested citation IDs/fragments and exact quotes. `reads_save_article` rejects stale/incomplete coverage, targeted digests, bad locators/quotes/citations, and missing evidence.
+
+For 2–20 source syntheses, preserve `/reads` order and cite every non-empty section. First omit `reviewToken`: nothing is saved, and per-source counts/unused IDs are returned. Report/review them, then repeat the exact request with the token; any content, evidence, or active generation-identity change requires review again. See [workflow](../../docs/multi-source-synthesis.md).
 
 ## Library retrieval
 
@@ -30,7 +32,7 @@ Text retrieval defaults to 8192 bytes; `maxBytes` accepts 1024–32768. Check cl
 
 ## Reading state
 
-`state-show` returns revisioned state. `state-update` requires that current `expectedRevision` and can set status (`unread`, `reading`, `completed`, `archived`), canonical tags, rating 1–5, priority 0–5, and optional due/read-later dates (`null` clears optional fields). `queue`, `list`, and metadata `search` filter/sort state. State lives under `state/`, never in immutable manifests; revision conflicts fail closed. Portable snapshots include state and restore only absent or identical records.
+`state-show` returns revisioned state. `state-update` requires current `expectedRevision`; it sets status, tags, rating 1–5, priority 0–5, and optional due/read-later dates (`null` clears). `queue`, `list`, and metadata `search` filter/sort. State stays outside immutable manifests; conflicts fail closed. Snapshots restore only absent/identical state.
 
 ## Export
 
@@ -44,8 +46,8 @@ If PDF needs Chromium, ask the user to run `/reads-install-browser`.
 
 For listed Obsidian conflicts, get explicit approval before `overwrite`; never infer it. `/reads-obsidian-graph` preserves archive notes and refuses unmanaged files.
 
-Kindle starts with a dry run; report its redacted recipient, subject, size, prepared ID/hash, and retained path. On explicit send, reuse that exact reviewed ID as `preparedExportId`; the tool must show the full recipient and confirm interactively. Headless send is forbidden. Keep credentials in the OS store (environment overrides are CI-only), never in arguments/prose/manifests/Git. On cancel/failure, report the retained artifact.
+Kindle starts dry: report redacted recipient, subject, size, prepared ID/hash, and path. On explicit send, reuse that exact reviewed ID as `preparedExportId`; show the full recipient and confirm interactively. Headless send is forbidden. Keep credentials in the OS store (environment is CI-only), never in arguments/prose/manifests/Git. Report retained artifacts after cancel/failure.
 
 ## Commands
 
-`/reads` runs capture/export; `/reads-list`, `/reads-search`, `/reads-state`, and `/reads-queue` manage the library; `/reads-obsidian-graph` rebuilds managed vault navigation; `/reads-rebuild-search` rebuilds search; `/reads-config` configures; `/reads-install-browser` installs PDF Chromium.
+`/reads`: capture/export/synthesis; `/reads-list|search|state|queue`: library; `/reads-obsidian-graph`: vault views; `/reads-rebuild-search`: search; `/reads-config`: settings; `/reads-install-browser`: PDF Chromium.

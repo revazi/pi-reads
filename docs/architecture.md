@@ -182,6 +182,12 @@ input
 
 No model-authored prose enters this path.
 
+### Batch capture
+
+`BatchIngestionService` bounds independent source acquisitions and returns ordered per-item outcomes. The Pi adapter extends `reads_ingest` rather than registering another tool, lazy-loads the service, and holds the existing file-mutation queue around the workflow. The application layer remains Pi-independent.
+
+Each `LibraryService.capture` prepares the source/archive pair and derived source index before publication. `ImmutableRecordGroup` compensates only directories that operation created; an optional catalog-transaction rollback runs under the same queue if index publication fails. Duplicate matching stays serialized. Cancellation aborts network work and pending publication, but an item already publishing finishes or compensates. This is per-item compensation, not a whole-batch or crash-atomic filesystem transaction. See [batch ingestion](batch-ingestion.md).
+
 ### Digest or synthesis
 
 ```text
@@ -191,12 +197,14 @@ one or more immutable Sources
   → continuation cursors traverse long outlines/ranges without unbounded results
   → model authors a cited draft and declares complete or targeted coverage evidence
   → application verifies source hashes, coverage/paragraph locators, markers, and exact quoted source text
+  → multi-source synthesis returns a no-write citation-distribution/unused-source review bound to the exact draft
+  → the exact reviewed draft and active generation identity are resubmitted with its review token
   → immutable generated Article with bounded coverage and citation-grounding diagnostics
   → render
   → Export
 ```
 
-The active Pi model is the generator. The extension does not silently invoke a second model.
+The active Pi model is the generator. The extension does not silently invoke a second model. `/reads` builds an ordered, hash-bound plan for 2–20 selected captured sources without loading their prose. `LibraryService` owns Pi-independent plan validation and the mandatory two-step multi-source persistence gate; the extension supplies active provider/model/thinking/session provenance. Every non-empty multi-source synthesis section must contain a registered citation marker, a conservative structural rule rather than semantic fact-checking. Review tokens exclude generation time but bind all draft, ordered-source, citation, coverage, and active generation-identity fields, so any meaningful change requires another review. See [multi-source cited synthesis](multi-source-synthesis.md).
 
 ### Delivery
 

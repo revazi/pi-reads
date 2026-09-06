@@ -1,4 +1,4 @@
-import { access, link, mkdir, open, realpath, rename, rm, unlink, writeFile } from 'node:fs/promises';
+import { access, link, lstat, mkdir, open, realpath, rename, rm, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import type { ArticleMode, ArticleRecord, SourceRecord } from './domain.ts';
@@ -135,6 +135,12 @@ export async function createImmutableRecordDirectory(
   }
 
   const canonicalTarget = path.join(canonicalParent, path.basename(target));
+  try {
+    await lstat(canonicalTarget);
+    throw new Error(`Immutable library record already exists: ${relativeDirectory}`);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+  }
   const temporary = path.join(canonicalParent, `.${path.basename(target)}.${randomUUID()}.tmp`);
   await mkdir(temporary);
 
