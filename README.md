@@ -6,7 +6,7 @@
 [![CI](https://github.com/revazi/pi-reads/actions/workflows/ci.yml/badge.svg)](https://github.com/revazi/pi-reads/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-Pi Reads turns web pages, pasted text, Markdown, and local files into a private reading library inside [Pi](https://github.com/earendil-works/pi). Keep a faithful copy, create a cited digest or synthesis, and export it to Markdown, HTML, PDF, EPUB, Obsidian, or Kindle.
+Pi Reads turns web pages, RSS/Atom entries, exported newsletter `.eml` files, pasted text, Markdown, and local files into a private reading library inside [Pi](https://github.com/earendil-works/pi). Keep a faithful copy, create a cited digest or synthesis, and export it to Markdown, HTML, PDF, EPUB, Obsidian, or Kindle.
 
 ## What it does
 
@@ -17,7 +17,7 @@ Pi Reads turns web pages, pasted text, Markdown, and local files into a private 
 - **Reading destinations** — exports to local files, Obsidian, and Kindle.
 - **Safe delivery** — asks before overwriting Obsidian files or sending Kindle email.
 
-Archive content and AI-authored content are always stored separately. Mixed URL/file/text collections can use `reads_ingest` batch mode: bounded concurrent acquisition, per-item outcomes, duplicate reuse, and cancellation without discarding successful captures. See [batch ingestion](docs/batch-ingestion.md).
+Archive content and AI-authored content are always stored separately. Mixed URL/file/text collections can use `reads_ingest` batch mode: bounded concurrent acquisition, per-item outcomes, duplicate reuse, and cancellation without discarding successful captures. RSS/Atom feeds and local newsletter `.eml` files use duplicate-aware no-write previews followed by explicit entry selection. See [batch ingestion](docs/batch-ingestion.md) and [feed/newsletter ingestion](docs/feed-and-newsletter-ingestion.md).
 
 ## Quick start
 
@@ -95,7 +95,7 @@ For iCloud Mail settings and CI environment overrides, see [EPUB and Kindle deli
 
 | Command | Purpose |
 |---|---|
-| `/reads` | Capture an article and choose a mode and destination |
+| `/reads` | Capture/export an article, or preview/select feed and newsletter entries |
 | `/reads-config` | Configure the library, Obsidian, or Kindle |
 | `/reads-list` | Browse saved articles |
 | `/reads-search <query>` | Search local metadata and archive/generated prose |
@@ -148,6 +148,7 @@ The original deterministic `article:*` print workflow remains supported. Contrib
 
 - [Library verification, backup, and restore](docs/library-maintenance.md)
 - [Transactional batch ingestion](docs/batch-ingestion.md)
+- [RSS, Atom, and local newsletter ingestion](docs/feed-and-newsletter-ingestion.md)
 - [Multi-source cited synthesis](docs/multi-source-synthesis.md)
 - [Generation templates and budgets](docs/generation-templates.md)
 - [Performance and token-efficiency benchmarks](docs/benchmarks.md)

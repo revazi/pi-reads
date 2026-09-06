@@ -80,6 +80,7 @@
     "marked": "18.0.10",
     "nodemailer": "9.0.5",
     "playwright": "1.62.1",
+    "postal-mime": "3.0.0",
     "shiki": "4.4.3",
     "turndown": "7.2.4",
     "turndown-plugin-gfm": "1.0.2"

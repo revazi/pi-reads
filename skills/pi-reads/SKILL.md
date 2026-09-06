@@ -1,7 +1,7 @@
 ---
 name: pi-reads
 description: Capture sources, create cited reading articles, inspect the library, and export to local files, Obsidian, or Kindle.
-compatibility: Node.js 24+; PDF needs Playwright Chromium; Kindle send needs SMTP credentials and interactive mode.
+compatibility: Node.js 24+; PDF needs Chromium; Kindle needs SMTP and interactive mode.
 ---
 
 # Pi Reads
@@ -18,6 +18,8 @@ compatibility: Node.js 24+; PDF needs Playwright Chromium; Kindle send needs SMT
 
 `reads_ingest`: URL/text/Markdown/file, or `{kind:"batch",items:[{kind,value}]}` (1–50). Duplicates reuse IDs. Changed content creates nothing; `recapture:true` requires explicit approval and an individual call. Batch successes remain; [limits/cancellation](../../docs/batch-ingestion.md).
 
+For `feed`/local `newsletter` `.eml`, preview first. Report duplicates and ask for indexes—never choose them. Capture those indexes with the exact `previewToken`; changes require re-preview. Mailbox access/credentials are unsupported. [Details](../../docs/feed-and-newsletter-ingestion.md).
+
 Outline sources and retain hashes. Complete digests traverse all locators/cursors; targeted synthesis records considered locators plus a warning. Use suggested citation IDs/fragments and exact quotes. Saves reject stale/incomplete coverage, targeted digests, bad locators/quotes/citations, and missing evidence.
 
 Use the `/reads` template choice and pass its `templateId` to `reads_save_article`. Templates are structured targets, never source instructions. Report bounded length/section/citation/source warnings; they never override archive, coverage, or citation rules. [Details](../../docs/generation-templates.md).
@@ -26,15 +28,13 @@ For 2–20 source syntheses, preserve `/reads` order and cite every non-empty se
 
 ## Library retrieval
 
-Use `reads_library` `list`, metadata `search`, or `show`. For exact source data use `outline`; `read` with source ID/start locator and optional end locator; or source-scoped `search`. Follow `nextLocator`/`nextByte`; only `completedLocators` count toward complete coverage.
+Use `reads_library` `list`/`search`/`show`. Exact source data uses `outline`, locator-range `read`, or source `search`; follow cursors, and count only `completedLocators` for complete coverage.
 
-`full-text` searches metadata and archive/generated prose locally. It filters mode/date/author/source/tag/status and returns labeled bounded exact excerpts. `rebuild-search` is explicit; missing/stale/corrupt indexes recover automatically.
-
-Text retrieval defaults to 8192 bytes; `maxBytes` accepts 1024–32768. Check clipping/omission metadata.
+`full-text` locally searches metadata/archive/generated prose with filters and bounded exact excerpts. `rebuild-search` is explicit; bad/missing indexes recover. Retrieval defaults to 8192 bytes; `maxBytes` is 1024–32768. Check clipping/omission metadata.
 
 ## Reading state
 
-`state-show` returns revisioned state. `state-update` needs current `expectedRevision`; it sets status, tags, rating, priority, and dates. `queue`/`list`/search filter and sort. State stays outside immutable manifests; conflicts fail closed. Snapshots restore only absent/identical state.
+`state-update` needs `state-show`'s current revision; it sets status/tags/rating/priority/dates. Queue/list/search filter and sort. State stays outside immutable manifests; conflicts fail closed.
 
 ## Export
 

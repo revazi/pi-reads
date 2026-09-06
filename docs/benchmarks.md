@@ -80,7 +80,7 @@ Issue #16 measured the extension at baseline commit `4b7004b` and after the comp
 | Successful local `reads_export` text | 105 | 56 | -46.7% |
 | Bounded source outline | 235 | 235 | unchanged |
 
-The outline intentionally remains unchanged because source identity/hash, stable locators, continuation state, byte accounting, and untrusted-data boundaries are operational or safety-critical. Later library-search and reading-state operations expanded the four-tool contract while keeping it below 1,375 estimated tokens—still below the pre-optimization 1,697-token baseline. Contract tests cap schema, guidance, skill, workflow-prompt, and common-result sizes while asserting that archive immutability, source-as-data handling, citation grounding, Obsidian overwrite approval, Kindle send confirmation, and exact prepared-artifact reuse remain explicit.
+The outline intentionally remains unchanged because source identity/hash, stable locators, continuation state, byte accounting, and untrusted-data boundaries are operational or safety-critical. Library-search, reading-state, and feed/newsletter preview-selection fields expanded the four-tool contract while keeping it below 1,550 estimated tokens—still below the pre-optimization 1,697-token baseline. Contract tests cap schema, guidance, skill, workflow-prompt, and common-result sizes while asserting archive immutability, explicit collection selection, source-as-data handling, citation grounding, Obsidian overwrite approval, Kindle send confirmation, and exact prepared-artifact reuse.
 
 ## Optional performance gates
 

@@ -17,7 +17,8 @@ import {
 } from './library-handlers.ts';
 import { sourceInput, withReadsMutationQueue as withFileMutationQueue } from './operations.ts';
 import { openReadsServices } from './runtime.ts';
-import { executeBatchIngest } from './batch-ingest.ts';
+import { executeBatchIngest, type BatchToolItem } from './batch-ingest.ts';
+import { executeCollectionIngest } from './collection-ingest.ts';
 
 const SourceKind = StringEnum(['url', 'text', 'markdown', 'file'] as const);
 const GeneratedMode = StringEnum(['digest', 'synthesis'] as const);
@@ -155,17 +156,111 @@ function storedGeneratedResult(result: StoredArticle, libraryDir: string) {
   };
 }
 
+interface IngestToolParams {
+  kind: 'url' | 'text' | 'markdown' | 'file' | 'batch' | 'feed' | 'newsletter';
+  value?: string;
+  label?: string;
+  recapture?: boolean;
+  items?: BatchToolItem[];
+  selection?: number[];
+  previewToken?: string;
+}
+
+type IngestUpdate = (update: { content: Array<{ type: 'text'; text: string }>; details: Record<string, never> }) => void;
+
+async function executeBatchRequest(
+  params: IngestToolParams,
+  signal: AbortSignal | undefined,
+  onUpdate: IngestUpdate | undefined,
+  ctx: ExtensionContext,
+) {
+  if (!params.items || params.value !== undefined || params.label !== undefined || params.recapture !== undefined || params.selection !== undefined || params.previewToken !== undefined) {
+    throw new Error('Batch ingest requires only kind batch and items; recapture is individual and requires approval');
+  }
+  const services = await openReadsServices(ctx.cwd);
+  onUpdate?.({ content: [{ type: 'text', text: 'Capturing batch; completed items are retained…' }], details: {} });
+  return withFileMutationQueue(services.libraryDir, () => executeBatchIngest(params.items!, services.library, ctx.cwd, signal));
+}
+
+async function executeCollectionRequest(
+  params: IngestToolParams,
+  signal: AbortSignal | undefined,
+  onUpdate: IngestUpdate | undefined,
+  ctx: ExtensionContext,
+) {
+  if (typeof params.value !== 'string' || params.items !== undefined || params.label !== undefined || params.recapture !== undefined) {
+    throw new Error('Feed/newsletter ingest requires value and optional selection plus previewToken');
+  }
+  const collectionKind = params.kind as 'feed' | 'newsletter';
+  const services = await openReadsServices(ctx.cwd);
+  const action = params.selection ? 'Capturing selected' : 'Previewing';
+  onUpdate?.({ content: [{ type: 'text', text: `${action} ${params.kind} entries…` }], details: {} });
+  const execute = () => executeCollectionIngest({
+    kind: collectionKind,
+    value: params.value!,
+    ...(params.selection ? { selection: params.selection } : {}),
+    ...(params.previewToken ? { previewToken: params.previewToken } : {}),
+  }, services.library, ctx.cwd, signal);
+  return params.selection ? withFileMutationQueue(services.libraryDir, execute) : execute();
+}
+
+async function executeSingleSourceRequest(
+  params: IngestToolParams,
+  signal: AbortSignal | undefined,
+  onUpdate: IngestUpdate | undefined,
+  ctx: ExtensionContext,
+) {
+  if (typeof params.value !== 'string' || params.items !== undefined || params.selection !== undefined || params.previewToken !== undefined) {
+    throw new Error('Single-source ingest requires value without items, selection, or previewToken');
+  }
+  const sourceKind = params.kind as 'url' | 'text' | 'markdown' | 'file';
+  const input = sourceInput(sourceKind, params.value, params.label, ctx.cwd);
+  const services = await openReadsServices(ctx.cwd);
+  onUpdate?.({ content: [{ type: 'text', text: `Capturing ${params.kind} source…` }], details: {} });
+  const result = await withFileMutationQueue(services.libraryDir, () =>
+    services.library.capture(input, {}, signal, { recapture: params.recapture ?? false }));
+  return {
+    content: [{ type: 'text' as const, text: captureResultText(result).join('\n') }],
+    details: {
+      libraryDir: services.libraryDir,
+      status: result.status,
+      persisted: result.persisted,
+      sourceId: result.source.id,
+      archiveArticleId: result.archiveArticle.id,
+      sourceManifestPath: result.sourceManifestPath,
+      sourceContentPath: result.sourceContentPath,
+      sourceIndexPath: result.sourceIndexPath,
+      articleManifestPath: result.articleManifestPath,
+      articleContentPath: result.articleContentPath,
+      ...(result.match ? { match: result.match } : {}),
+      ...(result.source.lineage ? { lineage: result.source.lineage } : {}),
+    },
+  };
+}
+
+async function executeIngestRequest(
+  params: IngestToolParams,
+  signal: AbortSignal | undefined,
+  onUpdate: IngestUpdate | undefined,
+  ctx: ExtensionContext,
+) {
+  if (params.kind === 'batch') return executeBatchRequest(params, signal, onUpdate, ctx);
+  if (params.kind === 'feed' || params.kind === 'newsletter') return executeCollectionRequest(params, signal, onUpdate, ctx);
+  return executeSingleSourceRequest(params, signal, onUpdate, ctx);
+}
+
 export function registerReadsTools(pi: ExtensionAPI): void {
   pi.registerTool({
     name: 'reads_ingest',
     label: 'Reads Ingest',
-    description: 'Capture URL/text/Markdown/file, or kind batch with 1–50 items (1 MiB total; results <32 KiB). Per-item transactions retain successes; duplicates reuse IDs. Batch never recaptures.',
-    promptSnippet: 'Capture or explicitly recapture a source',
+    description: 'Capture URL/text/Markdown/file/batch, or preview then explicitly select RSS/Atom/local .eml entries. Duplicates reuse IDs; collection and batch capture never recapture.',
+    promptSnippet: 'Capture, or preview/select feed and newsletter entries',
     promptGuidelines: [
       'reads_ingest creates immutable archive prose; never rewrite or overwrite it, and set recapture true only after explicit user approval.',
+      'For feed/newsletter, preview first; only capture user-selected indexes with the exact previewToken—never choose them.',
     ],
     parameters: Type.Object({
-      kind: StringEnum(['url', 'text', 'markdown', 'file', 'batch'] as const),
+      kind: StringEnum(['url', 'text', 'markdown', 'file', 'batch', 'feed', 'newsletter'] as const),
       value: Type.Optional(Type.String()),
       label: Type.Optional(Type.String()),
       recapture: Type.Optional(Type.Boolean()),
@@ -174,51 +269,11 @@ export function registerReadsTools(pi: ExtensionAPI): void {
         value: Type.String({ maxLength: 262144 }),
         label: Type.Optional(Type.String({ maxLength: 200 })),
       }), { minItems: 1, maxItems: 50 })),
+      selection: Type.Optional(Type.Array(Type.Integer({ minimum: 0, maximum: 49 }), { minItems: 1, maxItems: 50, uniqueItems: true })),
+      previewToken: Type.Optional(Type.String({ pattern: '^sha256:[0-9a-f]{64}$' })),
     }),
     async execute(_toolCallId, params, signal, onUpdate, ctx) {
-      if (params.kind === 'batch') {
-        if (!params.items || params.value !== undefined || params.label !== undefined || params.recapture !== undefined) {
-          throw new Error('Batch ingest requires only kind batch and items; recapture is individual and requires approval');
-        }
-        const services = await openReadsServices(ctx.cwd);
-        onUpdate?.({ content: [{ type: 'text', text: 'Capturing batch; completed items are retained…' }], details: {} });
-        return withFileMutationQueue(services.libraryDir, () => executeBatchIngest(params.items!, services.library, ctx.cwd, signal));
-      }
-      if (typeof params.value !== 'string' || params.items !== undefined) throw new Error('Single-source ingest requires value without items');
-      const input = sourceInput(params.kind, params.value, params.label, ctx.cwd);
-      const services = await openReadsServices(ctx.cwd);
-      onUpdate?.({ content: [{ type: 'text', text: `Capturing ${params.kind} source…` }], details: {} });
-      const result = await withFileMutationQueue(services.libraryDir, () =>
-        services.library.capture(
-          input,
-          {},
-          signal,
-          { recapture: params.recapture ?? false },
-        ),
-      );
-
-      return {
-        content: [
-          {
-            type: 'text',
-            text: captureResultText(result).join('\n'),
-          },
-        ],
-        details: {
-          libraryDir: services.libraryDir,
-          status: result.status,
-          persisted: result.persisted,
-          sourceId: result.source.id,
-          archiveArticleId: result.archiveArticle.id,
-          sourceManifestPath: result.sourceManifestPath,
-          sourceContentPath: result.sourceContentPath,
-          sourceIndexPath: result.sourceIndexPath,
-          articleManifestPath: result.articleManifestPath,
-          articleContentPath: result.articleContentPath,
-          ...(result.match ? { match: result.match } : {}),
-          ...(result.source.lineage ? { lineage: result.source.lineage } : {}),
-        },
-      };
+      return executeIngestRequest(params, signal, onUpdate, ctx);
     },
   });
 

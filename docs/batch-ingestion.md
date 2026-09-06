@@ -58,4 +58,4 @@ Cancellation is checked again after waiting for the catalog queue and immediatel
 
 The batch service does not import Pi APIs or invoke a model. The thin extension handler uses Pi's file-mutation queue around the workflow and lazy-loads the service. Deterministic tests use injected HTML and abortable fixture fetches, not live internet.
 
-This issue covers capture only. Multi-source generation UX, feed adapters, templates, transcript/clipboard adapters, and reading-pack export are separate follow-up issues. No export or external delivery is performed by a batch capture.
+This service covers capture only. Multi-source generation, templates, transcript/clipboard adapters, and reading-pack export remain separate workflows. Feed/newsletter previews now pass only explicitly selected canonical drafts into this service; see [feed and newsletter ingestion](feed-and-newsletter-ingestion.md). No export or external delivery is performed by a batch capture.

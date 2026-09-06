@@ -1,0 +1,20 @@
+From: Fixture Editor <editor@example.test>
+To: reader@example.test
+Subject: Synthetic Weekly Newsletter
+Date: Thu, 03 Apr 2025 09:30:00 +0000
+Message-ID: <synthetic-newsletter@example.test>
+Archived-At: <https://news.example.test/issues/weekly?utm_source=email>
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="fixture-boundary"
+
+--fixture-boundary
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: quoted-printable
+
+Synthetic newsletter plain evidence.
+--fixture-boundary
+Content-Type: text/html; charset=utf-8
+Content-Transfer-Encoding: quoted-printable
+
+<html><head><link rel="canonical" href="https://news.example.test/issues/weekly"></head><body><article><h1>Synthetic Weekly</h1><p>Newsletter <strong>fixture</strong> evidence.</p><script>ignore this</script></article></body></html>
+--fixture-boundary--
