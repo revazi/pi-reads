@@ -15,7 +15,7 @@ Local EPUB exports contain:
 
 Before an EPUB is reported as prepared, Pi Reads validates its ZIP ordering, required files, XML documents, manifest targets, spine references, and embedded assets. The resulting artifact and export manifest are stored immutably in the Pi Reads library.
 
-Use `reads_export` with `format: "epub"` and `destination: "local"`, or select `epub` in `/reads`.
+Use `reads_export` with `format: "epub"` and `destination: "local"`, or select `epub` in `/reads`. Multi-article collections use one validated XHTML spine item per selected article and preserve each article's mode, source attribution, citations, and assets; see [reading packs](reading-packs.md).
 
 ## Kindle configuration
 
@@ -105,7 +105,7 @@ Pi Reads verifies that the prepared manifest belongs to the requested article, i
 3. sends the exact verified prepared bytes only after the user confirms;
 4. stores a delivered export record with confirmation and delivery timestamps that references the prepared export instead of copying its artifact, without recipient/sender addresses or SMTP details.
 
-If `preparedExportId` is omitted, Pi Reads prepares and retains a new local EPUB or PDF before confirmation. Cancelling or failing SMTP delivery leaves the prepared local artifact available for reuse or manual upload. Delivery errors are sanitized so recipient addresses and credentials are not copied into the Pi session.
+If `preparedExportId` is omitted, Pi Reads prepares and retains a new local EPUB or PDF before confirmation. Cancelling or failing SMTP delivery leaves the prepared local artifact available for reuse or manual upload. Scheduled reading-pack jobs may only run the local `kindle:digest:prepare` command; it has no send option or mail transport. Collection delivery, like article delivery, requires a later interactive confirmation and reuses the exact verified prepared bytes. Delivery errors are sanitized so recipient addresses and credentials are not copied into the Pi session.
 
 ## Formats
 

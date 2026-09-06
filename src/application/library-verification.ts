@@ -1,7 +1,15 @@
 import { lstat } from 'node:fs/promises';
 import { assertNoSymlinkPath } from '../core/maintenance-files.ts';
-import type { ArticleRecord, ExportRecord, SourceRecord, StoredFile, StoredText } from '../core/domain.ts';
-import { articleDirectory, sourceDirectory, exportDirectory, sourceStructureIndexPath, assertArticleInvariants } from '../core/library.ts';
+import type { ArticleRecord, ExportRecord, ReadingCollectionRecord, SourceRecord, StoredFile, StoredText } from '../core/domain.ts';
+import {
+  articleDirectory,
+  collectionDirectory,
+  sourceDirectory,
+  exportDirectory,
+  exportTargetId,
+  sourceStructureIndexPath,
+  assertArticleInvariants,
+} from '../core/library.ts';
 import { analyzeMarkdown } from '../core/ingest/text.ts';
 import { createSourceContentIndex, verifySourceContentIndex, type SourceContentIndex } from '../core/source-index.ts';
 import { verifyCitationGrounding } from '../core/citation-grounding.ts';
@@ -22,20 +30,21 @@ import {
 } from '../core/maintenance-files.ts';
 import { createArticleSearchBlocks, createFullTextSearchIndex, type FullTextSearchDocumentInput } from '../core/full-text-search.ts';
 import { corpusDocument, sourceBlocks } from './search-service.ts';
+import { readingCollectionEntry } from './reading-collection-service.ts';
 
 export interface VerificationFinding {
   severity: 'error' | 'warning'; code: string; path: string; action: string;
 }
 export interface VerificationReport {
   ok: boolean; errorCount: number; warningCount: number; findings: VerificationFinding[]; truncated: boolean;
-  sourceCount: number; articleCount: number; exportCount: number; fileCount: number;
+  sourceCount: number; articleCount: number; collectionCount: number; exportCount: number; fileCount: number;
 }
 export interface VerifiedLibrary {
   report: VerificationReport; files: MaintenanceFile[]; sources: Map<string, SourceRecord>;
 }
 
-const ROOTS = ['sources', 'articles', 'exports', 'assets', 'state/articles'] as const;
-const MANIFEST = /^(?:sources\/src_[a-z0-9]{16,64}|articles\/(?:archive|digest|synthesis)\/art_[a-z0-9]{16,64}|exports\/art_[a-z0-9]{16,64}\/exp_[a-z0-9]{16,64})\/manifest\.json$/u;
+const ROOTS = ['sources', 'articles', 'collections', 'exports', 'assets', 'state/articles'] as const;
+const MANIFEST = /^(?:sources\/src_[a-z0-9]{16,64}|articles\/(?:archive|digest|synthesis)\/art_[a-z0-9]{16,64}|collections\/col_[a-z0-9]{16,64}|exports\/(?:art|col)_[a-z0-9]{16,64}\/exp_[a-z0-9]{16,64})\/manifest\.json$/u;
 const STATE = /^state\/articles\/art_[a-z0-9]{16,64}\.json$/u;
 const ACTIONS = {
   inventory: 'Stop writers; remove unsafe links or special files, check permissions and maintenance size limits, then retry.',
@@ -53,13 +62,14 @@ class Verification {
   private readonly fileBytes = new Map<string, Buffer>();
   readonly sources = new Map<string, SourceRecord>();
   readonly articles = new Map<string, ArticleRecord>();
+  readonly collections = new Map<string, ReadingCollectionRecord>();
   readonly exports = new Map<string, ExportRecord>();
   readonly contents = new Map<string, string>();
   readonly indexes = new Map<string, SourceContentIndex>();
   readonly states = new Map<string, ArticleUserState>();
   readonly report: VerificationReport = {
     ok: true, errorCount: 0, warningCount: 0, findings: [], truncated: false,
-    sourceCount: 0, articleCount: 0, exportCount: 0, fileCount: 0,
+    sourceCount: 0, articleCount: 0, collectionCount: 0, exportCount: 0, fileCount: 0,
   };
   private totalBytes = 0;
   constructor(root: string) { this.root = root; }
@@ -108,9 +118,13 @@ class Verification {
       const article = await validateRecord<ArticleRecord>('article', value);
       if (relative !== `${articleDirectory(article.mode, article.id)}/manifest.json` || this.articles.has(article.id)) throw new Error('Article identity collision');
       this.articles.set(article.id, article);
+    } else if (relative.startsWith('collections/')) {
+      const collection = await validateRecord<ReadingCollectionRecord>('collection', value);
+      if (relative !== `${collectionDirectory(collection.id)}/manifest.json` || this.collections.has(collection.id)) throw new Error('Collection identity collision');
+      this.collections.set(collection.id, collection);
     } else {
       const record = await validateRecord<ExportRecord>('export', value);
-      if (relative !== `${exportDirectory(record.articleId, record.id)}/manifest.json` || this.exports.has(record.id)) throw new Error('Export identity collision');
+      if (relative !== `${exportDirectory(exportTargetId(record), record.id)}/manifest.json` || this.exports.has(record.id)) throw new Error('Export identity collision');
       this.exports.set(record.id, record);
     }
   }
@@ -198,6 +212,17 @@ class Verification {
     if (article.citationDiagnostics && JSON.stringify(diagnostics) !== JSON.stringify(article.citationDiagnostics)) throw new Error('Citation diagnostics mismatch');
   }
 
+  collection(collection: ReadingCollectionRecord): void {
+    if (collection.articleIds.length !== collection.articles.length) throw new Error('Collection entry count mismatch');
+    for (const [index, articleId] of collection.articleIds.entries()) {
+      const article = this.articles.get(articleId);
+      const entry = collection.articles[index];
+      if (!article || !entry || entry.articleId !== articleId || JSON.stringify(entry) !== JSON.stringify(readingCollectionEntry(article, index + 1))) {
+        throw new Error('Collection article snapshot mismatch');
+      }
+    }
+  }
+
   preparedExport(record: ExportRecord): ExportRecord | undefined {
     const id = record.delivery?.preparedExportId;
     if (!id) return undefined;
@@ -207,6 +232,7 @@ class Verification {
       prepared.id !== record.id,
       !prepared.delivery?.preparedExportId,
       prepared.articleId === record.articleId,
+      prepared.collectionId === record.collectionId,
       prepared.format === record.format,
       prepared.destination.type === 'local',
       prepared.status === 'prepared',
@@ -217,11 +243,14 @@ class Verification {
   }
 
   async exportRecord(record: ExportRecord): Promise<void> {
-    if (!this.articles.has(record.articleId)) throw new Error('Unknown exported article');
+    if (record.articleId ? !this.articles.has(record.articleId) : !this.collections.has(record.collectionId!)) {
+      throw new Error('Unknown export target');
+    }
     const prepared = this.preparedExport(record);
-    const prefix = exportDirectory(record.articleId, prepared?.id ?? record.id);
+    const targetId = exportTargetId(record);
+    const prefix = exportDirectory(targetId, prepared?.id ?? record.id);
     await this.stored(record.artifact, prefix);
-    for (const asset of record.assets ?? []) await this.stored(asset, `${exportDirectory(record.articleId, record.id)}/assets`);
+    for (const asset of record.assets ?? []) await this.stored(asset, `${exportDirectory(targetId, record.id)}/assets`);
   }
 
   async state(relative: string): Promise<void> {
@@ -284,7 +313,10 @@ class Verification {
     for (const article of this.articles.values()) {
       await this.check('references', article.body.path, () => this.article(article));
     }
-    for (const record of this.exports.values()) await this.check('references', `${exportDirectory(record.articleId, record.id)}/manifest.json`, () => this.exportRecord(record));
+    for (const collection of this.collections.values()) {
+      await this.check('references', `${collectionDirectory(collection.id)}/manifest.json`, async () => this.collection(collection));
+    }
+    for (const record of this.exports.values()) await this.check('references', `${exportDirectory(exportTargetId(record), record.id)}/manifest.json`, () => this.exportRecord(record));
   }
 
   async userState(inventory: readonly string[]): Promise<void> {
@@ -298,7 +330,7 @@ class Verification {
     const paths = new Set(inventory);
     for (const relative of inventory) {
       if (this.files.has(relative)) continue;
-      const depth = relative.startsWith('sources/') ? 2 : 3;
+      const depth = /^(?:sources|collections)\//u.test(relative) ? 2 : 3;
       const recordDirectory = relative.split('/').slice(0, depth).join('/');
       if (!relative.startsWith('assets/') && !paths.has(`${recordDirectory}/manifest.json`)) this.finding('manifest', relative);
       else this.finding('untracked', relative, 'warning');
@@ -322,7 +354,7 @@ class Verification {
     this.untracked(inventory);
     if (checkIndexes) await this.derivedIndexes();
     this.report.sourceCount = this.sources.size; this.report.articleCount = this.articles.size;
-    this.report.exportCount = this.exports.size; this.report.fileCount = this.files.size;
+    this.report.collectionCount = this.collections.size; this.report.exportCount = this.exports.size; this.report.fileCount = this.files.size;
     return { report: this.report, files: [...this.files.values()].sort((a, b) => a.path.localeCompare(b.path)), sources: this.sources };
   }
 }

@@ -76,7 +76,7 @@ tests/
 
 The core owns:
 
-- `Source`, `Article`, `Citation`, `Export`, and separate mutable `ArticleUserState` semantics;
+- `Source`, `Article`, `Citation`, ordered `ReadingCollection`, `Export`, and separate mutable `ArticleUserState` semantics;
 - mode and identifier rules;
 - path-independent record validation;
 - content and visible-text hashing;
@@ -92,7 +92,8 @@ Application services coordinate domain rules and ports. Expected use cases are:
 - `ingestSource(input, options)`
 - `createArchive(sourceId, options)`
 - `saveGeneratedArticle(draft, generationContext)`
-- `prepareExport(articleId, format)`
+- `createReadingCollection(articleIds, provenance)`
+- `prepareExport(articleOrCollectionId, format)`
 - `deliverExport(exportId, destination, confirmation)`
 - `listLibrary(query)`
 
@@ -133,7 +134,7 @@ Renderers consume a validated article and resolved source/assets. They do not mu
 
 - Markdown is the canonical readable body format.
 - Astro HTML and PDF retain the existing light print behavior.
-- EPUB is a separate reflowable renderer with validated ZIP/container/package/spine structure and embedded assets.
+- EPUB is a separate reflowable renderer with validated ZIP/container/package/spine structure and embedded assets. Collection EPUBs use one navigation entry and spine XHTML item per ordered article while preserving chapter-level mode, sources, and citations.
 
 Archive rendering must run visible-text fidelity verification before an export is reported as prepared.
 
@@ -143,13 +144,13 @@ Destinations receive a prepared export; they do not generate article prose.
 
 - Local destination retains the artifact in the library.
 - Obsidian renders destination frontmatter, copies/downloads assets, rewrites relative links, and writes only conflict-approved targets in a configured vault. Its deterministic graph builder derives fixed library/topic/status/queue views from delivered-export metadata and separate user state, adds source links only to managed synthesis notes, never rewrites archive notes, refuses unmanaged collisions, and hash-checks targets again at write time.
-- Kindle dry-runs retain an immutable local EPUB/PDF and return its export ID and hash; a later SMTP delivery verifies and sends those exact bytes only after explicit interactive confirmation, then records evidence by reference without copying the artifact.
+- Kindle dry-runs retain an immutable local EPUB/PDF and return its export ID and hash; a later SMTP delivery verifies and sends those exact bytes only after explicit interactive confirmation, then records evidence by reference without copying the artifact. The scheduler-facing digest preparation service has no destination/mail port, so unattended jobs can create only local collection EPUBs.
 
 Every external side effect returns delivery evidence suitable for a non-secret export manifest.
 
 ## Pi integration boundary
 
-The Pi extension is an interface adapter over application services. Extension registration is lightweight: library, renderer, EPUB, Obsidian, Kindle, SMTP, browser, syntax-highlighting, and credential-store implementations load only when their corresponding workflow first needs them. Text ingestion and metadata listing do not initialize destination or renderer adapters.
+The Pi extension is an interface adapter over application services. Extension registration is lightweight: library, collection/digest preparation, renderer, EPUB, Obsidian, Kindle, SMTP, browser, syntax-highlighting, and credential-store implementations load only when their corresponding workflow first needs them. Text ingestion and metadata listing do not initialize destination or renderer adapters.
 
 It owns:
 
@@ -187,6 +188,10 @@ No model-authored prose enters this path.
 `BatchIngestionService` bounds independent source acquisitions and returns ordered per-item outcomes. The Pi adapter extends `reads_ingest` rather than registering another tool, lazy-loads the service, and holds the existing file-mutation queue around the workflow. The application layer remains Pi-independent.
 
 Each `LibraryService.capture` prepares the source/archive pair and derived source index before publication. `ImmutableRecordGroup` compensates only directories that operation created; an optional catalog-transaction rollback runs under the same queue if index publication fails. Duplicate matching stays serialized. Cancellation aborts network work and pending publication, but an item already publishing finishes or compensates. This is per-item compensation, not a whole-batch or crash-atomic filesystem transaction. See [batch ingestion](batch-ingestion.md).
+
+### Reading-pack collections
+
+`ReadingCollectionService` validates 2–50 explicit unique article IDs, snapshots their ordered immutable mode/content hash/source/citation/generation provenance, and writes one create-only `col_…` manifest. `EpubService` reloads and verifies every snapshot before building a table of contents plus one XHTML spine item per article. `DigestPreparationService` composes only collection persistence and local EPUB preparation; the scheduler CLI deliberately has no Kindle service or mail transport. A later `reads_export` collection send reloads the exact prepared export and passes through the existing interactive confirmation gate. See [reading packs](reading-packs.md).
 
 ### Feed and newsletter collections
 

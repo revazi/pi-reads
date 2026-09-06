@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/revazi/pi-reads/schemas/v1/collection.schema.json",
+  "title": "Pi Reads Reading Collection",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "id", "title", "slug", "articleIds", "articles", "createdAt", "createdBy"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "id": { "type": "string", "pattern": "^col_[a-z0-9]{16,64}$" },
+    "title": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "slug": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$", "maxLength": 100 },
+    "articleIds": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 50,
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^art_[a-z0-9]{16,64}$" }
+    },
+    "articles": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 50,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["order", "articleId", "mode", "title", "articleContentHash", "sourceIds", "citations"],
+        "properties": {
+          "order": { "type": "integer", "minimum": 1, "maximum": 50 },
+          "articleId": { "type": "string", "pattern": "^art_[a-z0-9]{16,64}$" },
+          "mode": { "enum": ["archive", "digest", "synthesis"] },
+          "title": { "type": "string", "minLength": 1 },
+          "articleContentHash": { "$ref": "common.schema.json#/$defs/contentHash" },
+          "sourceIds": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": { "type": "string", "pattern": "^src_[a-z0-9]{16,64}$" }
+          },
+          "citations": {
+            "type": "array",
+            "items": { "$ref": "citation.schema.json" }
+          },
+          "generatedBy": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["provider", "model", "generatedAt"],
+            "properties": {
+              "provider": { "type": "string", "minLength": 1 },
+              "model": { "type": "string", "minLength": 1 },
+              "thinkingLevel": { "enum": ["off", "minimal", "low", "medium", "high", "xhigh", "max"] },
+              "sessionId": { "type": "string", "minLength": 1 },
+              "generatedAt": { "$ref": "common.schema.json#/$defs/timestamp" }
+            }
+          }
+        }
+      }
+    },
+    "createdAt": { "$ref": "common.schema.json#/$defs/timestamp" },
+    "createdBy": { "enum": ["interactive", "scheduled", "tool"] }
+  }
+}

@@ -1,19 +1,27 @@
 import { access, link, lstat, mkdir, open, realpath, rename, rm, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
-import type { ArticleMode, ArticleRecord, SourceRecord } from './domain.ts';
+import type { ArticleMode, ArticleRecord, ExportRecord, SourceRecord } from './domain.ts';
 import { errorMessage } from './errors.ts';
 import { slugify } from './slugs.ts';
 
 const ID_PREFIXES = ['src', 'art', 'cite', 'exp'] as const;
 export type RecordIdPrefix = (typeof ID_PREFIXES)[number];
 
-export function createRecordId(prefix: RecordIdPrefix, uuid = randomUUID()): string {
+function recordEntropy(uuid: string): string {
   const entropy = uuid.toLowerCase().replace(/[^a-z0-9]/g, '');
   if (entropy.length < 16) {
     throw new Error('Record ID entropy must contain at least 16 alphanumeric characters');
   }
-  return `${prefix}_${entropy.slice(0, 64)}`;
+  return entropy.slice(0, 64);
+}
+
+export function createRecordId(prefix: RecordIdPrefix, uuid = randomUUID()): string {
+  return `${prefix}_${recordEntropy(uuid)}`;
+}
+
+export function createCollectionId(uuid = randomUUID()): string {
+  return `col_${recordEntropy(uuid)}`;
 }
 
 export function sourceDirectory(sourceId: string): string {
@@ -36,8 +44,18 @@ export function articleContentPath(mode: ArticleMode, articleId: string): string
   return path.posix.join(articleDirectory(mode, articleId), 'content.md');
 }
 
-export function exportDirectory(articleId: string, exportId: string): string {
-  return path.posix.join('exports', articleId, exportId);
+export function collectionDirectory(collectionId: string): string {
+  return path.posix.join('collections', collectionId);
+}
+
+export function exportTargetId(target: Pick<ExportRecord, 'articleId' | 'collectionId'>): string {
+  if (target.articleId && !target.collectionId) return target.articleId;
+  if (target.collectionId && !target.articleId) return target.collectionId;
+  throw new Error('Export must reference exactly one article or collection');
+}
+
+export function exportDirectory(targetId: string, exportId: string): string {
+  return path.posix.join('exports', targetId, exportId);
 }
 
 export function chooseAvailableSlug(value: string, existingSlugs: Iterable<string>): string {

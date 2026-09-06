@@ -58,6 +58,7 @@
     "test": "node --test --test-concurrency=1 tests/*.test.ts",
     "benchmark": "node scripts/benchmark.ts",
     "library:maintain": "node scripts/maintain-library.ts",
+    "kindle:digest:prepare": "node scripts/prepare-kindle-digest.ts",
     "article:check": "tsc --noEmit -p tsconfig.scripts.json",
     "article:fetch": "node scripts/fetch-article.ts",
     "article:install-browser": "playwright install chromium",

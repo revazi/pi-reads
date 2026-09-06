@@ -12,11 +12,12 @@ Normative terms such as **must**, **must not**, and **should** describe behavior
 
 Pi Reads captures source material, creates optional AI-authored reading documents, renders those documents, and delivers exports through adapters.
 
-The product has four persistent domain records:
+The product has five persistent domain records:
 
 - **Source** — an immutable URL/feed/newsletter/clipboard/transcript/text/Markdown/file capture.
 - **Article** — a reading document in `archive`, `digest`, or `synthesis` mode.
 - **Citation** — a reference from generated prose to a captured source.
+- **Collection** — an ordered immutable reading pack of article snapshots.
 - **Export** — a reproducible artifact prepared for local, Obsidian, or Kindle delivery.
 
 Source capture and AI-authored output are separate operations and separate files.
@@ -40,11 +41,12 @@ Identifiers are opaque and prefixed by record type:
 - `src_…` for sources
 - `art_…` for articles
 - `cite_…` for citations
+- `col_…` for reading collections
 - `exp_…` for exports
 
 Slugs are presentation values and are not identifiers. Duplicate slugs are allowed across record IDs and must be disambiguated at export time without overwriting an existing artifact.
 
-Completed source, article, and export records are immutable. A correction or regeneration creates a new ID. Recaptured sources record predecessor/root lineage, and their archive articles point to the prior archive with `supersedesArticleId`; successors are derived by reversing those immutable edges.
+Completed source, article, collection, and export records are immutable. A correction or regeneration creates a new ID. Recaptured sources record predecessor/root lineage, and their archive articles point to the prior archive with `supersedesArticleId`; successors are derived by reversing those immutable edges.
 
 Writers must use create-only, atomic writes:
 
@@ -162,11 +164,19 @@ For `digest` and `synthesis` modes:
 
 Archive articles retain source provenance through their sole source record and do not need per-paragraph citations.
 
+## Reading collection contract
+
+A reading collection records 2–50 unique article IDs in explicit chapter order. Each ordered entry snapshots the immutable article's mode, title, body content hash, source IDs, citations, and generation provenance when present. Loading, EPUB rendering, verification, backup, and delivery fail closed if a snapshot no longer matches its referenced article.
+
+Collection EPUBs contain a navigation table of contents and exactly one XHTML spine item per ordered article. Each chapter displays its mode and source attribution, resolves its own citation markers/endnotes, and carries its required offline assets. Collections never merge article bodies or become source evidence.
+
+Interactive and scheduler-triggered preparation create only immutable collection and local EPUB records. The scheduler-safe CLI accepts explicit ordered article IDs and has no mail transport or send option. See [reading packs and scheduled Kindle preparation](reading-packs.md).
+
 ## Export contract
 
 An export records:
 
-- source article ID;
+- exactly one source article or collection ID;
 - format and local artifact;
 - optional copied assets needed by the artifact;
 - destination;
@@ -178,7 +188,7 @@ Exports are derived and may be regenerated under new export IDs. They never beco
 
 The Obsidian reading graph considers only delivered Markdown exports for the configured vault whose current note retains its `piReadsArticleId` frontmatter. It deterministically derives four fixed `Pi Reads/` views for the managed library, topics, reading status, and reading queue. Exported syntheses may receive a derived source-note link section so Obsidian exposes backlinks from exported archive notes; archive notes and immutable export artifacts are never changed. Rebuilds are byte-idempotent. Differing managed targets require exact-path approval, unmanaged path collisions are never overwritten, and write-time expected hashes reject edits made after preview.
 
-Kindle delivery is an external side effect. A successful Kindle export record must contain the prepared local export ID, interactive confirmation timestamp, and delivery timestamp. Dry-runs retain an immutable local EPUB or PDF and expose its export ID and content hash with only a redacted recipient outside the confirmation dialog. A later send verifies the requested article, format, path, byte length, and hash, sends those exact prepared bytes, and records delivery evidence by reference rather than copying the attachment. SMTP credentials and full Kindle/sender addresses must come from the operating-system credential store or environment overrides and must not be written to JSON configuration, manifests, logs, article metadata, Pi tool results, or Git.
+Kindle delivery is an external side effect. A successful Kindle export record must contain the prepared local export ID, interactive confirmation timestamp, and delivery timestamp. Dry-runs retain an immutable local EPUB or PDF and expose its export ID and content hash with only a redacted recipient outside the confirmation dialog. A later send verifies the requested article or collection, format, path, byte length, and hash, sends those exact prepared bytes, and records delivery evidence by reference rather than copying the attachment. SMTP credentials and full Kindle/sender addresses must come from the operating-system credential store or environment overrides and must not be written to JSON configuration, manifests, logs, article metadata, Pi tool results, or Git.
 
 ## Portable library maintenance
 
@@ -231,8 +241,11 @@ Configuration contains preferences, never credentials. Obsidian configuration ma
       <article-id>/
         manifest.json
         content.md
+  collections/
+    <collection-id>/
+      manifest.json
   exports/
-    <article-id>/
+    <article-or-collection-id>/
       <export-id>/
         manifest.json
         <artifact>
@@ -274,7 +287,7 @@ Legacy Markdown can be imported as a version 1 source plus archive article. Impo
 The following are fixed for version 1:
 
 1. The default library is `~/Documents/pi-reads`, outside the installed package.
-2. Sources, archive articles, generated articles, and exports occupy separate immutable paths.
+2. Sources, archive articles, generated articles, collections, and exports occupy separate immutable paths.
 3. The only article modes are `archive`, `digest`, and `synthesis`.
 4. Stable Pi tool names use the `reads_` prefix and the primary command is `/reads`.
 5. User configuration is named `pi-reads.json` and stores no credentials.

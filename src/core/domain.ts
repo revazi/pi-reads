@@ -193,10 +193,35 @@ export type ExportDestination =
   | { type: 'obsidian'; vaultName: string; notePath: string }
   | { type: 'kindle'; deviceLabel?: string };
 
-export interface ExportRecord {
+export interface ReadingCollectionEntry {
+  order: number;
+  articleId: string;
+  mode: ArticleMode;
+  title: string;
+  articleContentHash: Sha256Digest;
+  sourceIds: string[];
+  citations: Citation[];
+  generatedBy?: GeneratedBy;
+}
+
+export interface ReadingCollectionRecord {
   schemaVersion: 1;
   id: string;
-  articleId: string;
+  title: string;
+  slug: string;
+  articleIds: string[];
+  articles: ReadingCollectionEntry[];
+  createdAt: string;
+  createdBy: 'interactive' | 'scheduled' | 'tool';
+}
+
+type ExportTarget =
+  | { articleId: string; collectionId?: never }
+  | { collectionId: string; articleId?: never };
+
+interface ExportRecordFields {
+  schemaVersion: 1;
+  id: string;
   format: ExportFormat;
   destination: ExportDestination;
   status: ExportStatus;
@@ -212,6 +237,8 @@ export interface ExportRecord {
     failure?: string;
   };
 }
+
+export type ExportRecord = ExportRecordFields & ExportTarget;
 
 export type FrontmatterValue = string | number | boolean | string[];
 

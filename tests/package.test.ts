@@ -36,9 +36,11 @@ test('package manifest exposes installable Pi resources and production runtime d
     access(new URL('../extensions/pi-reads/index.ts', import.meta.url)),
     access(new URL('../schemas/v1/article-user-state.schema.json', import.meta.url)),
     access(new URL('../schemas/v1/citation-diagnostics.schema.json', import.meta.url)),
+    access(new URL('../schemas/v1/collection.schema.json', import.meta.url)),
     access(new URL('../schemas/v1/search-index.schema.json', import.meta.url)),
     access(new URL('../schemas/v1/source-content-index.schema.json', import.meta.url)),
     access(new URL('../schemas/v1/user-state-snapshot.schema.json', import.meta.url)),
+    access(new URL('../scripts/prepare-kindle-digest.ts', import.meta.url)),
     access(new URL('../skills/pi-reads/SKILL.md', import.meta.url)),
   ]);
 });

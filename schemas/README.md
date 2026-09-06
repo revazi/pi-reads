@@ -14,7 +14,8 @@ Canonical records:
 - `citation-diagnostics.schema.json` — bounded source-grounding and article-section citation diagnostics
 - `generation-template.schema.json` — versioned structured generation templates, immutable snapshots, and budget diagnostics
 - `article.schema.json` — an archive, digest, or synthesis reading document with optional backward-compatible coverage/diagnostic metadata
-- `export.schema.json` — a rendered artifact and destination attempt
+- `collection.schema.json` — an ordered immutable reading pack with article provenance snapshots
+- `export.schema.json` — a rendered article/collection artifact and destination attempt
 - `config.schema.json` — non-secret user configuration
 
 `common.schema.json` contains shared hashes, timestamps, paths, and stored-file definitions.

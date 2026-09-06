@@ -7,7 +7,6 @@
   "required": [
     "schemaVersion",
     "id",
-    "articleId",
     "format",
     "destination",
     "status",
@@ -25,6 +24,10 @@
     "articleId": {
       "type": "string",
       "pattern": "^art_[a-z0-9]{16,64}$"
+    },
+    "collectionId": {
+      "type": "string",
+      "pattern": "^col_[a-z0-9]{16,64}$"
     },
     "format": {
       "enum": ["markdown", "html", "pdf", "epub"]
@@ -88,7 +91,7 @@
           "properties": {
             "path": {
               "type": "string",
-              "pattern": "^exports/art_[a-z0-9]{16,64}/exp_[a-z0-9]{16,64}/"
+              "pattern": "^exports/(?:art|col)_[a-z0-9]{16,64}/exp_[a-z0-9]{16,64}/"
             }
           }
         }
@@ -106,7 +109,7 @@
             "properties": {
               "path": {
                 "type": "string",
-                "pattern": "^exports/art_[a-z0-9]{16,64}/exp_[a-z0-9]{16,64}/assets/"
+                "pattern": "^exports/(?:art|col)_[a-z0-9]{16,64}/exp_[a-z0-9]{16,64}/assets/"
               }
             }
           }
@@ -144,6 +147,12 @@
     }
   },
   "allOf": [
+    {
+      "oneOf": [
+        { "required": ["articleId"], "not": { "required": ["collectionId"] } },
+        { "required": ["collectionId"], "not": { "required": ["articleId"] } }
+      ]
+    },
     {
       "if": {
         "properties": {

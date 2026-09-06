@@ -16,7 +16,7 @@ const contentHash = `sha256:${'a'.repeat(64)}` as Sha256Digest;
 function record(
   destination: ExportRecord['destination'],
   format: ExportRecord['format'] = 'markdown',
-): ExportRecord {
+): ExportRecord & { articleId: string } {
   return {
     schemaVersion: 1,
     id: 'exp_aaaaaaaaaaaaaaaa',
@@ -160,6 +160,72 @@ test('Kindle handler keeps dry runs redacted and delegates sends to the centrali
   const sent = await executeKindleExport(headlessRequest, confirmedContext);
   assert.equal(sent.details.dryRun, false);
   assert.equal(deliveries, 1);
+});
+
+test('collection exports prepare EPUB only and headless Kindle sends fail before delivery', async () => {
+  const collectionId = 'col_cccccccccccccccc';
+  const collectionRecord: ExportRecord = {
+    ...record({ type: 'local' }, 'epub'),
+    articleId: undefined,
+    collectionId,
+    artifact: {
+      ...record({ type: 'local' }, 'epub').artifact,
+      path: `exports/${collectionId}/exp_aaaaaaaaaaaaaaaa/collection.epub`,
+    },
+  };
+  let deliveries = 0;
+  const preview = {
+    collectionId,
+    format: 'epub' as const,
+    recipient: 'reader@kindle.com',
+    redactedRecipient: 'r*****@kindle.com',
+    subject: 'Pi Reads: Collection',
+    filename: 'collection.epub',
+    contentType: 'application/epub+zip',
+    bytes: new Uint8Array([1, 2, 3]),
+    size: 3,
+    contentHash,
+    localExportId: collectionRecord.id,
+    artifactPath: '/tmp/collection.epub',
+    localManifestPath: '/tmp/collection.json',
+  };
+  const services = {
+    kindleConfig: { defaultFormat: 'epub' },
+    async getEpub() {
+      return {
+        async prepareCollection() {
+          return {
+            record: collectionRecord,
+            artifactPath: preview.artifactPath,
+            manifestPath: preview.localManifestPath,
+            validation: { files: [], manifestItems: 3, spineItems: 2, embeddedAssets: 0 },
+          };
+        },
+      };
+    },
+    async getKindle() {
+      return {
+        async previewPreparedCollection() { return preview; },
+        async deliver() { deliveries += 1; },
+      };
+    },
+  };
+  const context = handlerContext(services);
+  const local = await executeLocalExport(resolveReadsExportRequest({ collectionId }, context.services), context);
+  assert.equal(local.details.collectionId, collectionId);
+  assert.equal(local.details.format, 'epub');
+  assert.throws(
+    () => resolveReadsExportRequest({ collectionId, format: 'pdf' }, context.services),
+    /collections support only/u,
+  );
+  const send = resolveReadsExportRequest({
+    collectionId,
+    destination: 'kindle',
+    send: true,
+    preparedExportId: collectionRecord.id,
+  }, context.services);
+  await assert.rejects(() => executeKindleExport(send, context), /requires interactive confirmation/u);
+  assert.equal(deliveries, 0);
 });
 
 test('Obsidian handler delegates conflicts to the centralized fail-closed overwrite gate', async () => {
