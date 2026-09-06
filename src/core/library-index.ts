@@ -43,6 +43,8 @@ export interface LibraryIndexStats {
 }
 
 export interface LibraryIndexTransactionResult<T> {
+  /** Undo only new records if publishing the derived catalog fails. Runs under the mutation queue. */
+  rollback?: () => Promise<void>;
   value: T;
   sources: SourceRecord[];
   articles: ArticleRecord[];
@@ -321,25 +323,31 @@ export class LibraryIndexStore {
       const current = await this.loadOrRebuildLocked();
       await markDirty(this.libraryRoot, this.allowGitWorkingTree);
       const result = await operation(current);
-      const articles = [...result.articles].sort((left, right) =>
-        right.createdAt.localeCompare(left.createdAt) || left.id.localeCompare(right.id));
-      const next: LibraryIndex = {
-        schemaVersion: 1,
-        revision: current.revision + 1,
-        updatedAt: this.now().toISOString(),
-        catalog: await catalogStamp(this.libraryRoot),
-        sources: result.sources,
-        articles,
-      };
-      if (!parseLibraryIndex(next)) throw new Error('Refusing to write an invalid library index');
-      await writeLibraryFileAtomic(
-        this.libraryRoot,
-        LIBRARY_INDEX_PATH,
-        `${JSON.stringify(next)}\n`,
-        { allowGitWorkingTree: this.allowGitWorkingTree },
-      );
-      await clearDirty(this.libraryRoot);
-      return result.value;
+      try {
+        const articles = [...result.articles].sort((left, right) =>
+          right.createdAt.localeCompare(left.createdAt) || left.id.localeCompare(right.id));
+        const next: LibraryIndex = {
+          schemaVersion: 1,
+          revision: current.revision + 1,
+          updatedAt: this.now().toISOString(),
+          catalog: await catalogStamp(this.libraryRoot),
+          sources: result.sources,
+          articles,
+        };
+        if (!parseLibraryIndex(next)) throw new Error('Refusing to write an invalid library index');
+        await writeLibraryFileAtomic(
+          this.libraryRoot,
+          LIBRARY_INDEX_PATH,
+          `${JSON.stringify(next)}\n`,
+          { allowGitWorkingTree: this.allowGitWorkingTree },
+        );
+        await clearDirty(this.libraryRoot);
+        return result.value;
+      } catch (error) {
+        await result.rollback?.();
+        // Dirty marker/catalog directory stamps force recovery after compensation.
+        throw error;
+      }
     });
   }
 }

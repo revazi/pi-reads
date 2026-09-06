@@ -1,8 +1,13 @@
 import { StringEnum, Type } from '@earendil-works/pi-ai';
-import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
-import type { Citation } from '../../src/core/domain.ts';
-import type { CaptureResult } from '../../src/application/library-service.ts';
+import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
+import type { Citation, Sha256Digest } from '../../src/core/domain.ts';
+import type {
+  CaptureResult,
+  SaveGeneratedArticleInput,
+  StoredArticle,
+} from '../../src/application/library-service.ts';
 import type { SourceCoverageInput } from '../../src/core/source-coverage.ts';
+import type { MultiSourceSynthesisReview } from '../../src/core/synthesis-review.ts';
 import { executeReadsExport, resolveReadsExportRequest } from './export-handlers.ts';
 import {
   executeReadsLibrary,
@@ -11,6 +16,7 @@ import {
 } from './library-handlers.ts';
 import { sourceInput, withReadsMutationQueue as withFileMutationQueue } from './operations.ts';
 import { openReadsServices } from './runtime.ts';
+import { executeBatchIngest } from './batch-ingest.ts';
 
 const SourceKind = StringEnum(['url', 'text', 'markdown', 'file'] as const);
 const GeneratedMode = StringEnum(['digest', 'synthesis'] as const);
@@ -61,27 +67,119 @@ const CitationSchema = Type.Object({
   note: Type.Optional(Type.String()),
 });
 
+interface GeneratedToolParams {
+  mode: 'digest' | 'synthesis';
+  title: string;
+  slug?: string;
+  description?: string;
+  body: string;
+  sourceIds: string[];
+  citations: Citation[];
+  coverage: SourceCoverageInput;
+  reviewToken?: string;
+}
+
+function generatedArticleInput(params: GeneratedToolParams, ctx: ExtensionContext): SaveGeneratedArticleInput {
+  if (!ctx.model) throw new Error('An active Pi model is required to record generation provenance');
+  return {
+    mode: params.mode,
+    title: params.title,
+    ...(params.slug ? { slug: params.slug } : {}),
+    ...(params.description ? { description: params.description } : {}),
+    body: params.body,
+    sourceIds: params.sourceIds,
+    citations: params.citations,
+    coverage: params.coverage,
+    generatedBy: {
+      provider: ctx.model.provider,
+      model: ctx.model.id,
+      thinkingLevel: ctx.thinkingLevel,
+      sessionId: ctx.sessionManager.getSessionId(),
+      generatedAt: new Date().toISOString(),
+    },
+  };
+}
+
+function multiSourceReviewResult(review: MultiSourceSynthesisReview, libraryDir: string) {
+  const distribution = review.citationDistribution
+    .map(({ sourceId, citationCount }) => `${sourceId}:${citationCount}`)
+    .join(', ');
+  return {
+    content: [{
+      type: 'text' as const,
+      text: [
+        'Review required; no article was persisted.',
+        `Selected sources: ${review.selectedSourceIds.length}; used: ${review.usedSourceIds.length}; unused: ${review.unusedSourceIds.length}.`,
+        `Citation distribution: ${distribution}.`,
+        `Unused selected sources: ${review.unusedSourceIds.join(', ') || 'none'}.`,
+        `All ${review.articleSectionCount} non-empty article sections contain registered citation markers.`,
+        'Review these diagnostics, then rerun the exact reads_save_article request with reviewToken.',
+        `reviewToken: ${review.reviewToken}`,
+      ].join('\n'),
+    }],
+    details: { libraryDir, persisted: false, reviewRequired: true, review },
+  };
+}
+
+function storedGeneratedResult(result: StoredArticle, libraryDir: string) {
+  return {
+    content: [{
+      type: 'text' as const,
+      text: [
+        `Saved ${result.article.id} (${result.article.mode}, ${result.article.sourceCoverage!.policy}).`,
+        `Grounding: ${result.article.citationDiagnostics!.locatedCitationCount}/${result.article.citationDiagnostics!.citationCount} located; ${result.article.citationDiagnostics!.uncitedArticleSectionCount}/${result.article.citationDiagnostics!.articleSectionCount} article sections uncited.`,
+        ...(result.article.sourceCoverage?.warning ? [`Warning: ${result.article.sourceCoverage.warning}`] : []),
+      ].join('\n'),
+    }],
+    details: {
+      libraryDir,
+      articleId: result.article.id,
+      mode: result.article.mode,
+      slug: result.article.slug,
+      contentPath: result.contentPath,
+      manifestPath: result.manifestPath,
+      sourceCoverage: result.article.sourceCoverage,
+      citationDiagnostics: result.article.citationDiagnostics,
+    },
+  };
+}
+
 export function registerReadsTools(pi: ExtensionAPI): void {
   pi.registerTool({
     name: 'reads_ingest',
     label: 'Reads Ingest',
-    description: 'Capture URL, text, Markdown, or a local text file as an immutable source/archive; exact duplicates reuse records and changed canonical URLs require explicit recapture.',
+    description: 'Capture URL/text/Markdown/file, or kind batch with 1–50 items (1 MiB total; results <32 KiB). Per-item transactions retain successes; duplicates reuse IDs. Batch never recaptures.',
     promptSnippet: 'Capture or explicitly recapture a source',
     promptGuidelines: [
       'reads_ingest creates immutable archive prose; never rewrite or overwrite it, and set recapture true only after explicit user approval.',
     ],
     parameters: Type.Object({
-      kind: SourceKind,
-      value: Type.String(),
+      kind: StringEnum(['url', 'text', 'markdown', 'file', 'batch'] as const),
+      value: Type.Optional(Type.String()),
       label: Type.Optional(Type.String()),
       recapture: Type.Optional(Type.Boolean()),
+      items: Type.Optional(Type.Array(Type.Object({
+        kind: SourceKind,
+        value: Type.String({ maxLength: 262144 }),
+        label: Type.Optional(Type.String({ maxLength: 200 })),
+      }), { minItems: 1, maxItems: 50 })),
     }),
     async execute(_toolCallId, params, signal, onUpdate, ctx) {
+      if (params.kind === 'batch') {
+        if (!params.items || params.value !== undefined || params.label !== undefined || params.recapture !== undefined) {
+          throw new Error('Batch ingest requires only kind batch and items; recapture is individual and requires approval');
+        }
+        const services = await openReadsServices(ctx.cwd);
+        onUpdate?.({ content: [{ type: 'text', text: 'Capturing batch; completed items are retained…' }], details: {} });
+        return withFileMutationQueue(services.libraryDir, () => executeBatchIngest(params.items!, services.library, ctx.cwd, signal));
+      }
+      if (typeof params.value !== 'string' || params.items !== undefined) throw new Error('Single-source ingest requires value without items');
+      const input = sourceInput(params.kind, params.value, params.label, ctx.cwd);
       const services = await openReadsServices(ctx.cwd);
       onUpdate?.({ content: [{ type: 'text', text: `Capturing ${params.kind} source…` }], details: {} });
       const result = await withFileMutationQueue(services.libraryDir, () =>
         services.library.capture(
-          sourceInput(params.kind, params.value, params.label, ctx.cwd),
+          input,
           {},
           signal,
           { recapture: params.recapture ?? false },
@@ -116,7 +214,7 @@ export function registerReadsTools(pi: ExtensionAPI): void {
   pi.registerTool({
     name: 'reads_save_article',
     label: 'Reads Save Article',
-    description: 'Persist a generated digest or synthesis after exact quote, source-locator, citation, and complete/targeted coverage checks; never stores archive prose.',
+    description: 'Review/persist generated work after citation and coverage checks. Multi-source synthesis previews unused sources first, then requires its reviewToken.',
     promptSnippet: 'Save a cited generated article',
     promptGuidelines: [
       'reads_save_article requires nearby [^cite_id] markers backed by captured sources; digests require complete coverage and targeted coverage is synthesis-only.',
@@ -127,62 +225,35 @@ export function registerReadsTools(pi: ExtensionAPI): void {
       slug: Type.Optional(Type.String()),
       description: Type.Optional(Type.String()),
       body: Type.String(),
-      sourceIds: Type.Array(Type.String(), { minItems: 1 }),
+      sourceIds: Type.Array(Type.String(), { minItems: 1, uniqueItems: true }),
       citations: Type.Array(CitationSchema, { minItems: 1 }),
       coverage: Type.Object({
         policy: CoveragePolicy,
         sources: Type.Array(CoverageEvidenceSchema, { minItems: 1 }),
       }),
+      reviewToken: Type.Optional(Type.String({ pattern: '^sha256:[0-9a-f]{64}$' })),
     }),
     async execute(_toolCallId, params, _signal, onUpdate, ctx) {
       const services = await openReadsServices(ctx.cwd);
-      if (!ctx.model) {
-        throw new Error('An active Pi model is required to record generation provenance');
+      const toolParams = params as GeneratedToolParams;
+      const needsReview = toolParams.mode === 'synthesis' && toolParams.sourceIds.length >= 2 && !toolParams.reviewToken;
+      onUpdate?.({
+        content: [{ type: 'text', text: `${needsReview ? 'Reviewing' : 'Saving'} ${toolParams.mode} article…` }],
+        details: {},
+      });
+      const input = generatedArticleInput(toolParams, ctx);
+      if (needsReview) {
+        const review = await withFileMutationQueue(services.libraryDir, () =>
+          services.library.reviewMultiSourceSynthesis(input),
+        );
+        return multiSourceReviewResult(review, services.libraryDir);
       }
-      onUpdate?.({ content: [{ type: 'text', text: `Saving ${params.mode} article…` }], details: {} });
-      const generatedAt = new Date().toISOString();
       const result = await withFileMutationQueue(services.libraryDir, () =>
-        services.library.saveGenerated({
-          mode: params.mode,
-          title: params.title,
-          ...(params.slug ? { slug: params.slug } : {}),
-          ...(params.description ? { description: params.description } : {}),
-          body: params.body,
-          sourceIds: params.sourceIds,
-          citations: params.citations as Citation[],
-          coverage: params.coverage as SourceCoverageInput,
-          generatedBy: {
-            provider: ctx.model!.provider,
-            model: ctx.model!.id,
-            thinkingLevel: ctx.thinkingLevel,
-            sessionId: ctx.sessionManager.getSessionId(),
-            generatedAt,
-          },
-        }),
+        services.library.saveGenerated(input, toolParams.reviewToken
+          ? { reviewToken: toolParams.reviewToken as Sha256Digest }
+          : {}),
       );
-
-      return {
-        content: [
-          {
-            type: 'text',
-            text: [
-              `Saved ${result.article.id} (${result.article.mode}, ${result.article.sourceCoverage!.policy}).`,
-              `Grounding: ${result.article.citationDiagnostics!.locatedCitationCount}/${result.article.citationDiagnostics!.citationCount} located; ${result.article.citationDiagnostics!.uncitedArticleSectionCount}/${result.article.citationDiagnostics!.articleSectionCount} article sections uncited.`,
-              ...(result.article.sourceCoverage?.warning ? [`Warning: ${result.article.sourceCoverage.warning}`] : []),
-            ].join('\n'),
-          },
-        ],
-        details: {
-          libraryDir: services.libraryDir,
-          articleId: result.article.id,
-          mode: result.article.mode,
-          slug: result.article.slug,
-          contentPath: result.contentPath,
-          manifestPath: result.manifestPath,
-          sourceCoverage: result.article.sourceCoverage,
-          citationDiagnostics: result.article.citationDiagnostics,
-        },
-      };
+      return storedGeneratedResult(result, services.libraryDir);
     },
   });
 

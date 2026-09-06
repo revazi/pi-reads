@@ -21,7 +21,7 @@ The baseline covers:
 - extension cold import and registration in an isolated Node.js process;
 - direct archive-only `/reads` capture with no model handoff or model tool calls;
 - a long-source digest workflow;
-- a five-source synthesis workflow;
+- a five-source synthesis workflow including its mandatory no-write review and exact-token save;
 - library listing;
 - EPUB export;
 - Kindle EPUB preview and confirmed delivery through a fake transport.

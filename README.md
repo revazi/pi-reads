@@ -17,7 +17,7 @@ Pi Reads turns web pages, pasted text, Markdown, and local files into a private 
 - **Reading destinations** — exports to local files, Obsidian, and Kindle.
 - **Safe delivery** — asks before overwriting Obsidian files or sending Kindle email.
 
-Archive content and AI-authored content are always stored separately.
+Archive content and AI-authored content are always stored separately. Mixed URL/file/text collections can use `reads_ingest` batch mode: bounded concurrent acquisition, per-item outcomes, duplicate reuse, and cancellation without discarding successful captures. See [batch ingestion](docs/batch-ingestion.md).
 
 ## Quick start
 
@@ -42,6 +42,8 @@ Choose a mode:
 | `synthesis` | a newly written cited article |
 
 Digests use verified complete-source coverage. Focused syntheses may use targeted coverage, which records omitted sections and carries a non-comprehensive warning. Long sources are traversed through bounded continuation cursors rather than one unbounded model-context load. Before saving generated work, Pi Reads resolves citation locators, verifies quoted text against immutable sources, and reports bounded uncited-section diagnostics.
+
+For an ordered synthesis from several existing captures, run `/reads`, choose **Captured sources**, and select 2–20 sources in order. Pi Reads plans bounded retrieval for each source and requires a no-write review that reports citation distribution and unused selected sources before the exact draft can be persisted. See [multi-source cited synthesis](docs/multi-source-synthesis.md).
 
 Then choose an output such as Markdown, PDF, EPUB, Obsidian, or Kindle.
 
@@ -145,6 +147,8 @@ The original deterministic `article:*` print workflow remains supported. Contrib
 ## Documentation
 
 - [Library verification, backup, and restore](docs/library-maintenance.md)
+- [Transactional batch ingestion](docs/batch-ingestion.md)
+- [Multi-source cited synthesis](docs/multi-source-synthesis.md)
 - [Performance and token-efficiency benchmarks](docs/benchmarks.md)
 - [EPUB and Kindle delivery](docs/epub-and-kindle.md)
 - [Obsidian integration](docs/obsidian.md)

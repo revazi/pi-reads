@@ -367,7 +367,7 @@ export async function runBenchmarkSuite(options: BenchmarkSuiteOptions = {}): Pr
     await measure(
       'synthesis-five-source',
       'multi-source (5 medium sources)',
-      6,
+      7,
       fixtures.multiSource.reduce((sum, fixture) => sum + fixture.markdown.length, 0),
       async () => {
         const captures = [];
@@ -380,15 +380,17 @@ export async function runBenchmarkSuite(options: BenchmarkSuiteOptions = {}): Pr
           quote: 'deterministic reading-library behavior',
         }));
         const body = citations.map((citation, index) => `Source ${index + 1} contributes a bounded benchmark observation.[^${citation.id}]`).join('\n\n');
-        await library.saveGenerated({
-          mode: 'synthesis',
+        const synthesisInput = {
+          mode: 'synthesis' as const,
           title: 'Benchmark five-source synthesis',
           body,
           sourceIds: captures.map((capture) => capture.source.id),
           citations,
           coverage: await completeCoverage(library, captures.map((capture) => capture.source.id)),
           generatedBy: { provider: 'benchmark', model: 'deterministic-fixture', generatedAt: now().toISOString() },
-        });
+        };
+        const review = await library.reviewMultiSourceSynthesis(synthesisInput);
+        await library.saveGenerated(synthesisInput, { reviewToken: review.reviewToken });
       },
     );
 
