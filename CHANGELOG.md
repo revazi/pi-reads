@@ -4,8 +4,11 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-09-06
+
 ### Added
 
+- Deterministic performance and model-context benchmarks with opt-in budget gates for extension registration, archive/digest/synthesis workflows, library listing, EPUB/PDF export, and fake-transport Kindle preview/send.
 - Offline `library:maintain` verification, full derived-index rebuilding, credential-free portable directory backups, and create-only restore into a new library. Bounded recovery findings cover schemas, hashes, archive fidelity, citations, lineage, state, and export references; restore preserves canonical bytes and refuses collisions, unsafe paths, symlinks, and tampered inventories.
 - Mixed `reads_ingest` batches of 1–50 URL/file/text/Markdown inputs with bounded concurrency, ordered compact outcomes, duplicate reuse, and abort propagation. Per-item compensation removes only newly created source/archive/index records on ordinary publication failures, while retaining successful siblings; batch recapture remains forbidden.
 - Ordered 2–20-source `/reads` synthesis planning with hash-bound bounded retrieval, section-level citation enforcement, and a mandatory no-write citation-distribution/unused-source review before exact-token persistence with active Pi provenance.
@@ -93,7 +96,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 - Retain the original `article:*` print workflow and `skills/irakli-reads` compatibility entry point while the repository transitions to Pi Reads.
 
-[Unreleased]: https://github.com/revazi/pi-reads/compare/v1.1.1...HEAD
+[Unreleased]: https://github.com/revazi/pi-reads/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/revazi/pi-reads/compare/v1.1.1...v1.2.0
 [1.1.1]: https://github.com/revazi/pi-reads/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/revazi/pi-reads/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/revazi/pi-reads/compare/v1.0.0...v1.0.1
