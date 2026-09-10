@@ -79,7 +79,7 @@
     "fflate": "0.8.3",
     "jsdom": "29.1.1",
     "marked": "18.0.10",
-    "nodemailer": "9.0.5",
+    "nodemailer": "9.1.1",
     "playwright": "1.62.1",
     "postal-mime": "3.0.0",
     "shiki": "4.4.3",
