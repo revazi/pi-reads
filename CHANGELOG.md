@@ -4,6 +4,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Security
+
+- Upgraded Astro and Nodemailer to patched releases, including patched Sharp, SVGO, and js-yaml transitive dependencies, to resolve the current Dependabot alerts.
+
 ## [1.2.0] - 2026-09-06
 
 ### Added
