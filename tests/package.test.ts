@@ -29,7 +29,7 @@ test('package manifest exposes installable Pi resources and production runtime d
   assert.equal(manifest.dependencies?.['@napi-rs/keyring'], '1.3.0');
   assert.ok(manifest.dependencies?.playwright);
   assert.equal(manifest.dependencies?.fflate, '0.8.3');
-  assert.equal(manifest.dependencies?.nodemailer, '9.0.5');
+  assert.equal(manifest.dependencies?.nodemailer, '9.1.1');
   assert.equal(manifest.devDependencies?.playwright, undefined);
 
   await Promise.all([
