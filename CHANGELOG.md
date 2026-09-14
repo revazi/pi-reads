@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [1.2.1] - 2026-09-14
+
 ### Security
 
 - Upgraded Astro and Nodemailer to patched releases, including patched Sharp, SVGO, and js-yaml transitive dependencies, to resolve the current Dependabot alerts.
@@ -100,7 +102,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 - Retain the original `article:*` print workflow and `skills/irakli-reads` compatibility entry point while the repository transitions to Pi Reads.
 
-[Unreleased]: https://github.com/revazi/pi-reads/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/revazi/pi-reads/compare/v1.2.1...HEAD
+[1.2.1]: https://github.com/revazi/pi-reads/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/revazi/pi-reads/compare/v1.1.1...v1.2.0
 [1.1.1]: https://github.com/revazi/pi-reads/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/revazi/pi-reads/compare/v1.0.1...v1.1.0
